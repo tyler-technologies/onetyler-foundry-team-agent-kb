@@ -2,21 +2,28 @@
 #
 # Apply repo governance for onetyler-foundry-team-agent-kb.
 #
-# Idempotent — safe to re-run to re-assert settings, and designed to be run TWICE
-# in this repo's life:
+# These settings mirror tyler-technologies/tcp-oc-reports-tools exactly (verified
+# against its live config on 2026-08-21), which is the reference behaviour we want:
 #
-#   1. Now, while the repo lives under the personal account vijay-tylertech.
-#      The admin-team grant is skipped (GitHub teams exist only inside orgs).
-#   2. Again after the repo is transferred into the tyler-technologies org,
-#      at which point the onetyler-tcp-pm-admins grant is applied.
+#   * A pull request is REQUIRED to change main — for everyone, admins included
+#     (enforce_admins=true). That gives every change a diff, a record, and a place
+#     to hang CI later.
+#   * ZERO required approving reviews. This is what makes admin changes effectively
+#     "auto-approved": the PR is immediately mergeable by anyone with write access,
+#     with no bot, no workflow, and no second reviewer needed. Outside contributors
+#     can open a PR but still cannot merge it — merging needs push access.
+#   * Force pushes and branch deletion on main are blocked.
+#
+# Idempotent — safe to re-run to re-assert settings after manual changes.
 #
 # Requires: gh CLI authenticated as someone with admin on the repo.
 # Usage:  ./scripts/setup-repo-governance.sh [owner/repo]
 #
 set -euo pipefail
 
-SLUG="${1:-vijay-tylertech/onetyler-foundry-team-agent-kb}"
-TEAM="onetyler-tcp-pm-admins"
+SLUG="${1:-tyler-technologies/onetyler-foundry-team-agent-kb}"
+ADMIN_TEAM="onetyler-tcp-pm-admins"
+PUSH_TEAM="global-fte"
 BRANCH="main"
 OWNER="${SLUG%%/*}"
 
@@ -28,52 +35,38 @@ OWNER_TYPE="$(gh api "repos/${SLUG}" -q '.owner.type' 2>/dev/null)" || {
 echo "    owner: ${OWNER} (${OWNER_TYPE})"
 
 # ---------------------------------------------------------------------------
-# 1. Grant the admin team — organization repos only
+# 1. Team grants (organization repos only — GitHub teams don't exist for users)
 # ---------------------------------------------------------------------------
 if [[ "${OWNER_TYPE}" == "Organization" ]]; then
-  echo "==> Granting '${TEAM}' admin permission"
-  gh api -X PUT "orgs/${OWNER}/teams/${TEAM}/repos/${SLUG}" -f permission=admin
+  echo "==> Granting '${ADMIN_TEAM}' = admin"
+  gh api -X PUT "orgs/${OWNER}/teams/${ADMIN_TEAM}/repos/${SLUG}" -f permission=admin
+  echo "==> Granting '${PUSH_TEAM}' = push"
+  gh api -X PUT "orgs/${OWNER}/teams/${PUSH_TEAM}/repos/${SLUG}" -f permission=push
   echo "    done"
 else
-  echo "==> SKIPPING team grant: '${OWNER}' is a user account, not an org."
-  echo "    GitHub teams exist only inside orgs. To add ${TEAM}, first transfer"
-  echo "    this repo to tyler-technologies, then re-run this script with:"
-  echo "      ./scripts/setup-repo-governance.sh tyler-technologies/${SLUG#*/}"
+  echo "==> SKIPPING team grants: '${OWNER}' is a user account, not an org."
 fi
 
 # ---------------------------------------------------------------------------
-# 2. Repo-level merge settings
-#    Auto-merge must be enabled at the repo level before `gh pr merge --auto`
-#    (and the auto-approve workflow) can use it.
+# 2. Merge settings — matching the reference repo
+#    Auto-merge stays OFF: with zero required approvals and no required status
+#    checks, a PR is mergeable the moment it opens, so "merge when checks pass"
+#    would have nothing to wait for.
 # ---------------------------------------------------------------------------
-echo "==> Enabling auto-merge; squash-only; delete merged branches"
+echo "==> Merge settings (all three methods; auto-merge off; keep branches)"
 gh api -X PATCH "repos/${SLUG}" \
-  -F allow_auto_merge=true \
+  -F allow_auto_merge=false \
   -F allow_squash_merge=true \
-  -F allow_merge_commit=false \
-  -F allow_rebase_merge=false \
-  -F delete_branch_on_merge=true \
-  -q '"    auto_merge=" + (.allow_auto_merge|tostring) + " squash_only=" + (.allow_squash_merge|tostring)'
+  -F allow_merge_commit=true \
+  -F allow_rebase_merge=true \
+  -F delete_branch_on_merge=false \
+  -q '"    squash=" + (.allow_squash_merge|tostring) + " merge=" + (.allow_merge_commit|tostring) + " rebase=" + (.allow_rebase_merge|tostring) + " auto_merge=" + (.allow_auto_merge|tostring)'
 
 # ---------------------------------------------------------------------------
-# 3. Let GitHub Actions approve PRs
-#    Default is OFF; without this the auto-approve workflow cannot submit a review.
-#    An org-level policy can override it after transfer — if approvals start
-#    failing, set the same flag at orgs/<org>/actions/permissions/workflow.
+# 3. Branch protection on main — classic protection, no rulesets
+#    (the reference repo has zero rulesets; all of this is classic protection)
 # ---------------------------------------------------------------------------
-echo "==> Allowing Actions to approve pull requests"
-gh api -X PUT "repos/${SLUG}/actions/permissions/workflow" \
-  -F default_workflow_permissions=write \
-  -F can_approve_pull_request_reviews=true
-echo "    done"
-
-# ---------------------------------------------------------------------------
-# 4. Branch protection on main
-#    enforce_admins=true means the PR gate applies to admins too — nobody pushes
-#    straight to main. That is what makes the gate real; the auto-approve workflow
-#    is what keeps it from blocking the people who own the repo.
-# ---------------------------------------------------------------------------
-echo "==> Protecting '${BRANCH}': PR required, 1 approval, admins included"
+echo "==> Protecting '${BRANCH}': PR required, 0 approvals, admins included"
 gh api -X PUT "repos/${SLUG}/branches/${BRANCH}/protection" --input - <<'JSON'
 {
   "required_status_checks": null,
@@ -81,13 +74,13 @@ gh api -X PUT "repos/${SLUG}/branches/${BRANCH}/protection" --input - <<'JSON'
   "required_pull_request_reviews": {
     "dismiss_stale_reviews": false,
     "require_code_owner_reviews": false,
-    "required_approving_review_count": 1,
+    "required_approving_review_count": 0,
     "require_last_push_approval": false
   },
   "restrictions": null,
   "allow_force_pushes": false,
   "allow_deletions": false,
-  "required_conversation_resolution": true,
+  "required_conversation_resolution": false,
   "required_linear_history": false,
   "block_creations": false
 }
@@ -95,12 +88,12 @@ JSON
 echo "    done"
 
 # ---------------------------------------------------------------------------
-# 5. Report
+# 4. Report
 # ---------------------------------------------------------------------------
 echo
 echo "==> Final state"
 gh api "repos/${SLUG}/branches/${BRANCH}/protection" -q '
-  "    PR required:        yes (approvals: " + (.required_pull_request_reviews.required_approving_review_count|tostring) + ")",
+  "    PR required:        yes (approvals required: " + (.required_pull_request_reviews.required_approving_review_count|tostring) + ")",
   "    applies to admins:  " + (.enforce_admins.enabled|tostring),
   "    force pushes:       " + (.allow_force_pushes.enabled|tostring),
   "    branch deletion:    " + (.allow_deletions.enabled|tostring)'
@@ -108,6 +101,6 @@ if [[ "${OWNER_TYPE}" == "Organization" ]]; then
   gh api "repos/${SLUG}/teams" -q '.[] | "    team: " + .slug + " = " + .permission'
 fi
 echo
-echo "Governance applied. Direct pushes to ${BRANCH} are blocked for everyone,"
-echo "including admins. Admin PRs auto-approve and auto-merge via"
-echo ".github/workflows/auto-approve-admin-prs.yml."
+echo "Governance applied, mirroring tcp-oc-reports-tools. Direct pushes to ${BRANCH}"
+echo "are blocked for everyone including admins; admin PRs need no approval and can"
+echo "be merged immediately."
