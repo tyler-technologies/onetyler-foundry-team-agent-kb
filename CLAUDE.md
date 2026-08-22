@@ -344,12 +344,15 @@ collections in its config).
 Red flags: zero results for content that should match, or results with `len=0` (the file
 indexed but produced no text).
 
-**`ingestionStatus` lags the real index in both directions.** Observed 2026-08-22: six
-replaced files sat at `ingesting` for well over an hour while retrieval was *already*
-serving the new chunks and the superseded ones were gone. So don't wait on the status
-field to confirm a content change landed — assert on content instead. Probe for a string
-that exists **only** in the new version, and separately confirm a string unique to the
-**old** version returns nothing:
+**Retrieval can go live before `ingestionStatus` flips.** Measured 2026-08-22 on a 6-file
+replace in `OT-OpsCenter`: retrieval was already serving the new chunks (and had purged the
+superseded ones) within ~100 seconds, while the status field stayed `ingesting` until
+**~6 minutes** after upload. So a content probe confirms a change sooner and more reliably
+than the status field — but expect **minutes, not hours**. If files are still `ingesting`
+after ~30 minutes, treat that as a real problem worth investigating, not as normal lag.
+
+To confirm, probe for a string that exists **only** in the new version, and separately
+confirm a string unique to the **old** version returns nothing:
 
 ```bash
 # did the new text land, and is the old text gone?
@@ -465,7 +468,7 @@ Full conventions are in `README.md`. The essentials:
 | `GET /api/agents/{id}` → 404 | Wrong route for config; use `GET /api/configurable-agents/{id}`. The `/api/agents` prefix only serves streaming/generation |
 | Agent config shows fewer KB files than the collection | The config's file list is a **stale cache**. The collection endpoint is authoritative |
 | File `ingested` but agent says it can't find content | Probe retrieval. Re-sync won't fix an empty index — delete and re-upload |
-| Files stuck at `ingesting` for hours | Often already reindexed. Assert on retrieved *content*, not the status field |
+| Files still `ingesting` after a few minutes | Normal up to ~6 min; retrieval often live already. Assert on retrieved *content*. Past ~30 min, investigate |
 | `POST /sync` → "Content-Type must be application/json" | Add `-H "Content-Type: application/json"`; not a transient error, retrying won't help |
 | Uploaded file shows `application/octet-stream` | Missing `;type=text/markdown` on the `-F` argument |
 | `POST /sync` → 500 | Transient Bedrock job conflict; retry every ~45s |
