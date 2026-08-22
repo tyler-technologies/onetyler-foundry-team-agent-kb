@@ -218,10 +218,18 @@ prompt bug.
 
 ### The model you must internalize
 
-**There is no update-in-place.** A KB file is immutable once uploaded. "Updating" a
-knowledge file means: upload the new version, delete the old record, then sync. Uploading a
-file whose name already exists does **not** cleanly replace it — check the collection's file
-list afterwards and delete duplicates.
+**Re-uploading the same filename replaces it cleanly, in place.** Verified 2026-08-22 on
+`OT-OpsCenter`: the response returns the **same `id`** with `wasUpdated: true`, the new
+`fileSize`, and `ingestionStatus` reset to `pending`. The collection file count does not
+change and **no duplicates are created**. You do not need to delete the old record first.
+
+**The filename is the identity key.** So a *rename* is not an update — uploading
+`NewName.md` adds a second record and leaves `OldName.md` in place. Renaming therefore
+requires upload-new → `DELETE` old → verify count.
+
+Always pass an explicit mime type: `-F "files=@X.md;type=text/markdown"`. Without it curl
+sends `application/octet-stream`, which lands in the file record and makes the collection
+inconsistent with files uploaded through the UI.
 
 ### Endpoints
 
@@ -276,25 +284,33 @@ terminal → re-sync until everything reports `ingested`.**
 ```bash
 UA="claude-code-foundry-kb/1.0"; B="https://foundry.tylertechai.com"; COL="OT-OpsCenter"
 
-# upload (repeat -F per file, max 10 per request)
+# upload (repeat -F per file, max 10 per request; ALWAYS set the mime type)
 curl -s -A "$UA" -H "X-API-Key: $FOUNDRY_API_KEY" \
-  -F "files=@Knowledge-OpsCenter/Misc-Links.md" \
-  -F "files=@Knowledge-OpsCenter/_START_HERE.md" \
+  -F "files=@Knowledge-OpsCenter/Misc-Links.md;type=text/markdown" \
+  -F "files=@Knowledge-OpsCenter/_START_HERE.md;type=text/markdown" \
   "$B/api/tenant-knowledge-base/collections/$COL/files"
 
 # ...all other batches...
 
-# ONE consolidated sync
+# ONE consolidated sync — Content-Type header is REQUIRED even with no body
 curl -s -X POST -A "$UA" -H "X-API-Key: $FOUNDRY_API_KEY" \
+  -H "Content-Type: application/json" \
   "$B/api/tenant-knowledge-base/sync"       # -> {"jobId":"...","status":"STARTING"}
 
-# poll (jobs on a large shared tenant can take hours)
+# poll (jobs on a large shared tenant can take a long time)
 curl -s -A "$UA" -H "X-API-Key: $FOUNDRY_API_KEY" \
   "$B/api/tenant-knowledge-base/sync/<JOB_ID>"
 ```
 
-`POST /sync` returns intermittent 500s (`{"error":"Failed to start sync"}`) on Bedrock job
-conflicts — retry every ~45s, it usually succeeds within a few attempts.
+Omitting `Content-Type: application/json` on `POST /sync` returns
+`{"error":"Content-Type must be application/json"}` — easy to mistake for a transient
+failure and retry pointlessly. `POST /sync` *also* returns genuine intermittent 500s
+(`{"error":"Failed to start sync"}`) on Bedrock job conflicts; retry those every ~45s.
+
+**If you uploaded a single batch (≤10 files), you probably don't need a manual sync at
+all** — the upload's own auto-sync picks it up, and the files will already be `ingesting`
+by the time you look. Check statuses before starting another job; launching a second sync
+while one is running just queues behind it.
 
 The sync job covers the **whole tenant** data source, so `numberOfDocumentsScanned` and
 `numberOfDocumentsFailed` include other teams' files. Judge your collection by its own file
@@ -328,6 +344,24 @@ collections in its config).
 Red flags: zero results for content that should match, or results with `len=0` (the file
 indexed but produced no text).
 
+**`ingestionStatus` lags the real index in both directions.** Observed 2026-08-22: six
+replaced files sat at `ingesting` for well over an hour while retrieval was *already*
+serving the new chunks and the superseded ones were gone. So don't wait on the status
+field to confirm a content change landed — assert on content instead. Probe for a string
+that exists **only** in the new version, and separately confirm a string unique to the
+**old** version returns nothing:
+
+```bash
+# did the new text land, and is the old text gone?
+... | python3 -c "
+import json,sys
+rs=json.load(sys.stdin)
+print('new:', sum('<STRING ONLY IN NEW VERSION>' in (r.get('content') or '') for r in rs))
+print('old:', sum('<STRING ONLY IN OLD VERSION>' in (r.get('content') or '') for r in rs))"
+```
+
+`new>0 and old==0` means the reindex is done regardless of what the status field says.
+
 Note that **re-sync cannot repair an already-indexed file** — Bedrock skips what it
 considers indexed. Delete and re-upload instead.
 
@@ -351,6 +385,9 @@ file in the collection** rather than renaming the existing one. To rename proper
 This currently applies to `Knowledge-TylerIdentity/Docusaurus-Identity.md`, which was
 renamed locally from `tyler-identity-knowledge-base.md` — the name still present in
 `TCP-KB-Identity`. **Do not reconcile that one**; see Hard Rule 1.
+
+Note the asymmetry: re-uploading the *same* name is a clean in-place replace (see "The
+model you must internalize"), so ordinary content updates need no deletion. Only renames do.
 
 ---
 
@@ -428,6 +465,9 @@ Full conventions are in `README.md`. The essentials:
 | `GET /api/agents/{id}` → 404 | Wrong route for config; use `GET /api/configurable-agents/{id}`. The `/api/agents` prefix only serves streaming/generation |
 | Agent config shows fewer KB files than the collection | The config's file list is a **stale cache**. The collection endpoint is authoritative |
 | File `ingested` but agent says it can't find content | Probe retrieval. Re-sync won't fix an empty index — delete and re-upload |
+| Files stuck at `ingesting` for hours | Often already reindexed. Assert on retrieved *content*, not the status field |
+| `POST /sync` → "Content-Type must be application/json" | Add `-H "Content-Type: application/json"`; not a transient error, retrying won't help |
+| Uploaded file shows `application/octet-stream` | Missing `;type=text/markdown` on the `-F` argument |
 | `POST /sync` → 500 | Transient Bedrock job conflict; retry every ~45s |
 | zsh poll loop breaks | Don't name a shell variable `status` — it's a read-only builtin |
 
