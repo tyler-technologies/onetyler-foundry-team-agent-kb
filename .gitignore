@@ -1,0 +1,19 @@
+# Never commit credentials to this repo.
+*.env
+.env*
+foundry-secrets*
+*secrets*
+*credentials*
+*.pem
+*.key
+
+# Local scratch / transcript dumps (may contain customer conversation data)
+transcripts/
+*_dump.json
+foundry_*.json
+/tmp/
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/
