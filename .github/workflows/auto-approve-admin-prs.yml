@@ -1,0 +1,43 @@
+name: Auto-approve and auto-merge admin PRs
+
+# Why this exists: branch protection on `main` requires a pull request with one
+# approving review, and GitHub will not let a PR author approve their own PR. The
+# onetyler-tcp-pm-admins team is small, so without this workflow a maintainer's own
+# PR could never satisfy the gate. This approves PRs opened by people who already
+# have write access and turns on auto-merge, so the PR remains an audit trail and a
+# CI hook point without blocking the people who own the repo.
+#
+# Outside contributions (fork PRs on this public repo) are deliberately NOT
+# auto-approved — they fall through to a human review.
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  auto-approve:
+    runs-on: ubuntu-latest
+    # author_association is OWNER / MEMBER / COLLABORATOR only for people with
+    # existing access. GITHUB_TOKEN cannot query org team membership, so this is
+    # the closest check available without adding a PAT secret; because
+    # onetyler-tcp-pm-admins is the only team with write access, the two sets
+    # coincide in practice. Fork PRs report CONTRIBUTOR or NONE and are skipped.
+    if: >-
+      github.event.pull_request.draft == false &&
+      contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.pull_request.author_association)
+    steps:
+      - name: Approve the pull request
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: gh pr review "$PR_URL" --approve --body "Auto-approved: opened by a user with write access (${{ github.event.pull_request.author_association }})."
+
+      - name: Enable auto-merge
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: gh pr merge "$PR_URL" --auto --squash
