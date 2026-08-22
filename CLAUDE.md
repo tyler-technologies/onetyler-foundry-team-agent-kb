@@ -19,8 +19,11 @@ depth, but never assume they are present.)
 2. **Never commit credentials.** No API keys, tokens, or passwords in any file, including
    knowledge files. `.gitignore` blocks the obvious names but is not a substitute for
    checking. The Foundry API key lives only in the environment.
-3. **Never commit customer conversation data.** Transcripts may contain real citizen and
-   staff conversations. Write dumps to a scratch directory outside the repo.
+3. **Never commit a RAW transcript dump.** Reviewable transcripts under `transcripts/` are
+   tracked on purpose, but only ever as written by `scripts/fetch_transcripts.py`, which
+   redacts credentials, staff emails, and tokens on the way in. Raw API output goes to a
+   scratch dir outside the repo. Never hand-write a transcript file or bypass the script —
+   agents have been observed reproducing knowledge-base credentials verbatim in answers.
 4. **`main` is protected.** A pull request is required for every change, including from
    admins. Zero approvals are required, so you can merge your own PR — but you cannot push
    to `main` directly. Branch, PR, merge.
@@ -348,6 +351,49 @@ file in the collection** rather than renaming the existing one. To rename proper
 This currently applies to `Knowledge-TylerIdentity/Docusaurus-Identity.md`, which was
 renamed locally from `tyler-identity-knowledge-base.md` — the name still present in
 `TCP-KB-Identity`. **Do not reconcile that one**; see Hard Rule 1.
+
+---
+
+## Acting on transcript reviews
+
+`transcripts/` holds preserved conversation history, one markdown file per conversation,
+with review fields in the frontmatter. Humans review; you act on what they wrote. Full
+workflow and field definitions: `transcripts/README.md`.
+
+**To find work:**
+
+```bash
+python3 scripts/review_status.py --actions   # reviewed items with an open KB action
+python3 scripts/review_status.py             # dashboard + regenerate INDEX.md
+```
+
+**Only act on files with `review_status: reviewed`.** A `pending` file has not been looked
+at by a human; do not infer corpus changes from it unprompted.
+
+For each open action:
+
+1. Read the transcript — the `diagnosis` field, and the reviewer's "should have said" text
+   in the `<!-- review:N -->` block.
+2. **Respect the diagnosis.** It encodes whether this is a knowledge problem at all:
+   `search-empty` and `search-irrelevant` are corpus problems; `no-search` and
+   `retrieved-ok-answered-badly` are agent-prompt problems, and `routing-only` is a team
+   routing-rules problem. Do not edit a knowledge file to paper over a prompt bug — say so
+   and leave `kb_action: none`.
+3. Make the edit in the file(s) named by `kb_files`, following the conventions below.
+4. Update that folder's `_START_HERE.md` if you added, renamed, or removed a file.
+5. Set `action_status: applied` in the transcript frontmatter.
+6. Re-run `review_status.py` to refresh `INDEX.md`.
+7. List the files needing re-upload to Foundry, and **ask before pushing** (Hard Rule 5).
+
+If a reviewer set `reassign_to`, the fix is usually in the **team routing table** in
+`README.md`, or in the sibling-agent hand-off guidance inside the relevant
+`_START_HERE.md` — not in the answer content. Repeated reassignments to the same target
+are the strongest signal the routing rules need work.
+
+**Pulling new transcripts:** `python3 scripts/fetch_transcripts.py`. It never overwrites an
+existing file, so review edits are safe. It also drops canned starting-prompt exchanges
+(`chatExperience.sampleQuestions`, hardcoded in the script) — re-check that list if the
+agents' chat experience is reconfigured, or the filter will silently stop working.
 
 ---
 

@@ -7,9 +7,12 @@ foundry-secrets*
 *.pem
 *.key
 
-# Local scratch / transcript dumps (may contain customer conversation data)
-transcripts/
+# Raw, UNREDACTED transcript dumps must never be committed. The reviewable
+# transcripts under transcripts/ ARE tracked — they are written by
+# scripts/fetch_transcripts.py, which redacts credentials and staff emails on the
+# way in. Anything matching the patterns below is a raw dump; keep it out.
 *_dump.json
+raw_transcripts*.json
 foundry_*.json
 /tmp/
 
