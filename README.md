@@ -20,7 +20,12 @@ Foundry team: **OneTyler Cloud Living** — Amazon Bedrock, Claude 4.5 Sonnet, t
 | **Ops Center** | `Knowledge-OpsCenter/` | this repo |
 | **Support Access Center** | `Knowledge-SupportAccessCenter/` | this repo |
 | **General Blueprint Docs Agent** | `Knowledge-BP-General/` | this repo |
-| **Tyler Identity Assistant** | `Knowledge-TylerIdentity/` *(placeholder — joins later)* | maintained separately |
+| **Tyler Identity Assistant** | `Knowledge-TylerIdentity/` | maintained separately — **read-only snapshot** |
+
+> ⚠️ `Knowledge-TylerIdentity/` is a point-in-time copy pulled from the `TCP-KB-Identity`
+> collection on 2026-08-21. Its owner maintains it outside this repo, so it will drift.
+> **Do not push to that collection** — see Hard Rule 1 in `CLAUDE.md`. Re-pull before
+> trusting it.
 
 ---
 
