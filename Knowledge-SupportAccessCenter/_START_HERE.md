@@ -28,6 +28,16 @@ Access Center for a product*.
 
 ---
 
+## ⛔ Ticket questions are answered from the SHARED catalog
+
+Any "which ticket do I file / how do I request access or permissions" question — in **any**
+domain — is answered from **`Knowledge-Shared/Conf-CorpDevTickets.md`**, not from this
+corpus. It is the only authoritative catalog, covering Ops Center, Identity, Support Access
+Center, infrastructure, Forge/TCW and 3rd-party tickets, plus the separate feature-request
+portal and the deprecated forms. **Never construct a ticket URL.**
+
+---
+
 ## Common query → file routing table
 
 ### Foundry **starting prompts** — answer from the dedicated quick-answer section first

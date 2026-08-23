@@ -8,11 +8,10 @@ Domain: Ops Center (Tyler Cloud Platform — operational tooling, organization/w
 
 ## File catalog at a glance
 
-16 files in this folder (plus this one). One-liner per file — read the full file for the substance.
+16 files in this folder (plus this one). The ticket catalog that used to live here has moved to `Knowledge-Shared/Conf-CorpDevTickets.md`. One-liner per file — read the full file for the substance.
 
 | File | One-liner — what's in it |
 |---|---|
-| `Conf-OpsCenterTickets.md` | The **canonical CorpDev ticket catalog** and the answer to every "which ticket do I file" question, for **all** domains — Ops Center, Identity, Support Access Center, Development/infrastructure, Forge/TCW, 3rd-party. Curated sections mirror the Confluence page; a *Complete CorpDev portal reference* section carries every live request type harvested from JSM with each form's own instructions, plus deprecated/superseded forms and known broken links. **The shared form `…/create/4133` distinguishes many distinct asks by Notes content — don't confuse them.** Feature requests are a **different portal** (`3185`). |
 | `Conf-CRMCustomerIdentifiers.md` | The deep technical/operational reference for the **CRM Customer Identifier** (= the Ops Center Org Key). Generation algorithm, portability across CRM merges, usage across TCP / Tyler Deploy / TID-W / SaaS / Twilio, troubleshooting tree, exact ticket subjects. |
 | `Conf-GatewayOperationalTesting.md` | How to validate a **Gateway-ready product** against the real-world test org `tylertownwa`. Test account emails (**password NOT in this corpus** — points to the source Confluence page), 4 Gateway integration components, Core vs Full compliance, Tyler Deploy addendum, net-new-customer routing rules. |
 | `Conf-AddingExternalUsersToEntraId.md` | The **Workforce Direct-only** workaround for adding non-employee users (temps, contractors) to a customer's Entra ID **without consuming an Office 365 license**. Tyler-staff coaching material — NOT to share with customers directly. |
@@ -28,6 +27,16 @@ Domain: Ops Center (Tyler Cloud Platform — operational tooling, organization/w
 | `Training-OpsCenterOperations.md` | The **narrative "how to think about it" companion** distilled from the official 6-part training. Strategic context (OTCOM 14.3/14.4, cross-sell story), vocabulary, the typical operational process (Step 1 / 2A / 2B / 2C / 3), distributed support model, resources/forums. |
 | `Training-WorkforceManagedToDirectMigration.md` | The two-part **WM → WD conversion** runbook. Part 1 (Tyler-staff Retargeting in Ops Center): permission gate, eligibility checklist, cross-product coordination, SubjectId reset warning, per-workspace Target Gateway flow, Enable self-service migration. Part 2 (customer Admin Center migration): Import Federations → IdP update (Google example) → Configuration / Testing / Domains wizard → Activate → Finalize or Revert. |
 | `Misc-Links.md` | The **catch-all bookmark catalog**. Live URLs to: Confluence training hub + 6-part videos + handout PDFs, Confluence operational deep-dives, the **Blueprint Docusaurus reference catalog** (160 entries across 9 sections at `docs.tylerdev.io`). Use when the user wants a URL we haven't distilled. |
+
+---
+
+## ⛔ Ticket questions are answered from the SHARED catalog
+
+Any "which ticket do I file / how do I request access or permissions" question — in **any**
+domain — is answered from **`Knowledge-Shared/Conf-CorpDevTickets.md`**, not from this
+corpus. It is the only authoritative catalog, covering Ops Center, Identity, Support Access
+Center, infrastructure, Forge/TCW and 3rd-party tickets, plus the separate feature-request
+portal and the deprecated forms. **Never construct a ticket URL.**
 
 ---
 

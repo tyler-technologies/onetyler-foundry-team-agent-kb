@@ -476,6 +476,56 @@ agents' chat experience is reconfigured, or the filter will silently stop workin
 
 ---
 
+## Keeping the ticket catalog current
+
+`Knowledge-Shared/Conf-CorpDevTickets.md` answers every "which ticket do I file" question
+for every agent. It is reconciled from **three** upstream sources — all of them, every time,
+because each covers something the others do not:
+
+| Source | Covers | Precedence | How to fetch |
+|---|---|---|---|
+| Confluence `386600308` | Only the most common requests, but with pointed field-by-field instructions | **Wins on HOW to fill in a form** | Confluence MCP tools (`getConfluencePage`) |
+| JSM portal `3168` | **Every** request type, 6 groups, each form's own help text | **Wins on WHICH forms exist** | **Browser required** — authenticated SPA, `curl` will not work. Use Claude in Chrome |
+| JSM portal `3185` | All feature requests / enhancement ideas | Sole authority for feature requests | Browser |
+
+Intervals and per-source notes live in `scripts/sources.json`;
+`python3 scripts/check_freshness.py` reports what is overdue.
+
+**Procedure:**
+
+1. Fetch Confluence `386600308` and diff it against the curated sections.
+2. Browse JSM `3168`: for each group (`3328`, `3333`, `3329`, `3332`, `3330`, `3331`) scrape
+   the group page for `create/<id>` links, then open each form and read its top-of-form help
+   text. Extract with `document.body.innerText`, slicing after the portal boilerplate —
+   `main` returns the sidebar, not the form. Avoid returning raw `href` strings; the
+   safety filter blocks them. Use `new URL(a.href).pathname`.
+3. Check JSM `3185` for changes to the feature-request route.
+4. Reconcile. **Record deprecated and superseded forms rather than deleting them** — users
+   still find them, and the redirect target is the useful part. Note dead links too.
+5. Where the sources conflict on *which form exists*, trust the portal; on *how to fill it
+   in*, trust Confluence. Flag Confluence errors for the page owner instead of silently
+   propagating them.
+6. `python3 scripts/check_freshness.py --mark <id>` for each source, and commit.
+7. **Upload to every collection in `upload_targets`** (see below), then verify retrieval.
+
+---
+
+## Shared corpus — one file, several collections
+
+`Knowledge-Shared/` deliberately breaks the one-folder-per-agent rule: its files go to
+**all** writable collections, so any agent can answer directly instead of handing off. In a
+direct (non-team) conversation there is nobody to hand off to, and the failure mode is an
+invented ticket URL.
+
+`scripts/sources.json` → `upload_targets` is the authoritative list. Today:
+`Knowledge-Shared/Conf-CorpDevTickets.md` → `OT-OpsCenter`, `OT-BPD`, `OT-SAC`.
+**`TCP-KB-Identity` is excluded** — Hard Rule 1.
+
+A change to a shared file that is not uploaded to *every* target leaves the copies drifting.
+Check all of them with the drift script before assuming you are done.
+
+---
+
 ## Editing knowledge files
 
 Full conventions are in `README.md`. The essentials:

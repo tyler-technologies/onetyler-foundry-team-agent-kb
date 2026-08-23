@@ -12,35 +12,49 @@
   ],
   "sources": [
     {
-      "id": "ops-center-tickets",
+      "id": "tickets-confluence",
       "url": "https://tylertech.atlassian.net/wiki/spaces/TTI/pages/386600308/Tyler+Cloud+Platform+TCP+Ops+Center+Related+Tickets+and+Permissions",
       "confluence_page_id": "386600308",
-      "title": "Tyler Cloud Platform (TCP) | Ops Center Related Tickets and Permissions",
+      "title": "Confluence - Ops Center Related Tickets and Permissions",
       "files": [
-        "Knowledge-OpsCenter/Conf-OpsCenterTickets.md"
-      ],
-      "also_relevant_to": [
-        "Knowledge-TylerIdentity",
-        "Knowledge-SupportAccessCenter"
+        "Knowledge-Shared/Conf-CorpDevTickets.md"
       ],
       "interval_days": 7,
       "last_verified": "2026-08-23",
-      "notes": "Ticket forms and instructions change without notice. The page also carries Identity-related and Support Access Center tickets, so those corpora reference this file rather than duplicating it."
+      "precedence": "Wins on HOW to fill in a form - its instructions are more pointed than JSM's.",
+      "notes": "Covers only the most common requests by design. Fetchable via the Confluence MCP tools - no browser needed."
     },
     {
-      "id": "corpdev-jsm-portal",
+      "id": "tickets-jsm-portal",
       "url": "https://help.center.tylertech.com/servicedesk/customer/portal/3168",
-      "title": "CorpDev Support portal (JSM) - all request types",
+      "title": "JSM - CorpDev Support portal (all request types)",
       "files": [
-        "Knowledge-OpsCenter/Conf-OpsCenterTickets.md",
-        "Knowledge-TylerIdentity/Conf-IdentityTickets.md"
-      ],
-      "also_relevant_to": [
-        "Knowledge-SupportAccessCenter"
+        "Knowledge-Shared/Conf-CorpDevTickets.md"
       ],
       "interval_days": 30,
       "last_verified": "2026-08-23",
-      "notes": "Request types are added, renamed, deprecated and superseded without notice, and form help text changes. Needs a browser (Claude in Chrome) to harvest - the portal is an authenticated SPA. Groups: 3328 TCP-Development, 3333 TCP-Operations, 3329 Tyler Identity Cloud, 3332 Forge/TCW, 3330 3rd Party, 3331 internal-only. Feature requests live on a separate portal, 3185."
+      "precedence": "Wins on WHICH forms exist - a form either exists or it does not.",
+      "notes": "Authenticated SPA: needs Claude in Chrome, not curl. Groups 3328 TCP-Development, 3333 TCP-Operations, 3329 Tyler Identity Cloud, 3332 Forge/TCW, 3330 3rd Party, 3331 internal-only. Harvest each group page for create/<id> links, then open each form and read its top-of-form help text. Watch for deprecated/superseded forms and dead links."
+    },
+    {
+      "id": "tickets-feature-portal",
+      "url": "https://help.center.tylertech.com/servicedesk/customer/portal/3185",
+      "title": "JSM - CorpDev Feature Requests portal",
+      "files": [
+        "Knowledge-Shared/Conf-CorpDevTickets.md"
+      ],
+      "interval_days": 30,
+      "last_verified": "2026-08-23",
+      "precedence": "Sole authority for feature requests and enhancement ideas.",
+      "notes": "Separate portal from 3168. Single form group/3385/create/4367; requests are visible on a voting board for 60 days after completion. The deprecated 4137 redirects here."
     }
-  ]
+  ],
+  "upload_targets": {
+    "Knowledge-Shared/Conf-CorpDevTickets.md": [
+      "OT-OpsCenter",
+      "OT-BPD",
+      "OT-SAC"
+    ],
+    "_note": "TCP-KB-Identity is deliberately excluded - Hard Rule 1. A change to a shared file must be uploaded to EVERY listed collection or the copies drift."
+  }
 }

@@ -1,8 +1,18 @@
-# Ops Center — Tickets and Permissions Catalog
+# CorpDev Tickets and Permissions — the authoritative catalog
 
-Source: Confluence — *Tyler Cloud Platform (TCP) | Ops Center Related Tickets and Permissions*
-Domain: Ops Center
-Audience: Tyler product, deployment, implementation, and identity-support staff who need to file a ticket against CorpDev to do something in Ops Center, Admin Center, or related TCP tools.
+**This is the single source for every "which ticket do I file?" question, in every domain.**
+Shared across all agents — see `Knowledge-Shared/_START_HERE.md`.
+
+Reconciled from **three** upstream sources:
+
+| # | Source | Covers | Precedence |
+|---|---|---|---|
+| 1 | Confluence — *Tyler Cloud Platform (TCP) \| Ops Center Related Tickets and Permissions* (https://tylertech.atlassian.net/wiki/spaces/TTI/pages/386600308) | The most common requests, with pointed field-by-field instructions | **Wins on HOW to fill in a form** |
+| 2 | JSM — CorpDev Support portal (https://help.center.tylertech.com/servicedesk/customer/portal/3168) | Every request type across 6 groups, with each form's own help text | **Wins on WHICH forms exist** |
+| 3 | JSM — CorpDev Feature Requests portal (https://help.center.tylertech.com/servicedesk/customer/portal/3185) | All feature requests and enhancement ideas | Sole authority for feature requests |
+
+Domain: cross-domain (Ops Center · Identity · Support Access Center · Development/Infra · Forge/TCW · 3rd-party)
+Audience: Tyler product, deployment, implementation, identity-support and engineering staff who need to file a request against CorpDev.
 
 This document catalogs every Ops Center–related ticket: what it does, when to use it, who is eligible, prerequisites, the direct link to file it, and the exact fields/Notes content expected. Each ticket is a self-contained entry — they can be read independently.
 

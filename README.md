@@ -27,6 +27,9 @@ Foundry team: **OneTyler Cloud Living** — Amazon Bedrock, Claude 4.5 Sonnet, t
 > **Do not push to that collection** — see Hard Rule 1 in `CLAUDE.md`. Re-pull before
 > trusting it.
 
+In addition, **`Knowledge-Shared/`** holds content every agent needs and is uploaded to all
+writable collections — currently the CorpDev ticket catalog. See its `_START_HERE.md`.
+
 ---
 
 ## Routing table — which sub-agent gets the question

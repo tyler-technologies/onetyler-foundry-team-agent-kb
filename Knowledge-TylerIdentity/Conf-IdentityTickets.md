@@ -14,10 +14,15 @@ uploaded to the `TCP-KB-Identity` Foundry collection, because that collection's 
 structure differs from the repo's and the switchover needs agreement with the corpus owner.
 See Hard Rule 1 in `CLAUDE.md`.
 
+**⚠ DERIVED FILE — do not edit directly.** This is an identity-scoped extract of
+`Knowledge-Shared/Conf-CorpDevTickets.md`, kept separate only because the Identity corpus is
+a single monolithic document whose owner may prefer a small identity-only addition to the
+whole cross-domain catalog. When the shared catalog changes, re-derive this file from it.
+
 **Companion:** the authoritative full ticket catalog — covering Ops Center, Support Access
 Center, infrastructure and general-inquiry tickets as well as these — is
-`Knowledge-OpsCenter/Conf-OpsCenterTickets.md`. The team router sends *all* "which ticket do
-I file" questions to the Ops Center agent for that reason. This file exists so the Identity
+`Knowledge-Shared/Conf-CorpDevTickets.md`. The team router also sends *all* "which ticket do
+I file" questions to the Ops Center agent, which holds a copy. This file exists so the Identity
 agent can answer identity-ticket questions directly without a hand-off.
 
 ---
@@ -105,7 +110,7 @@ updating to match.
 
 **Terminology trap:** "Identity Client" means a **registered OAuth/OIDC application**, not a
 Tyler customer. If the user says "client" meaning a customer or organization, they want an
-Ops Center ticket instead — see `Knowledge-OpsCenter/Conf-OpsCenterTickets.md`.
+Ops Center ticket instead — see `Knowledge-Shared/Conf-CorpDevTickets.md`.
 
 Follow the on-form header instructions.
 
