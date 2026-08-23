@@ -2939,7 +2939,7 @@ Common requests include:
 
 ## Teams Channels
 
-All channels are located under the **OneTyler Collaboration** team.
+All channels are located under the **CorpDev Collaboration** team.
 
 **Cloud Platform Community**: Channel for discussions or help on anything related to the cloud ecosystem.
 

@@ -519,6 +519,26 @@ Intervals and per-source notes live in `scripts/sources.json`;
 
 ---
 
+## Creating a new corpus
+
+Every `Knowledge-<Domain>/` folder gets **both** an `_START_HERE.md` routing guide and a
+`FAQ-<Domain>.md`, from the first commit — even before any content exists. Copy
+`templates/_START_HERE.md` and `templates/FAQ-Domain.md` and fill in the `{{PLACEHOLDERS}}`.
+
+The FAQ exists from day one on purpose: without it, the first unsourced answer gets wedged
+into a derived file and the next reconciliation silently deletes it.
+
+A scaffolded corpus has **no agent and no Foundry collection**. Until it graduates, its
+domain's questions are still answered from wherever that content lives today (usually
+`Knowledge-BP-General/`). The graduation sequence is in each scaffold's *Becoming a real
+corpus* section — the order matters, because moving content out of a deployed collection
+before the new one exists deletes it from a live agent.
+
+Currently scaffolded, awaiting agents: `Knowledge-AlignedReleases/`, `Knowledge-StatusPages/`,
+`Knowledge-SLAs/`.
+
+---
+
 ## Shared corpus — one file, several collections
 
 `Knowledge-Shared/` deliberately breaks the one-folder-per-agent rule: its files go to

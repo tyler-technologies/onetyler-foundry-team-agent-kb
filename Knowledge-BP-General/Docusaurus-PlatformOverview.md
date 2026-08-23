@@ -135,7 +135,7 @@ The Blueprint support page is currently framed around **Tyler Identity** support
 
 **1. Help Desk / service-desk requests (TCP service desk)** — the most common, effective route. Common requests: a Client Credentials Flow (CCF) client + secret for service-to-service auth; a Web/Mobile client for login auth; creation of a new organization for a customer; assistance with authentication or integration issues; creation of a new federation between the Gateway and an external IdP. Submit via **Ops Center Related Tickets and Permissions**: https://tylertech.atlassian.net/wiki/spaces/TTI/pages/386600308/Tyler+Cloud+Platform+TCP+Ops+Center+Related+Tickets+and+Permissions
 
-**2. Microsoft Teams channels** (all under the **OneTyler Collaboration** team):
+**2. Microsoft Teams channels** (all under the **CorpDev Collaboration** team):
 - **Cloud Platform Community** — anything about the cloud ecosystem: https://teams.microsoft.com/l/channel/19%3A1e6bcc02bd3242a193bf9171a51a0395%40thread.tacv2/Cloud%20Platform%20Community?groupId=d9db441d-35fa-433c-8fe0-ff7fe5825d3c&tenantId=7cc5f0f9-ee5b-4106-a62d-1b9f7be46118
 - **Identity Workforce** — integration/status/issues: https://teams.microsoft.com/l/channel/19%3Ae0289e84ce4a4bae841c55249970a491%40thread.tacv2/Identity%20Workforce?groupId=d9db441d-35fa-433c-8fe0-ff7fe5825d3c&tenantId=7cc5f0f9-ee5b-4106-a62d-1b9f7be46118
 - **Identity Community** — Community Access identity questions: https://teams.microsoft.com/l/channel/19%3A15965417212e440eb01040eb39b67b2d%40thread.tacv2/Identity%20Community?groupId=d9db441d-35fa-433c-8fe0-ff7fe5825d3c&tenantId=7cc5f0f9-ee5b-4106-a62d-1b9f7be46118
