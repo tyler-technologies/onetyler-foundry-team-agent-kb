@@ -1,6 +1,6 @@
 # Org Admin — Who They Are and How to Source Them When Creating an Organization
 
-Source: Docusaurus — *CorpDev Blueprint, App Guides > Ops > Ops Center > Org Admin info for Importing Organizations* (`docs/app-guides/ops/ops-center/orgadmininfo/orgadmininfo.md`)
+Source: Docusaurus — *OneTyler Blueprint, App Guides > Ops > Ops Center > Org Admin info for Importing Organizations* (`docs/app-guides/ops/ops-center/orgadmininfo/orgadmininfo.md`)
 Domain: Ops Center
 Audience: Tyler product, deployment, and implementation staff who are about to **request** or **+Import** a new Organization in Ops Center and need to identify the client IT contact who will serve as the first **Org Admin**.
 
@@ -10,7 +10,7 @@ This document explains what an Org Admin is, who makes an ideal Org Admin, why t
 - `Docusaurus-Terminology.md` — see **Organization Admin** (canonical definition).
 - `Docusaurus-OpsCenter.md` — where the Org Admin is entered (Import wizard / Create Internal wizard / Org Details > Admins).
 - `Docusaurus-TylerCRM.md` — how to confirm the CRM record is valid before you start hunting for the Org Admin.
-- `Conf-OpsCenterTickets.md` — the "Add an Org Admin / self-promote" flow does NOT go through the generic permission form — see that catalog for the actual route.
+- `Knowledge-Shared/Conf-OneTylerTickets.md` — the "Add an Org Admin / self-promote" flow does NOT go through the generic permission form — see that catalog for the actual route.
 
 ---
 
@@ -80,7 +80,7 @@ When adding the Org Admin later:
 - Use the **"Use as technical contact"** option to simultaneously designate them as the org's technical contact. This is **especially important** for orgs that were automatically created on or after **4/1/26** from sales-enabled CRM records — those orgs are created **without contact information or domains set**.
 - For **Workforce Delegated** Sub orgs, adding an Org Admin to the Sub auto-adds the user to the Super if not already present.
 - Permission propagation has a small delay — a freshly added Org Admin will show **"Pending"** status during which they can't yet access Admin Center.
-- The "Add an Org Admin" / self-promote flow is **NOT handled by the generic permission ticket form (4133)** — see `Conf-OpsCenterTickets.md` → *Org Admins* for the actual route (the manager's-guide procedure on Confluence).
+- The "Add an Org Admin" / self-promote flow is **NOT handled by the generic permission ticket form (4133)** — see `Knowledge-Shared/Conf-OneTylerTickets.md` → *Org Admins* for the actual route (the manager's-guide procedure on Confluence).
 
 ---
 

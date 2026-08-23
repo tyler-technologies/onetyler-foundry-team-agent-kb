@@ -2,7 +2,7 @@
 
 Source: Tyler Blueprint Docusaurus — `https://docs.tylerdev.io/product-system-reg/`
 Domain: Blueprint General — Tyler Cloud Platform / Blueprint docs not served by a specialized Foundry agent
-Audience: Product engineering teams, product managers, and CorpDev staff responsible for registering Tyler products on the TCP platform and onboarding customers.
+Audience: Product engineering teams, product managers, and OneTyler staff responsible for registering Tyler products on the TCP platform and onboarding customers.
 
 **Companion documents:**
 - `_START_HERE.md` — routing guide for this corpus
@@ -31,7 +31,7 @@ Audience: Product engineering teams, product managers, and CorpDev staff respons
 | Set up URL token replacement in configuration URLs | [URL Token Replacement](#url-token-replacement) |
 | Configure default product groups (auto-created on licensing) | [Default Product Groups](#default-product-groups) |
 | Store secrets for URL resolver APIs | [URL Mapping API Secret Setup](#url-mapping-api-secret-setup) |
-| Use the CorpDev-managed default gateway secret | [New Default Gateway ClientId/Secrets](#new-default-gateway-clientidsecrets) |
+| Use the OneTyler-managed default gateway secret | [New Default Gateway ClientId/Secrets](#new-default-gateway-clientidsecrets) |
 | Verify registration in Ops Center | [Using Ops Center to Verify Registration](#using-ops-center-to-verify-registration) |
 | Understand product vs. SKU distinction | [FAQ: Product vs. SKU](#faqs) |
 | See a worked end-to-end example (Cemetery Manager) | [Example Case Study](#example-case-study--cemetery-manager) |
@@ -44,7 +44,7 @@ Audience: Product engineering teams, product managers, and CorpDev staff respons
 
 | Term | Meaning |
 |---|---|
-| Product Registry | The central registry of all Tyler products on TCP, maintained by CorpDev, with each product team owning their entry |
+| Product Registry | The central registry of all Tyler products on TCP, maintained by OneTyler, with each product team owning their entry |
 | `RegistrationId` | Unique, immutable identifier for a product or app; changing it creates a new entity |
 | AuthenticationModel | How users authenticate to an app — `Workforce`, `Community`, `ExternalWorkforce`, or `ExternalCommunity` |
 | AccessModel | Authorization model — `Group` (TCP user groups), `Everyone` (no restriction), `SystemAdmin` (Tyler-only) |
@@ -57,7 +57,7 @@ Audience: Product engineering teams, product managers, and CorpDev staff respons
 | Default Product Group | A named group auto-created when a product is licensed to an org; predefines standard access groups |
 | LicensedByDefault | If `true`, product is automatically licensed to every org and cannot be unlicensed |
 | TCPCI / TCPQA / TCPPROD | TCP environments: development (`tcpci.com`), QA (`tcpqa.com`), production (`tylerportico.com`) |
-| URL resolver / mapping API | An endpoint CorpDev POSTs workspace context to; returns the actual launcher URL for ExternalWorkforce/Community apps |
+| URL resolver / mapping API | An endpoint OneTyler POSTs workspace context to; returns the actual launcher URL for ExternalWorkforce/Community apps |
 | CCF token | Client credentials flow JWT token for authenticating API-to-API calls within TCP |
 
 ---
@@ -70,9 +70,9 @@ A **registered product** is the operational/administrative definition of a Tyler
 - Defined from a deployment and administration perspective (not a marketing or sales perspective)
 - The entity that is **licensed** to organizations and **activated** on workspaces
 
-**One registration per product is the standard.** Splitting a product into multiple registrations is rare and requires CorpDev approval. Contact the [Product Registration Community Teams Channel](https://teams.microsoft.com/l/channel/19%3AoVLpzEarOxFx-RwQc70RhkOA0xXbUS6R52LrTWKhIMQ1%40thread.tacv2/Product%20Registration%20Community?groupId=d9db441d-35fa-433c-8fe0-ff7fe5825d3c&tenantId=7cc5f0f9-ee5b-4106-a62d-1b9f7be46118&ngc=true&allowXTenantAccess=true) if you believe you need it.
+**One registration per product is the standard.** Splitting a product into multiple registrations is rare and requires OneTyler approval. Contact the [Product Registration Community Teams Channel](https://teams.microsoft.com/l/channel/19%3AoVLpzEarOxFx-RwQc70RhkOA0xXbUS6R52LrTWKhIMQ1%40thread.tacv2/Product%20Registration%20Community?groupId=d9db441d-35fa-433c-8fe0-ff7fe5825d3c&tenantId=7cc5f0f9-ee5b-4106-a62d-1b9f7be46118&ngc=true&allowXTenantAccess=true) if you believe you need it.
 
-The **Product Registry** is the registry of all Tyler products. It is maintained by CorpDev with each product team contributing their own registration details.
+The **Product Registry** is the registry of all Tyler products. It is maintained by OneTyler with each product team contributing their own registration details.
 
 ---
 
@@ -90,7 +90,7 @@ Four application types are recognized in a product registration. Each maps to a 
 **General expectations:**
 - Most products expose a main entry point for each applicable persona type.
 - For simple products, each app should match the product name and icon for easy discoverability.
-- For complex/flagship products, module-level entry points may be appropriate — consult CorpDev.
+- For complex/flagship products, module-level entry points may be appropriate — consult OneTyler.
 
 ### Ops App surfaces in Ops Center
 
@@ -113,7 +113,7 @@ Product Management team members should complete these steps before handing off t
 | 4. Product About & Help Text | Longer description (up to a paragraph) | Not currently displayed publicly |
 | 5. Product Icon | Select a Forge icon (Standard, Extended, or Custom) | Used in Workforce App Directory and Community Services Directory cards |
 | 6. Product Contact Information | Set up MS Teams channels and/or distribution list emails | Use team channels and DLs — avoid individual contact info (goes stale) |
-| 7. Registration review | Review with stakeholders and CorpDev before registering | Prevents costly corrections post-registration |
+| 7. Registration review | Review with stakeholders and OneTyler before registering | Prevents costly corrections post-registration |
 | 8. Hand off to engineering | Provide all collected data to engineers with a pointer to the technical docs | Engineering completes the remaining YAML-based steps |
 
 **Contact information guidance:** Register a public MS Teams community channel and/or email distribution lists for Development, Operations, and Support types. Avoid individual person emails.
@@ -335,7 +335,7 @@ A product may specify logout redirect URIs to be applied to Okta tenants created
 
 ### New Default Gateway ClientId/Secrets (Recommended)
 
-CorpDev manages and rotates these secrets — you do not need to maintain them yourself.
+OneTyler manages and rotates these secrets — you do not need to maintain them yourself.
 
 | Environment | `authority` | `clientId` | `clientSecret` placeholder |
 |---|---|---|---|
@@ -374,7 +374,7 @@ Note: Replace hyphens with underscores in secret IDs (Harness does not allow hyp
 
 **How to add the secret to Harness:**
 
-1. Request access to Harness (if needed): submit a ticket at the [Ops Center Related Tickets and Permissions](https://tylertech.atlassian.net/wiki/spaces/TTI/pages/386600308/Tyler+Cloud+Platform+TCP+Ops+Center+Related+Tickets+and+Permissions) page — request the `Product Registry Product Manager` role in the Product Registry project under the CorpDev org.
+1. Request access to Harness (if needed): submit a ticket at the [Ops Center Related Tickets and Permissions](https://tylertech.atlassian.net/wiki/spaces/TTI/pages/386600308/Tyler+Cloud+Platform+TCP+Ops+Center+Related+Tickets+and+Permissions) page — request the `Product Registry Product Manager` role in the Product Registry project under the OneTyler org.
 2. Navigate to the Product Registry project: https://app.harness.io/ng/account/NVsV7gjbTZyA3CgSgXNOcg/home/orgs/CorpDev/projects/Product_Registry/details
 3. Click **Secrets** in the Project Setup menu.
 4. Add a new text secret. Use lower-kebab-case for the name and lower-underscore for the ID. The ID value must match the ID in the YAML placeholder.
@@ -453,11 +453,11 @@ Example: Content Manager is a product included with Enterprise Appraisal and Tax
 
 ### What is the Product Registry?
 
-The Product Registry is the registry of all Tyler products on TCP. Each product team is responsible for contributing and maintaining their own registration details. It is maintained operationally by CorpDev.
+The Product Registry is the registry of all Tyler products on TCP. Each product team is responsible for contributing and maintaining their own registration details. It is maintained operationally by OneTyler.
 
 ### I need a single Tyler-branded portal shared across all organizations — how do I register it?
 
-Some products (e.g., Recording Access, AP Automation Vendor Hub) use a single Tyler-branded public portal across all orgs. These are *domain-specific Tyler branded products* — they are not designed to be licensed on regular customer organizations and do not contain Workforce or Admin apps. Registration guidance is handled case-by-case. Contact CorpDev via the [Product Registration Community Teams Channel](https://teams.microsoft.com/l/channel/19%3AoVLpzEarOxFx-RwQc70RhkOA0xXbUS6R52LrTWKhIMQ1%40thread.tacv2/Product%20Registration%20Community?groupId=d9db441d-35fa-433c-8fe0-ff7fe5825d3c&tenantId=7cc5f0f9-ee5b-4106-a62d-1b9f7be46118&ngc=true&allowXTenantAccess=true).
+Some products (e.g., Recording Access, AP Automation Vendor Hub) use a single Tyler-branded public portal across all orgs. These are *domain-specific Tyler branded products* — they are not designed to be licensed on regular customer organizations and do not contain Workforce or Admin apps. Registration guidance is handled case-by-case. Contact OneTyler via the [Product Registration Community Teams Channel](https://teams.microsoft.com/l/channel/19%3AoVLpzEarOxFx-RwQc70RhkOA0xXbUS6R52LrTWKhIMQ1%40thread.tacv2/Product%20Registration%20Community?groupId=d9db441d-35fa-433c-8fe0-ff7fe5825d3c&tenantId=7cc5f0f9-ee5b-4106-a62d-1b9f7be46118&ngc=true&allowXTenantAccess=true).
 
 ### How can I minimize manual group creation for my product?
 
@@ -467,7 +467,7 @@ For products using TCP group access management, define `defaultProductGroups` in
 
 ## Customer Onboarding
 
-> **Note:** The Blueprint pages for Provisioning Customers, Licensing Products, Importing Customers from CRM, Product Licensing Data Population, Customer Onboarding Checklist, and Product Registration Checklist are currently **stubs / placeholders** — no substantive content has been published yet. For current customer onboarding procedures, contact CorpDev or consult the Ops Center agent: https://docs.tylerdev.io/app-guides/ops/ops-center/overview/
+> **Note:** The Blueprint pages for Provisioning Customers, Licensing Products, Importing Customers from CRM, Product Licensing Data Population, Customer Onboarding Checklist, and Product Registration Checklist are currently **stubs / placeholders** — no substantive content has been published yet. For current customer onboarding procedures, contact OneTyler or consult the Ops Center agent: https://docs.tylerdev.io/app-guides/ops/ops-center/overview/
 
 The conceptual flow for customer onboarding is:
 1. **Product is registered** in tcp-product-catalog (engineering task, covered in this file)
@@ -480,10 +480,10 @@ The conceptual flow for customer onboarding is:
 ## Notes for the Chatbot
 
 1. **RegistrationId is immutable** — this is the most common trap. Emphasize strongly: never change a RegistrationId after initial registration. Changing a product's RegistrationId creates a duplicate. Changing an app's RegistrationId deletes the old app.
-2. **One registration per product is the rule.** If someone asks about splitting a product into multiple registrations, instruct them to contact CorpDev first.
+2. **One registration per product is the rule.** If someone asks about splitting a product into multiple registrations, instruct them to contact OneTyler first.
 3. **tcp-product-catalog is the authoritative source** for live registration state. The JSON visible in Ops Center Registration Details should always match the YAML in the master branch of tcp-product-catalog.
 4. **External vs. non-external auth model distinction is critical.** `ExternalWorkforce`/`ExternalCommunity` apps cannot have `AppLauncherConfigurations`; they use `ExternalLauncherConfigurations` and a URL resolver API. `Workforce`/`Community` apps use `AppLauncherConfigurations` and a `path` property.
-5. **Customer onboarding pages (provisioning, licensing, importing from CRM, checklists) are stubs** as of the source date. Do not attempt to answer questions from this file about those topics — direct users to CorpDev directly or the Ops Center agent.
-6. **Secrets in YAML are always Harness placeholders** — never plaintext. Recommend the default CorpDev-managed gateway secret when users ask about URL resolver authentication; only guide them through custom Harness secrets as a fallback.
+5. **Customer onboarding pages (provisioning, licensing, importing from CRM, checklists) are stubs** as of the source date. Do not attempt to answer questions from this file about those topics — direct users to OneTyler directly or the Ops Center agent.
+6. **Secrets in YAML are always Harness placeholders** — never plaintext. Recommend the default OneTyler-managed gateway secret when users ask about URL resolver authentication; only guide them through custom Harness secrets as a fallback.
 7. **Dedicated agents exist for:** Ops Center → https://docs.tylerdev.io/app-guides/ops/ops-center/overview/ | Support Access Center (SAC) → https://docs.tylerdev.io/ops/support-access-center/ | Identity → https://docs.tylerdev.io/identity — route Ops Center UI questions, SAC questions, and identity/Okta questions to those agents.
 8. **Product Registration Community Teams Channel** is the correct escalation path for complex registration questions: https://teams.microsoft.com/l/channel/19%3AoVLpzEarOxFx-RwQc70RhkOA0xXbUS6R52LrTWKhIMQ1%40thread.tacv2/Product%20Registration%20Community?groupId=d9db441d-35fa-433c-8fe0-ff7fe5825d3c&tenantId=7cc5f0f9-ee5b-4106-a62d-1b9f7be46118&ngc=true&allowXTenantAccess=true — surface this URL verbatim when a user needs guidance that goes beyond what this file covers.

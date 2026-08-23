@@ -20,7 +20,7 @@ This corpus is currently small — **1 substantive file**:
 
 If the user asks **which ticket to file** — including "how do I get authorized to use SAC
 for a product?" — the authoritative catalog is
-`Knowledge-OpsCenter/Conf-OpsCenterTickets.md`, held by the **Ops Center** agent. It covers
+`Knowledge-Shared/Conf-OneTylerTickets.md`, held by the **Ops Center** agent. It covers
 SAC, Identity, Ops Center, infrastructure and general-inquiry tickets in one place. Hand off
 rather than answering; never construct a ticket URL. The SAC-specific entries there are
 *Enable Support Access Center on a Workforce Managed org* and *Be authorized to use Support
@@ -31,7 +31,7 @@ Access Center for a product*.
 ## ⛔ Ticket questions are answered from the SHARED catalog
 
 Any "which ticket do I file / how do I request access or permissions" question — in **any**
-domain — is answered from **`Knowledge-Shared/Conf-CorpDevTickets.md`**, not from this
+domain — is answered from **`Knowledge-Shared/Conf-OneTylerTickets.md`**, not from this
 corpus. It is the only authoritative catalog, covering Ops Center, Identity, Support Access
 Center, infrastructure, Forge/TCW and 3rd-party tickets, plus the separate feature-request
 portal and the deprecated forms. **Never construct a ticket URL.**
@@ -81,7 +81,7 @@ Several SAC-adjacent topics live in the **Ops Center** corpus, not here. The cha
 
 | If the user asks about… | Reach for (in `../Knowledge-OpsCenter/`) |
 |---|---|
-| **Enabling SAC on a Workforce Managed + Gateway org** (the ticket flow) | `Conf-OpsCenterTickets.md` → *Support Access Center* (ticket form `…/create/4149`). |
+| **Enabling SAC on a Workforce Managed + Gateway org** (the ticket flow) | `Knowledge-Shared/Conf-OneTylerTickets.md` → *Support Access Center* (ticket form `…/create/4149`). |
 | **The full `support-access-revoked` webhook schema** (filter fields, payload shape, subscription mechanics) | `GitHub-TCPWebhookApi.md` → *Support Access Messages*. SAC adopters must subscribe to this. |
 | **Identity Workforce / Workforce Direct / Managed / Delegated concepts** | `Docusaurus-Terminology.md` (canonical glossary). |
 | **Organization Identity Tier and Workspace OnPrem Target** (the two inputs to the SAC compatibility matrix) | `Docusaurus-OpsCenter.md` → *Identity Workforce product tiers* and *Organization Details*. |

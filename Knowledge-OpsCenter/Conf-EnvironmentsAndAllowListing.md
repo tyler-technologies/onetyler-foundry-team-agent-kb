@@ -10,7 +10,7 @@ This document covers the **three AWS-based TCP environments** (CI, QA, Productio
 - `Docusaurus-OpsCenter.md` → *Access — environment URLs* (same three Ops Center URLs distilled there; this file adds the allow-list IPs and inbound/outbound directionality).
 - `Training-OpsCenterOperations.md` → *Basic Concepts — the three environments* and *Resources — General knowledge topics on Confluence* (referenced allow-listing detail for Workforce Direct/Managed orgs).
 - `Docusaurus-Terminology.md` → *Environment* and *Tyler Cloud Platform (TCP)*.
-- `Conf-OpsCenterTickets.md` → *General Information / Inquiry* for filing a Cloud Platform support ticket (referenced repeatedly in this page).
+- `Knowledge-Shared/Conf-OneTylerTickets.md` → *General Information / Inquiry* for filing a Cloud Platform support ticket (referenced repeatedly in this page).
 
 ---
 
@@ -166,7 +166,7 @@ If you (a Tyler team member) don't yet have access to a TCP portal:
 4. Once added, go to your **Enterprise profile**: https://profile.tylerportico.com/portal/enterpriseprofile/settings/global (sign in with your Tyler AD credentials).
 5. Navigate to your portal — for example, `https://coffeecup.tcpci.com/portal/administration/portal-settings` — once an admin has either made you a PortalAdmin or added you as a member in the portal's **Group Management** app (if the team has implemented group management).
 
-If you're unsure about something, **file a Cloud Platform support ticket** (`Conf-OpsCenterTickets.md` → *General Information / Inquiry*) and Tyler will help guide you.
+If you're unsure about something, **file a Cloud Platform support ticket** (`Knowledge-Shared/Conf-OneTylerTickets.md` → *General Information / Inquiry*) and Tyler will help guide you.
 
 ### TID Enterprise test accounts
 
@@ -202,4 +202,4 @@ For the canonical supported-browsers list, see the Confluence page:
 - **Customer-facing terminology reminder:** TID-Citizen is now branded **Community Access**; TID-Enterprise is now branded **Identity Workforce**. The internal TID-E URIs (`*.tyleridentity.com`) remain in use. When discussing with customers, use the new brand names; when reading firewall logs / configuring DNS, use the actual `*.tyleridentity.com` hosts.
 - **The portal sign-on flow described here is for Tyler staff** getting added to TCP portals — NOT customer end users. Customer users land in Admin Center / Workforce App Directory / Community Launcher, not the portal-administration screens.
 - **The DataDog dashboard is for Tyler internal monitoring**, not customer self-service. Customers should NOT be pointed at this URL.
-- **For Cloud Platform support tickets**, see `Conf-OpsCenterTickets.md` — the canonical catalog of CorpDev support ticket types.
+- **For Cloud Platform support tickets**, see `Knowledge-Shared/Conf-OneTylerTickets.md` — the canonical catalog of OneTyler support ticket types.

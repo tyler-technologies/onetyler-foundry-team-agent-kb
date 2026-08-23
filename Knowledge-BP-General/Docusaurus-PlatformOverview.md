@@ -66,14 +66,14 @@ Tyler's "One Tyler Cloud Living" strategy underpins the company's goals into 203
 - **Phase 2 (target Jan 2027):** Adopt a *cloud operating model* — a single release stream controlled by Tyler for net-new customers/installs.
 - **Phase 3 (target Jan 2030):** Consolidate existing clients and environments into the single-release-stream model.
 
-**One-Tyler technology standards** (CorpDev-invested, common across products):
+**One-Tyler technology standards** (OneTyler-invested, common across products):
 - **Identity Management** — Tyler Identity (TID). *All Tyler cloud products use TID as a primary or integrated identity solution.* → deep content: **Identity specialized agent**.
 - **SaaS Control Plane** — Tyler Cloud Platform (TCP) centralizes information about Tyler's software solutions and environments.
 - **APIs** — a discoverable, documented, versioned OpenAPI-rich shared-services ecosystem (see `Docusaurus-CloudPlatformAPI.md`).
 - **Data & Insights** — target primary data/reporting/analytics solution by 2030.
 - **Self-Service Tooling** — Ops Center. → deep content: **Ops Center specialized agent**.
 
-**CorpDev shared services** product teams can leverage: Identity (Identity Workforce, Community Access), App Suite (Workforce App Directory, Community Services Directory), Admin Center (user management, identity config, org/workspace config, admin apps, user groups), Ops Center (org/workspace management, product registry, systems registry, licensing & activation), and Forge (design system + UI components).
+**OneTyler shared services** product teams can leverage: Identity (Identity Workforce, Community Access), App Suite (Workforce App Directory, Community Services Directory), Admin Center (user management, identity config, org/workspace config, admin apps, user groups), Ops Center (org/workspace management, product registry, systems registry, licensing & activation), and Forge (design system + UI components).
 
 ---
 
@@ -112,7 +112,7 @@ Tyler applications fall into two broad categories:
 - **Client applications** — used by Tyler's clients (licensed to them). Tyler staff sometimes use them *on behalf of* a client, but they are not optimized for staff use; staff-only tasks belong in an ops application instead.
 - **Operations ("ops") applications** — used by Tyler staff to manage client applications: provision, implement, upgrade, onboard, monitor, support, or offboard.
 
-**CorpDev applications:**
+**OneTyler applications:**
 
 | Client applications | Operations applications |
 |---|---|
@@ -135,7 +135,7 @@ The Blueprint support page is currently framed around **Tyler Identity** support
 
 **1. Help Desk / service-desk requests (TCP service desk)** — the most common, effective route. Common requests: a Client Credentials Flow (CCF) client + secret for service-to-service auth; a Web/Mobile client for login auth; creation of a new organization for a customer; assistance with authentication or integration issues; creation of a new federation between the Gateway and an external IdP. Submit via **Ops Center Related Tickets and Permissions**: https://tylertech.atlassian.net/wiki/spaces/TTI/pages/386600308/Tyler+Cloud+Platform+TCP+Ops+Center+Related+Tickets+and+Permissions
 
-**2. Microsoft Teams channels** (all under the **Corpdev Collaboration** team):
+**2. Microsoft Teams channels** (all under the **OneTyler Collaboration** team):
 - **Cloud Platform Community** — anything about the cloud ecosystem: https://teams.microsoft.com/l/channel/19%3A1e6bcc02bd3242a193bf9171a51a0395%40thread.tacv2/Cloud%20Platform%20Community?groupId=d9db441d-35fa-433c-8fe0-ff7fe5825d3c&tenantId=7cc5f0f9-ee5b-4106-a62d-1b9f7be46118
 - **Identity Workforce** — integration/status/issues: https://teams.microsoft.com/l/channel/19%3Ae0289e84ce4a4bae841c55249970a491%40thread.tacv2/Identity%20Workforce?groupId=d9db441d-35fa-433c-8fe0-ff7fe5825d3c&tenantId=7cc5f0f9-ee5b-4106-a62d-1b9f7be46118
 - **Identity Community** — Community Access identity questions: https://teams.microsoft.com/l/channel/19%3A15965417212e440eb01040eb39b67b2d%40thread.tacv2/Identity%20Community?groupId=d9db441d-35fa-433c-8fe0-ff7fe5825d3c&tenantId=7cc5f0f9-ee5b-4106-a62d-1b9f7be46118
@@ -153,7 +153,7 @@ For deep Identity questions, also point the user to the **Identity specialized a
 
 **Source:** *Get Started > Terminology* — https://docs.tylerdev.io/get-started/terminology/terminology. This is the **authoritative Blueprint glossary** for the BP-General agent. Use it to resolve any Tyler term or abbreviation. (Defining a term here does **not** require a hand-off; hand off only for deep workflows in the three specialized domains.)
 
-**Admin Center** — CorpDev-managed tool for centralized administrative experiences used by customer IT or solution administrators.
+**Admin Center** — OneTyler-managed tool for centralized administrative experiences used by customer IT or solution administrators.
 
 **Admin Apps** — a construct within Admin Center presenting links to administrative applications for products licensed to an organization (a centralized admin experience for customer Workforce Admins).
 
@@ -222,7 +222,7 @@ For deep Identity questions, also point the user to the **Identity specialized a
 
 **One Tyler Ecosystem** — framework to centralize discovery and navigation of all Tyler solutions: TID for user store/authentication; centralized product registration/licensing/availability; centralized management of Organizations/Products/Users; centralized discovery/navigation; centralized Ops apps (Tyler) and Admin Center (customer); extensions to product-specific apps.
 
-**Ops Center** — CorpDev-managed One Tyler Ecosystem tooling for centralized discovery/navigation to Tyler Ops applications; creates organizations/workspaces, licenses products to orgs, activates products on workspaces. → **Ops Center specialized agent**.
+**Ops Center** — OneTyler-managed One Tyler Ecosystem tooling for centralized discovery/navigation to Tyler Ops applications; creates organizations/workspaces, licenses products to orgs, activates products on workspaces. → **Ops Center specialized agent**.
 
 **Organization** — an entity provisioned a distinct copy of a Tyler product, intending to be its sole/primary administrator. Complex entities (states, large cities) may have multiple Organizations (departments/units). Each Organization has a unique identifier sourced from CRM and imported into Ops Center.
 

@@ -1,10 +1,10 @@
-# CorpDev DevOps: Developer Tooling, Infrastructure, Disaster Recovery, and Runbooks
+# OneTyler DevOps: Developer Tooling, Infrastructure, Disaster Recovery, and Runbooks
 
 Source: Tyler Blueprint Docusaurus — `https://docs.tylerdev.io/platform-architecture/dev-ops/` (multiple sub-pages)
 
 Domain: Blueprint General — Tyler Cloud Platform / Blueprint docs not served by a specialized Foundry agent.
 
-Audience: Tyler CorpDev / platform DevOps engineers — internal.
+Audience: Tyler OneTyler / platform DevOps engineers — internal.
 
 **Companion documents:** _START_HERE.md, Docusaurus-PlatformOverview.md, Docusaurus-ClientApps.md, Docusaurus-OpsApps.md, Docusaurus-CloudPlatformAPI.md, Docusaurus-ServiceArchitecture.md, Docusaurus-Security.md, Docusaurus-ProductSystemReg.md, Docusaurus-AlignedReleases.md, Docusaurus-StatusPageAndSLA.md
 
@@ -27,7 +27,7 @@ Audience: Tyler CorpDev / platform DevOps engineers — internal.
 | Migrate an app out of TCP EKS clusters | [Application Migration Out of TCP Clusters](#application-migration-out-of-tcp-clusters) |
 | Understand Terraform Cloud, workspace manager, or IaC approach | [Infrastructure as Code — Terraform](#infrastructure-as-code--terraform) |
 | Understand AWS account architecture, shared VPCs, EKS, CI/CD pipelines | [TCP AWS Infrastructure](#tcp-aws-infrastructure) |
-| Provision AWS resources (DynamoDB, RDS, S3, SNS/SQS, secrets, Harness) with Terraform | [Corpdev Terraform Docs — AWS Resources](#corpdev-terraform-docs--aws-resources) |
+| Provision AWS resources (DynamoDB, RDS, S3, SNS/SQS, secrets, Harness) with Terraform | [OneTyler Terraform Docs — AWS Resources](#onetyler-terraform-docs--aws-resources) |
 | Design or execute disaster recovery (DR) for an application | [Disaster Recovery — Design Guides](#disaster-recovery--design-guides) |
 | Execute a regional failover or failback for TCP platform | [Disaster Recovery — Regional Failover Runbooks](#disaster-recovery--regional-failover-runbooks) |
 | Respond to a P1 incident (on-call triage, escalation) | [Runbooks — P1 Incident Management](#runbooks--p1-incident-management) |
@@ -42,7 +42,7 @@ Audience: Tyler CorpDev / platform DevOps engineers — internal.
 
 | Term | Meaning |
 |---|---|
-| TCP | Tyler Cloud Platform — the CorpDev-operated multi-tenant SaaS platform |
+| TCP | Tyler Cloud Platform — the OneTyler-operated multi-tenant SaaS platform |
 | TID | Tyler Identity — the identity/authentication platform; has its own Foundry agent |
 | EKS | Amazon Elastic Kubernetes Service |
 | IaC | Infrastructure as Code |
@@ -92,7 +92,7 @@ Tyler auto-provisions read-only Datadog accounts when an employee logs in with t
 ```yaml
 tags:
   - product:tcp
-  - division:corpdev
+  - division:onetyler
   - <TAG_KEY>:<TAG_VALUE>
 
 env: <environment name>
@@ -113,7 +113,7 @@ Consistent tagging is mandatory for dashboards, cost attribution, and alerting t
 | Tag | Purpose | Example value |
 |---|---|---|
 | `env` | Top-level environment filter for APM; configured account-wide | `tcpprod-1` |
-| `division` | Division-level cost/usage attribution | `corpdev`, `erp`, `pr`, `cj`, `ps`, `lgd`, `ccs`, `nic`, `federal`, `di` |
+| `division` | Division-level cost/usage attribution | `onetyler`, `erp`, `pr`, `cj`, `ps`, `lgd`, `ccs`, `nic`, `federal`, `di` |
 | `product` | Which Tyler product owns the resource; use `shared` if multi-product | `tcp` |
 | `customer-id` | Customer scope; use `multi-tenant` for multi-tenant cloud apps | `multi-tenant` |
 
@@ -127,7 +127,7 @@ Consistent tagging is mandatory for dashboards, cost attribution, and alerting t
 | Tag | Values |
 |---|---|
 | `env-group` | `tcp`, `prod`, `non-prod` |
-| `tyler-account` | `corpdev-dev`, `corpdev-qa`, etc. |
+| `tyler-account` | `onetyler-dev`, `onetyler-qa`, etc. |
 | `erp-env-group` | `prod`, `non-prod` (ERP-specific) |
 
 ### Datadog Dashboards
@@ -198,7 +198,7 @@ Submit a Tyler Help Desk form: https://help.center.tylertech.com/servicedesk/cus
 
 1. Review the [Harness Governance Standard](#harness-governance-standard).
 2. Submit a PR to the Org Manage repo with a YAML file: https://github.com/tyler-technologies/harness-org-manage/blob/main/docs/user_guide.md
-3. Request review from CorpDev Infrastructure through the [Cloud Platform Community Teams Channel](https://teams.microsoft.com/l/channel/19%3A1e6bcc02bd3242a193bf9171a51a0395%40thread.tacv2/Cloud%20Platform%20Community?groupId=d9db441d-35fa-433c-8fe0-ff7fe5825d3c&tenantId=7cc5f0f9-ee5b-4106-a62d-1b9f7be46118).
+3. Request review from OneTyler Infrastructure through the [Cloud Platform Community Teams Channel](https://teams.microsoft.com/l/channel/19%3A1e6bcc02bd3242a193bf9171a51a0395%40thread.tacv2/Cloud%20Platform%20Community?groupId=d9db441d-35fa-433c-8fe0-ff7fe5825d3c&tenantId=7cc5f0f9-ee5b-4106-a62d-1b9f7be46118).
 4. Upon merge, automation creates the Harness org, all configured projects, Kubernetes connectors, and Org/Project Admin user groups.
 
 > **Warning:** The Org Admins and Project Admins user groups are managed by Terraform. Changes made in the Harness UI will not be persisted.
@@ -221,7 +221,7 @@ Live doc: https://docs.tylerdev.io/platform-architecture/dev-ops/dev-tools/harne
 
 ```yaml
 tags:
-  division: corpdev          # lowercase kebab-case; must match AWS Tagging Standards
+  division: onetyler          # lowercase kebab-case; must match AWS Tagging Standards
   owner: first.last          # accountable owner
   lifecycle: poc             # poc | prod | deprecated
 ```
@@ -273,20 +273,20 @@ Live docs:
 - Overview: https://docs.tylerdev.io/platform-architecture/dev-ops/dev-tools/jsm/overview
 - Manage On-call: https://docs.tylerdev.io/platform-architecture/dev-ops/dev-tools/jsm/manage-oncall-schedule
 
-### What is JSM for CorpDev?
+### What is JSM for OneTyler?
 
-Jira Service Management (JSM) is the on-call and incident management platform for CorpDev. It:
+Jira Service Management (JSM) is the on-call and incident management platform for OneTyler. It:
 - Manages on-call schedules and escalation policies
 - Ingests P1 alerts from Datadog monitors and synthetic tests
 - Routes notifications to the appropriate on-call engineer
-- Creates Jira Work Items in the CorpDev workspace
+- Creates Jira Work Items in the OneTyler workspace
 - Automates communication via Microsoft Teams and email
 
-**CorpDev JSM URLs:**
+**OneTyler JSM URLs:**
 - Team: https://home.atlassian.com/o/8419343d-b09d-1jj2-7472-18d1k0410baa/people/team/37a5b6fe-45c3-49fd-a101-55951a7b77b3
 - Operations/On-call: https://my.work.tylertech.com/jira/ops/teams/37a5b6fe-45c3-49fd-a101-55951a7b77b3/on-call
 - Alerts: https://my.work.tylertech.com/jira/ops/alerts?view=list&query=responders%3A37a5b6fe-45c3-49fd-a101-55951a7b77b3
-- CorpDev Jira Space: https://my.work.tylertech.com/jira/servicedesk/projects/CORPDEV/summary
+- OneTyler Jira Space: https://my.work.tylertech.com/jira/servicedesk/projects/CORPDEV/summary
 
 **Datadog integrations:**
 - Production Synthetic Tests: https://app.datadoghq.com/synthetics/tests?query=team%3Atyler-cloud-platform%20tag%3A%22env%3Atcpprod-1%22%20tag%3A%22createdby%3Aterraform%22
@@ -502,7 +502,7 @@ Migration tool: https://github.com/tyler-technologies/go-dynamodb-migrate
 
 Live doc: https://docs.tylerdev.io/platform-architecture/dev-ops/application-migration/migrating
 
-**Use when:** Moving a non-CorpDev application out of TCP EKS clusters (required as CorpDev migrates to FedRamp).
+**Use when:** Moving a non-OneTyler application out of TCP EKS clusters (required as OneTyler migrates to FedRamp).
 
 Reference test application: https://github.com/tyler-technologies/tcp-redirect-test-app
 
@@ -544,10 +544,10 @@ traefik.ingress.kubernetes.io/router.middlewares: <namespace>-<middleware-name>@
 
 Live doc: https://docs.tylerdev.io/platform-architecture/dev-ops/infrastructure-as-code/overview
 
-CorpDev uses **Terraform** managed through **Terraform Cloud** (HashiCorp-managed service) for all infrastructure automation. Terraform was chosen over AWS CDK and CloudFormation for state management control, drift detection, multi-cloud support, and strong community ecosystem.
+OneTyler uses **Terraform** managed through **Terraform Cloud** (HashiCorp-managed service) for all infrastructure automation. Terraform was chosen over AWS CDK and CloudFormation for state management control, drift detection, multi-cloud support, and strong community ecosystem.
 
 **Tyler Terraform organizations:**
-- `tyler-corp` — Owner: CorpDev
+- `tyler-corp` — Owner: OneTyler
 - `tyler-hosting` — Owner: Corporate Cloud Services
 - `dsd` — Owner: DSD
 
@@ -585,9 +585,9 @@ Live docs:
 
 **Part I — Creating a new project:**
 
-1. Navigate to https://github.com/tyler-technologies/corpdev-tf-workspace-management/
+1. Navigate to https://github.com/tyler-technologies/onetyler-tf-workspace-management/
 2. Create a branch; add a YAML file in `/team-definitions/`. The filename becomes the project name and management repo prefix.
-3. Submit a PR — CorpDev devops team reviews and merges.
+3. Submit a PR — OneTyler devops team reviews and merges.
 4. Upon merge, automation creates:
    - A dedicated TFC project
    - A workspace to manage workspaces within that project (`<team>-tf-workspace-management`)
@@ -622,7 +622,7 @@ The Terraform Workspace Manager can create and manage AWS IAM roles for use in T
 
 **Process:**
 1. Ensure Terraform Cloud is configured as an identity provider in the AWS account.
-2. In `corpdev-tf-workspace-management`, set `auto_update: true` and define `dynamic_aws_auth` with existing IAM role ARNs (restricted to the `<project>-tf-management` workspace). Each entry needs a unique `id`.
+2. In `onetyler-tf-workspace-management`, set `auto_update: true` and define `dynamic_aws_auth` with existing IAM role ARNs (restricted to the `<project>-tf-management` workspace). Each entry needs a unique `id`.
 3. Upon apply, TFC configures those IAM roles as environment variables in the management workspace.
 4. In the `<project>-tf-management` GitHub repo YAML, set `aws_dynamic_auth_info.id` to match the logical ID from step 2.
 5. Upon apply, the management workspace creates workspace-specific admin IAM roles with trust policies scoped to only allow the specific workspace.
@@ -744,7 +744,7 @@ Source: https://github.com/tyler-technologies/tcp-eks-manage/tree/main/modules/k
 
 ---
 
-## Corpdev Terraform Docs — AWS Resources
+## OneTyler Terraform Docs — AWS Resources
 
 These documents describe how the TCP team provisions specific AWS resources with Terraform in a multi-region (primary + secondary DR) configuration. Other teams may need to adapt these patterns (fewer regions).
 
@@ -771,7 +771,7 @@ Live doc: https://docs.tylerdev.io/platform-architecture/dev-ops/tcp-aws-infrast
 | Tag | Value |
 |---|---|
 | `Product` | `tcp` |
-| `division` | `corpdev` |
+| `division` | `onetyler` |
 | `managedby` | `terraform` |
 | `workspace` | `<terraform cloud workspace name>` |
 | `gitrepo` | `<github repo name + path to terraform root>` |
@@ -930,7 +930,7 @@ dotnet new tcp-tf-onetime -H <GITHUB_REPO_NAME> -I
 
 Workspace name prefix in `terraform.tf`:
 ```
-tcp-app-corpdev-tcp-services-<your_workspace_name>-
+tcp-app-onetyler-tcp-services-<your_workspace_name>-
 ```
 
 ### Git2Consul Configuration
@@ -1081,7 +1081,7 @@ Live docs:
 - [ ] Review Kubernetes Explorer
 - [ ] Check AWS Service Health Dashboard
 - [ ] Check social media/DownDetector
-- [ ] Classify: not an AWS issue → escalate to CorpDev Dev or Infra team (do NOT failover)
+- [ ] Classify: not an AWS issue → escalate to OneTyler Dev or Infra team (do NOT failover)
 
 **3. Assess AWS Components:**
 - [ ] Networking: ALB, Route Tables, Internet Gateway, NAT Gateway
@@ -1091,13 +1091,13 @@ Live docs:
 
 **4. Execute Failover:**
 - [ ] Announce to stakeholders via [TCP DR Status Teams channel](https://teams.microsoft.com/l/channel/19%3A3d14dd3e64f945158bb25193a6b34a2c%40thread.tacv2/TCP%20Disaster%20Recovery%20Status?groupId=d9db441d-35fa-433c-8fe0-ff7fe5825d3c&tenantId=7cc5f0f9-ee5b-4106-a62d-1b9f7be46118)
-- [ ] Contact DR-dependent teams via [CorpDev DR Collaboration Teams channel](https://teams.microsoft.com/l/channel/19%3ACx0b8ZXk3FrG0V6Zs0XXTBr6am5mkzZttjyjvg-4s_E1%40thread.tacv2/CorpDev%20DR%20Collaboration?groupId=d9db441d-35fa-433c-8fe0-ff7fe5825d3c&tenantId=7cc5f0f9-ee5b-4106-a62d-1b9f7be46118)
+- [ ] Contact DR-dependent teams via [OneTyler DR Collaboration Teams channel](https://teams.microsoft.com/l/channel/19%3ACx0b8ZXk3FrG0V6Zs0XXTBr6am5mkzZttjyjvg-4s_E1%40thread.tacv2/CorpDev%20DR%20Collaboration?groupId=d9db441d-35fa-433c-8fe0-ff7fe5825d3c&tenantId=7cc5f0f9-ee5b-4106-a62d-1b9f7be46118)
 - [ ] Switch environment to secondary AWS region
 - [ ] Update AWS service configurations to point to secondary region
 - [ ] Run validation tests; confirm stability
 - [ ] Mark incident resolved; notify stakeholders
 
-**Post-incident:** Write a [Post Mortem in Coda](https://coda.io/d/CorpDev-Engineering-Center_dEyhmwumaY8/Post-Mortems_su1iAXax); identify improvements.
+**Post-incident:** Write a [Post Mortem in Coda](https://coda.io/d/OneTyler-Engineering-Center_dEyhmwumaY8/Post-Mortems_su1iAXax); identify improvements.
 
 ### Failover Runbook — Preparing
 
@@ -1163,7 +1163,7 @@ for ns in $(k get deploy -A | grep 'git2consul-deployment'| awk '{print $1}'); d
 done
 ```
 
-Scale CorpDev namespaces (by startup tier):
+Scale OneTyler namespaces (by startup tier):
 ```bash
 # infra tier (repeat with core-service, service, ui, finalize tiers)
 for ns in 'cloudplatform-injector' 'tidgateway' 'tidops' 'cloudplatform'; do
@@ -1222,10 +1222,10 @@ for dep in $(echo "$deplist"); do k -n cloudplatform scale deployment "$dep" --r
 
 ## Runbooks — P1 Incident Management
 
-Live doc: https://docs.tylerdev.io/platform-architecture/dev-ops/runbooks/01-incident-management/corpdev-p1-response
+Live doc: https://docs.tylerdev.io/platform-architecture/dev-ops/runbooks/01-incident-management/onetyler-p1-response
 
 Environment: Production (`tcpprod-1`, `us-east-1`, cluster `tcpprod-1-eks`)
-Teams channel: `@teams-CorpDev-P1-Prod`
+Teams channel: `@teams-OneTyler-P1-Prod`
 All times: Pacific Time (PT)
 
 ### P1 On-Call Schedule
@@ -1258,7 +1258,7 @@ All times: Pacific Time (PT)
 | `@pagerduty-tid-c-service-monitoring` | TID C Service | P1 — 24/7 |
 | `@pagerduty-tcp-infrastructure-monitoring` | Infrastructure | P1 — 24/7 |
 | `@pagerduty-petreg-registration-monitoring` | PETREG | P1 — 24/7 |
-| `@pagerduty-tcp-p2-services-monitoring` | CorpDev namespaces (no priority label) | P2 — business hours |
+| `@pagerduty-tcp-p2-services-monitoring` | OneTyler namespaces (no priority label) | P2 — business hours |
 
 P2 namespaces: `cloudplatform`, `tidops`, `tidgateway`, `cloudplatform-injector`, `community-service-directory`
 
@@ -1311,9 +1311,9 @@ kubectl get pvc -n <namespace> | grep -v Bound
 
 Live doc: https://docs.tylerdev.io/platform-architecture/dev-ops/runbooks/02-aws-sso/aws-cli-login-setup
 
-**Use when:** Setting up AWS CLI access to a CorpDev AWS account for the first time.
+**Use when:** Setting up AWS CLI access to a OneTyler AWS account for the first time.
 
-**Prerequisites:** Login access to tylerhost with the appropriate roles assigned. Contact the CorpDev Infrastructure team via [CorpDev Engineering Teams channel](https://teams.microsoft.com/l/channel/19%3Ae05d366187ac4aa689cf82f173b21b57%40thread.tacv2/Engineering?groupId=dc2864ad-8662-497b-98d5-7ba047f7ece7&tenantId=7cc5f0f9-ee5b-4106-a62d-1b9f7be46118) if roles are missing.
+**Prerequisites:** Login access to tylerhost with the appropriate roles assigned. Contact the OneTyler Infrastructure team via [OneTyler Engineering Teams channel](https://teams.microsoft.com/l/channel/19%3Ae05d366187ac4aa689cf82f173b21b57%40thread.tacv2/Engineering?groupId=dc2864ad-8662-497b-98d5-7ba047f7ece7&tenantId=7cc5f0f9-ee5b-4106-a62d-1b9f7be46118) if roles are missing.
 
 **Steps:**
 ```bash
@@ -1506,7 +1506,7 @@ Live doc: https://docs.tylerdev.io/platform-architecture/dev-ops/runbooks/dev-to
 
 **Access:** All engineering AD group members are auto-provisioned with Artifactory read-only accounts via Okta SSO. Log in at https://tylertech.jfrog.io/ui/login/ (click the cloud/SSO button).
 
-**Team repositories:** Teams get `-local` repositories (e.g., `corpdev-npm-local`, `corpdev-nuget-local`, `corpdev-docker-local`) and `.devops`/`.publish`/`.service` automation users. Credentials are stored in LastPass under `Shared-artifactory-[teamname]`.
+**Team repositories:** Teams get `-local` repositories (e.g., `onetyler-npm-local`, `onetyler-nuget-local`, `onetyler-docker-local`) and `.devops`/`.publish`/`.service` automation users. Credentials are stored in LastPass under `Shared-artifactory-[teamname]`.
 
 **Repository types:**
 - **local**: Team-specific internal artifact storage (push target)
@@ -1581,7 +1581,7 @@ PrivX is the SSH access management tool for database and infrastructure access. 
 
 **Available roles:** `tcp`, `lgd`, `erp`, `appraisaltax`, `civic-services`, `cybersecurity`, `tyler-privx-admins`
 
-> **Critical:** Only CorpDev DevOps team members should be added to `tyler-privx-admins`.
+> **Critical:** Only OneTyler DevOps team members should be added to `tyler-privx-admins`.
 
 **Adding a user:**
 
@@ -1594,8 +1594,8 @@ PrivX is the SSH access management tool for database and infrastructure access. 
    - `mapping_attribute_value_list`: user's role(s)
 5. Create a branch, commit (include JIRA ticket number), open a PR, merge to main.
 6. In Terraform Cloud, review the generated plan:
-   - Nonprod: https://app.terraform.io/app/tyler-corp/workspaces/tcp-app-corpdev-infra-privx-management-nonprod
-   - Prod: https://app.terraform.io/app/tyler-corp/workspaces/tcp-app-corpdev-infra-privx-management-prod
+   - Nonprod: https://app.terraform.io/app/tyler-corp/workspaces/tcp-app-onetyler-infra-privx-management-nonprod
+   - Prod: https://app.terraform.io/app/tyler-corp/workspaces/tcp-app-onetyler-infra-privx-management-prod
 7. Note: All null resources will appear as "replaced" — this is expected permanent diff. If plan looks correct, apply.
 
 **Removing a user:** Follow the same repo/PR/apply process but remove the entry from `privx-users.yml`.
@@ -1604,7 +1604,7 @@ PrivX is the SSH access management tool for database and infrastructure access. 
 
 ## Notes for the Chatbot
 
-1. **This is internal CorpDev platform-engineering content only.** Nothing in this file is customer-facing. Do not share raw runbook commands or internal escalation contacts with external parties.
+1. **This is internal OneTyler platform-engineering content only.** Nothing in this file is customer-facing. Do not share raw runbook commands or internal escalation contacts with external parties.
 
 2. **Three areas have dedicated Foundry agents** and must not be answered from this file — hand off immediately: Ops Center, SAC (Support Access Center), and Identity (TID). See the "Dedicated-agent hand-off" box at the top.
 

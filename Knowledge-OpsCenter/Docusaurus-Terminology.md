@@ -1,6 +1,6 @@
 # Tyler Cloud Platform — Terminology Glossary
 
-Source: Docusaurus — *CorpDev Blueprint, Get Started > Terminology* (`docs/get-started/terminology/terminology.md`)
+Source: Docusaurus — *OneTyler Blueprint, Get Started > Terminology* (`docs/get-started/terminology/terminology.md`)
 Domain: Ops Center (terminology is foundational across the One Tyler Ecosystem and used throughout Ops Center, Admin Center, Identity Workforce, Community Access, and Tyler CRM)
 Audience: Tyler product, deployment, implementation, support, identity, and devops staff who need a precise definition for any Tyler Cloud Platform (TCP) term.
 
@@ -35,11 +35,11 @@ A foundational framework to centralize discovery and navigation of all Tyler sol
 
 ### Ops Center
 
-CorpDev-managed One Tyler Ecosystem tool for centralized discovery and navigation to Tyler Ops applications. Used to create organizations and workspaces, license products to organizations, and activate products on workspaces. See *Tyler Ops User* and *Admin Center*.
+OneTyler-managed One Tyler Ecosystem tool for centralized discovery and navigation to Tyler Ops applications. Used to create organizations and workspaces, license products to organizations, and activate products on workspaces. See *Tyler Ops User* and *Admin Center*.
 
 ### Admin Center
 
-CorpDev-managed tool for centralized administrative experiences used by **customer** IT or solutions administrators. Counterpart to Ops Center (which is for Tyler staff). See *Admin Apps* and *Organization Admin*.
+OneTyler-managed tool for centralized administrative experiences used by **customer** IT or solutions administrators. Counterpart to Ops Center (which is for Tyler staff). See *Admin Apps* and *Organization Admin*.
 
 ### Control plane
 
@@ -120,6 +120,16 @@ A guide outlining steps to complete a task or procedure. Used in IT to document 
 ---
 
 ## Cluster: Customer, organization, CRM
+
+### OneTyler (formerly CorpDev)
+
+The internal team that maintains Ops Center, Admin Center, Identity Workforce/Community, CAPM
+and much of the Tyler Cloud Platform, and that fulfils the support tickets for those tools.
+**"CorpDev" is the former name** — prefer **OneTyler**, but expect "CorpDev" from users and
+in live systems: the JSM portals are still titled "CorpDev Support" and "CorpDev Feature
+Requests", some ticket forms still say "CorpDev maintained applications", the Teams space is
+still "CorpDev Collaboration", and GitHub/infrastructure identifiers keep the `corpdev-`
+prefix. Treat the two as the same team; quote system names as they actually appear.
 
 ### Customer or Client
 

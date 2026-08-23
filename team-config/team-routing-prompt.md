@@ -71,14 +71,16 @@ Rules:
     what a request form expects, goes to "Ops Center" — including Identity and Support
     Access Center tickets. Ops Center holds the single authoritative ticket catalog, which
     covers Ops Center, Identity, Support Access Center, infrastructure and general-inquiry
-    tickets. Never invent a ticket URL or answer a ticket question from memory.
+    tickets. Never invent a ticket URL or answer a ticket question from memory. Note the
+    team that fulfils these is now called OneTyler; "CorpDev" is its former name and still
+    appears in the live portal titles, so treat the two as the same thing.
 ```
 
 ## Change log
 
 ### 2026-08-23 (c) — ticket questions always go to Ops Center
 
-Ops Center's `Conf-OpsCenterTickets.md` is the only authoritative catalog of CorpDev
+The shared `Conf-OneTylerTickets.md` is the only authoritative catalog of OneTyler
 ticket forms, and it covers far more than Ops Center: Identity tickets (authentication,
 federations, identity client, Okta backend), Support Access Center authorization,
 infrastructure and GitHub, and general inquiry. Without a rule, a user asking "which ticket

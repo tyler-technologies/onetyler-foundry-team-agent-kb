@@ -1,6 +1,6 @@
 # Tyler CRM — Preparing a Valid Account Record for Ops Center
 
-Source: Docusaurus — *CorpDev Blueprint, App Guides > Ops > Ops Center > Tyler CRM* (`docs/app-guides/ops/ops-center/tylercrm/tylercrm.md`)
+Source: Docusaurus — *OneTyler Blueprint, App Guides > Ops > Ops Center > Tyler CRM* (`docs/app-guides/ops/ops-center/tylercrm/tylercrm.md`)
 Domain: Ops Center
 Audience: Tyler product, deployment, and implementation staff who need to source customer information from Tyler CRM (Microsoft Dynamics) to request or import an Organization into Ops Center.
 
@@ -9,7 +9,7 @@ This document covers what Ops Center needs from Tyler CRM, how to confirm/obtain
 **Companion documents in this same Knowledge folder:**
 - `Docusaurus-Terminology.md` — see the *CRM* cluster for canonical CRM term definitions (Active customer, Customer Identifier, Customer Relationship Type, Support-only customer, Hierarchy, Case, Product Suite/Module, etc.). The chatbot should always reach for those definitions when answering CRM-related questions.
 - `Docusaurus-OpsCenter.md` — how the validated CRM record is then used in the **+Import (an organization)** wizard and the **New Org Request** ticket.
-- `Conf-OpsCenterTickets.md` — exact ticket URLs and Notes-field wording for new-org requests.
+- `Knowledge-Shared/Conf-OneTylerTickets.md` — exact ticket URLs and Notes-field wording for new-org requests.
 
 ---
 
@@ -133,6 +133,6 @@ If the **Identifier (Business Use=Default)** value is missing **and** the accoun
   - No active customer product item for their product.
   - Customer Identifier (Business Use = Default) hasn't been generated yet.
   Walk through the checklist and identify which.
-- **CRM ≠ Ops Center.** CRM is where sales-enabled records live; Ops Center pulls from it. Don't confuse "create org in Ops Center" with "create record in CRM" — when CRM is wrong, sales (not CorpDev) fixes it.
+- **CRM ≠ Ops Center.** CRM is where sales-enabled records live; Ops Center pulls from it. Don't confuse "create org in Ops Center" with "create record in CRM" — when CRM is wrong, sales (not OneTyler) fixes it.
 - **Internal Tyler-use orgs do NOT have CRM records.** For those, use **+Create Internal** in Ops Center (see `Docusaurus-OpsCenter.md`), not CRM/Import — and follow naming conventions (Confluence: *Internal Orgs creation in Ops Center → Internal-Org-Naming-Construct*).
 - **Support-only Customer = Yes** is intentionally used to keep an account from showing up in sales queries — but that exact attribute also blocks Ops Center from accepting the record for customer-org creation. If a record is marked Yes and should be a real customer, sales must change it to No.

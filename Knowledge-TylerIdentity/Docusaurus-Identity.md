@@ -519,7 +519,7 @@ All changes to the Gateway flow from `tcpci` -> `tcpqa` -> `tylerportico` via au
 
 ### Local Development
 
-The Corpdev team provides an entire local development environment (https://github.com/tyler-technologies/platform-dev-environment-compose) that can be utilized for testing integrations with the ecosystem, including the Gateway. This environment utilizes a mock IdP, allowing for login with any user, but exhibits the same authentication behavior as the cloud environments.
+The OneTyler team provides an entire local development environment (https://github.com/tyler-technologies/platform-dev-environment-compose) that can be utilized for testing integrations with the ecosystem, including the Gateway. This environment utilizes a mock IdP, allowing for login with any user, but exhibits the same authentication behavior as the cloud environments.
 
 ---
 
@@ -1907,7 +1907,7 @@ All changes flow from `tcpci` -> `tcpqa` -> `tylerportico` via automated continu
 
 ### Local Development
 
-The Corpdev team provides a local development environment (https://github.com/tyler-technologies/platform-dev-environment-compose) that can be utilized for testing integrations with Community Access. This environment utilizes a mock IdP, allowing for login with any user, but exhibits the same authentication behavior as the cloud environments.
+The OneTyler team provides a local development environment (https://github.com/tyler-technologies/platform-dev-environment-compose) that can be utilized for testing integrations with Community Access. This environment utilizes a mock IdP, allowing for login with any user, but exhibits the same authentication behavior as the cloud environments.
 
 ---
 
@@ -2939,7 +2939,7 @@ Common requests include:
 
 ## Teams Channels
 
-All channels are located under the **Corpdev Collaboration** team.
+All channels are located under the **OneTyler Collaboration** team.
 
 **Cloud Platform Community**: Channel for discussions or help on anything related to the cloud ecosystem.
 

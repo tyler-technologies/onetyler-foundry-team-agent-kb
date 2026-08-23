@@ -2,7 +2,7 @@
 
 Source: Tyler Blueprint Docusaurus — `https://docs.tylerdev.io/platform-architecture/security/`
 Domain: Blueprint General — Tyler Cloud Platform / Blueprint docs not served by a specialized Foundry agent
-Audience: CorpDev engineers and product-team engineers deploying services on TCP EKS clusters; anyone integrating with CorpDev security tooling (RDS, secrets, container scanning, WAF).
+Audience: OneTyler engineers and product-team engineers deploying services on TCP EKS clusters; anyone integrating with OneTyler security tooling (RDS, secrets, container scanning, WAF).
 
 **Companion documents:**
 - `_START_HERE.md` — routing guide for this corpus
@@ -35,16 +35,16 @@ Audience: CorpDev engineers and product-team engineers deploying services on TCP
 | Term | Meaning |
 |---|---|
 | RDS IAM Auth | AWS-native mechanism to authenticate database connections using IAM roles rather than passwords |
-| Akeyless | SaaS secrets-management platform used by CorpDev; supports zero-knowledge encryption |
+| Akeyless | SaaS secrets-management platform used by OneTyler; supports zero-knowledge encryption |
 | Zero Knowledge Encryption | Akeyless feature where a customer-controlled key fragment is combined with Akeyless key fragments; Akeyless itself cannot decrypt secrets |
 | AquaSec / Aqua Security | Container security platform used for vulnerability scanning and Kubernetes admission control |
 | Trivy | Open-source AquaSec tool used in CI/CD pipelines to scan code, binaries, and images for CVEs |
 | CVE | Common Vulnerabilities and Exposures — tracked vulnerabilities in software packages |
-| WAF | Web Application Firewall — AWS WAF rules enforced in front of all CorpDev-hosted apps |
-| ITAR | International Traffic in Arms Regulations — the country list CorpDev uses as the basis for GeoIP blocking |
+| WAF | Web Application Firewall — AWS WAF rules enforced in front of all OneTyler-hosted apps |
+| ITAR | International Traffic in Arms Regulations — the country list OneTyler uses as the basis for GeoIP blocking |
 | PrivX | Jump host used for emergency human access to RDS instances (`jump.tylerops.io` / `jump.nonprod.tylerops.io`) |
 | corpdev_db_admin | Shared MySQL IAM user name used for RDS IAM authentication |
-| corpdevtools_dev / aws_devtools | AWS accounts where Akeyless gateways are deployed |
+| onetylertools_dev / aws_devtools | AWS accounts where Akeyless gateways are deployed |
 
 ---
 
@@ -128,18 +128,18 @@ Retrieve the root master password from AWS Secrets Manager via PrivX.
 
 ## Akeyless Secrets Management Design
 
-**Use when:** Understanding how CorpDev designs and deploys its Akeyless secrets management infrastructure, or configuring a service to use Akeyless for secrets.
+**Use when:** Understanding how OneTyler designs and deploys its Akeyless secrets management infrastructure, or configuring a service to use Akeyless for secrets.
 
-> **Note:** This is the **design proposal** document. Refer to any published operations documentation on the CorpDev docs site for finalized implementation details.
+> **Note:** This is the **design proposal** document. Refer to any published operations documentation on the OneTyler docs site for finalized implementation details.
 
 ### Design Principles
 
-- **Zero Knowledge Encryption**: CorpDev controls a custom key fragment; Akeyless cannot decrypt CorpDev secrets without it.
+- **Zero Knowledge Encryption**: OneTyler controls a custom key fragment; Akeyless cannot decrypt OneTyler secrets without it.
 - **Ephemeral credentials preferred**: SAML (humans), OIDC (GitHub, Terraform Cloud), k8s service account tokens, and IAM roles are the preferred auth methods. API keys are avoided.
 - **Disaster recovery**: Secrets must be recoverable; CI instances in `us-west-2` and `us-east-1` share the same customer key fragment per environment.
 - **Two Akeyless accounts**:
-  - **Corpdev Internal** — secrets only CorpDev accesses
-  - **Corpdev Shared** — secrets shared with external teams (e.g., product registration keys, Terraform Cloud tokens)
+  - **OneTyler Internal** — secrets only OneTyler accesses
+  - **OneTyler Shared** — secrets shared with external teams (e.g., product registration keys, Terraform Cloud tokens)
 
 ### Gateway Architecture
 
@@ -147,7 +147,7 @@ Akeyless gateways are Kubernetes workloads. One gateway can only target one Akey
 
 | Environment | AWS Account | Regions | Gateway instances |
 |---|---|---|---|
-| CI & QA | `corpdevtools_dev` | `us-west-2`, `us-east-1` | 4 per cluster (CI-Internal, CI-Shared, QA-Internal, QA-Shared) |
+| CI & QA | `onetylertools_dev` | `us-west-2`, `us-east-1` | 4 per cluster (CI-Internal, CI-Shared, QA-Internal, QA-Shared) |
 | Production | `aws_devtools` | `us-west-2`, `us-east-1` | Similar layout |
 
 Customer key fragments are stored in AWS Secrets Manager and mounted in gateway deployments. Internal TLS uses dummy certificates within the cluster. Gateways communicate via Internet and ingress.
@@ -167,7 +167,7 @@ Customer key fragments are stored in AWS Secrets Manager and mounted in gateway 
 
 Akeyless provides a **k8s secret injector** (mutating webhook) that injects secrets as init containers or sidecars. Limitations:
 - Only one injector per cluster; it can only target one Akeyless account.
-- Workarounds being evaluated: Akeyless feature request, segregated area in CorpDev Internal, Akeyless SDK, or a custom injector.
+- Workarounds being evaluated: Akeyless feature request, segregated area in OneTyler Internal, Akeyless SDK, or a custom injector.
 
 Infrastructure configuration uses Terraform modules that allow individual services to configure access for their k8s service accounts.
 
@@ -179,29 +179,29 @@ Repositories must be explicitly listed to use JWT access. PR-based automation is
 
 Terraform workspace manager grants access to specified areas. Service-specific plans get permissions scoped to their secret paths.
 
-### Secret Path Structure (Corpdev Internal)
+### Secret Path Structure (OneTyler Internal)
 
 ```
-/CorpDev/secrets/{env}/application/{team}/{secret-group}/{k8s-service}
+/OneTyler/secrets/{env}/application/{team}/{secret-group}/{k8s-service}
 ```
 Environments: `ci`, `qa`, `prod`
 Teams: `cloudplatform`, `tid-ops`, `tid-gateway`, `csd`
 
 Infrastructure secrets:
 ```
-/CorpDev/secrets/infrastructure/GitHub
-/CorpDev/secrets/infrastructure/Harness
-/CorpDev/secrets/infrastructure/Terraform
-/CorpDev/secrets/infrastructure/Styra
-/CorpDev/secrets/infrastructure/Aqua
-/CorpDev/secrets/infrastructure/DataDog
+/OneTyler/secrets/infrastructure/GitHub
+/OneTyler/secrets/infrastructure/Harness
+/OneTyler/secrets/infrastructure/Terraform
+/OneTyler/secrets/infrastructure/Styra
+/OneTyler/secrets/infrastructure/Aqua
+/OneTyler/secrets/infrastructure/DataDog
 ```
 
 Encryption keys:
 ```
-/CorpDev/keys/ci
-/CorpDev/keys/qa
-/CorpDev/keys/prod
+/OneTyler/keys/ci
+/OneTyler/keys/qa
+/OneTyler/keys/prod
 ```
 
 ### Secret Migration — Current vs. Target State
@@ -210,30 +210,30 @@ Encryption keys:
 |---|---|---|
 | **Kubernetes secrets** | GitHub action secret → Terraform → AWS Secrets Manager + Harness → K8s | Generated by app → entered into Akeyless → mounted via injector or SDK; rotated automatically |
 | **CCF tokens** | Manual AWS Secrets Manager entry | Same as K8s secrets path above |
-| **Product registration keys** | Entered into Harness by external team → GitHub Action → Harness pipeline → CRD | Entered into Corpdev Shared Akeyless → secret name in YAML → Harness pipeline → CRD; registration operator retrieves from Akeyless |
+| **Product registration keys** | Entered into Harness by external team → GitHub Action → Harness pipeline → CRD | Entered into OneTyler Shared Akeyless → secret name in YAML → Harness pipeline → CRD; registration operator retrieves from Akeyless |
 | **GitHub Artifactory credentials** | Static GitHub Org/Repo secrets | Akeyless generates short-lived Artifactory token; token expires after use |
 | **Other GitHub secrets** | Static GitHub secrets | Stored in Akeyless; GitHub authenticates via JWT; access controlled by org/repo claims; rotation configured |
-| **Terraform Cloud tokens** | Terraform-generated token stored as GitHub Actions Secret | Token in Corpdev Shared Akeyless; secret name in GitHub repo variables; custom rotator configured |
+| **Terraform Cloud tokens** | Terraform-generated token stored as GitHub Actions Secret | Token in OneTyler Shared Akeyless; secret name in GitHub repo variables; custom rotator configured |
 
 ### Phase 1 Deliverables
 
 1. K8s clusters and Akeyless gateways deployed in respective accounts and regions
 2. Terraform modules to interact with Akeyless
-3. Design and operations documentation published on CorpDev docs site
+3. Design and operations documentation published on OneTyler docs site
 
 ---
 
 ## Vulnerability Scanning
 
-**Use when:** A product team needs to understand how to comply with CorpDev EKS container security requirements, or how to set up image scanning and registration.
+**Use when:** A product team needs to understand how to comply with OneTyler EKS container security requirements, or how to set up image scanning and registration.
 
 ### Why It Matters
 
-Container image scanning detects known CVEs in OS packages and dependencies before they reach production. CorpDev uses **AquaSec** as its primary platform for scanning and admission control across all CorpDev EKS clusters (`tcpci.com`, `tcpqa.com`, `tylerportico.com`).
+Container image scanning detects known CVEs in OS packages and dependencies before they reach production. OneTyler uses **AquaSec** as its primary platform for scanning and admission control across all OneTyler EKS clusters (`tcpci.com`, `tcpqa.com`, `tylerportico.com`).
 
 ### Admission Control
 
-AquaSec's Kubernetes admission controller is active in all CorpDev EKS environments. Images are **blocked** if they:
+AquaSec's Kubernetes admission controller is active in all OneTyler EKS environments. Images are **blocked** if they:
 - Are not registered with AquaSec
 - Contain high or critical vulnerabilities with known exploits
 - Contain malware
@@ -241,7 +241,7 @@ AquaSec's Kubernetes admission controller is active in all CorpDev EKS environme
 
 ### Product Team Security Requirements
 
-All product teams deploying to CorpDev EKS clusters **must**:
+All product teams deploying to OneTyler EKS clusters **must**:
 
 1. **Implement vulnerability scanning** in their CI/CD pipeline (use Shared Trivy GitHub Actions)
 2. **Register container images with AquaSec** in their CI/CD pipeline (use the Shared Image Registration GitHub Action or the Shared Harness Template)
@@ -293,17 +293,17 @@ Steps to add the "Image Scan by Aqua Security" shared template:
 
 ### Contact
 
-CorpDev DevOps team: https://teams.microsoft.com/l/channel/19%3A1e6bcc02bd3242a193bf9171a51a0395%40thread.tacv2/Cloud%20Platform%20Community?groupId=d9db441d-35fa-433c-8fe0-ff7fe5825d3c&tenantId=7cc5f0f9-ee5b-4106-a62d-1b9f7be46118
+OneTyler DevOps team: https://teams.microsoft.com/l/channel/19%3A1e6bcc02bd3242a193bf9171a51a0395%40thread.tacv2/Cloud%20Platform%20Community?groupId=d9db441d-35fa-433c-8fe0-ff7fe5825d3c&tenantId=7cc5f0f9-ee5b-4106-a62d-1b9f7be46118
 
 ---
 
 ## WAF Rules for Infrastructure Security
 
-**Use when:** Understanding what traffic is blocked at the WAF level across all CorpDev-hosted applications.
+**Use when:** Understanding what traffic is blocked at the WAF level across all OneTyler-hosted applications.
 
 ### GeoIP Blocking (ITAR Country List)
 
-CorpDev blocks traffic from countries on the ITAR (International Traffic in Arms Regulations) list to reduce risk surface, mitigate bot activity, and protect infrastructure availability. This applies to **all** apps hosted in CorpDev infrastructure.
+OneTyler blocks traffic from countries on the ITAR (International Traffic in Arms Regulations) list to reduce risk surface, mitigate bot activity, and protect infrastructure availability. This applies to **all** apps hosted in OneTyler infrastructure.
 
 **Blocked countries (IP-level block, HTTP 403):**
 
@@ -340,9 +340,9 @@ Afghanistan, Angola, Belarus, Myanmar, Cambodia, Central African Republic, China
 
 ## Notes for the Chatbot
 
-1. **RDS IAM Auth is the standard** for MySQL on TCP. When a team asks about database credentials or connection strings, direct them here. The IAM username is always `corpdev_db_admin` in CorpDev infrastructure.
-2. **Akeyless is a design proposal as of the document date.** For the current (live) secrets tooling status, direct users to CorpDev DevOps or the published operations docs. This file captures the *intended architecture* and migration path.
-3. **AquaSec requirements are mandatory gating requirements** — images that fail are blocked by the admission controller. This is not optional for product teams deploying to CorpDev EKS clusters.
+1. **RDS IAM Auth is the standard** for MySQL on TCP. When a team asks about database credentials or connection strings, direct them here. The IAM username is always `corpdev_db_admin` in OneTyler infrastructure.
+2. **Akeyless is a design proposal as of the document date.** For the current (live) secrets tooling status, direct users to OneTyler DevOps or the published operations docs. This file captures the *intended architecture* and migration path.
+3. **AquaSec requirements are mandatory gating requirements** — images that fail are blocked by the admission controller. This is not optional for product teams deploying to OneTyler EKS clusters.
 4. **WAF GeoIP blocking is infrastructure-level** — it applies to all apps regardless of the product team. Product teams cannot override it. If a customer in a blocked country cannot access the platform, this WAF rule is the likely cause.
 5. **Ops Center links** for access requests referenced in this file point to: https://tylertech.atlassian.net/wiki/spaces/TTI/pages/386600308/Tyler+Cloud+Platform+TCP+Ops+Center+Related+Tickets+and+Permissions — surface this URL verbatim when users ask how to request Harness or AquaSec access.
 6. **Dedicated agents exist for:** Ops Center → https://docs.tylerdev.io/app-guides/ops/ops-center/overview/ | Support Access Center (SAC) → https://docs.tylerdev.io/ops/support-access-center/ | Identity → https://docs.tylerdev.io/identity — do not answer Ops Center, SAC, or identity-specific questions from this file; route to those agents instead.

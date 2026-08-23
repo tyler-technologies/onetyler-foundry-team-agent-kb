@@ -8,7 +8,7 @@ This document explains what CAPM is, when it is licensed by default, how a custo
 
 **Companion documents in this same Knowledge folder:**
 - `Docusaurus-Terminology.md` — see *Community Access*, *Community Profile*, *Community User*, *Public user* for the canonical definitions of the constructs CAPM operates on.
-- `Conf-OpsCenterTickets.md` — for **Tyler-staff** CAPM access requests (a separate flow: form 4133 with the right TCP Tool Selection — used so Tyler staff can troubleshoot community resident accounts using the **demo** CAPM instance).
+- `Knowledge-Shared/Conf-OneTylerTickets.md` — for **Tyler-staff** CAPM access requests (a separate flow: form 4133 with the right TCP Tool Selection — used so Tyler staff can troubleshoot community resident accounts using the **demo** CAPM instance).
 - `Misc-Links.md` — the live link to this Confluence page and to related bookmarks.
 
 ---
@@ -117,7 +117,7 @@ The procedure documented here grants **customer organization staff** access to *
 **Tyler staff** who need CAPM access to **troubleshoot community resident accounts** use a **different flow**:
 
 - **Different URL:** Tyler staff use the **demo CAPM instance** at `https://demo.tylerportico.com/portal/community-profile-manager/` — the demo instance has **special functionality not available on customer CAPM instances**.
-- **Different access path:** Tyler staff request CAPM access via the generic **Ops Center permission ticket** (form 4133) with **TCP Tool Selection = "CAPM (Community Access Profile Manager)"**. See `Conf-OpsCenterTickets.md` → *CAPM (Community Access Profile Manager) access request* for the exact ticket URL and Notes-field wording.
+- **Different access path:** Tyler staff request CAPM access via the generic **Ops Center permission ticket** (form 4133) with **TCP Tool Selection = "CAPM (Community Access Profile Manager)"**. See `Knowledge-Shared/Conf-OneTylerTickets.md` → *CAPM (Community Access Profile Manager) access request* for the exact ticket URL and Notes-field wording.
 - **Not requestable for customer staff via Tyler tickets.** Tyler staff CAPM-access tickets **cannot** be used to grant access to customer staff on their CAPM — that has to be done by the customer's own Org Admin via the steps in this document.
 
 ---
@@ -126,10 +126,10 @@ The procedure documented here grants **customer organization staff** access to *
 
 - **CAPM is a CUSTOMER-side tool.** It is the customer's own helpdesk staff who use CAPM to support their public users. Tyler staff *occasionally* use a demo CAPM instance to troubleshoot — but that is a separate URL and flow.
 - **"Community Access Support" is the pre-provisioned group name.** When a user asks "where's the group?", check the production workspace first, then fall back to manual creation. The pre-provisioned group already includes the CAPM application.
-- **For older orgs, the group does NOT exist** — they were provisioned before CAPM was a thing. The fix is manual group creation, not a CorpDev ticket.
+- **For older orgs, the group does NOT exist** — they were provisioned before CAPM was a thing. The fix is manual group creation, not a OneTyler ticket.
 - **Best practice: dedicated group, production workspace only.** Don't add CAPM to an existing mixed group; don't replicate the group across multiple workspaces. The tool is universal across workspaces, so production-only is sufficient.
 - **CAPM access is for helpdesk/support personnel — not all customer end-users.** Surface this expectation when answering "who should I add to the group?"
-- **For "I'm Tyler staff and I need CAPM access" questions** — DO NOT direct them to this Confluence page or PDF. Direct them to the **Tyler-staff CAPM access ticket** in `Conf-OpsCenterTickets.md`, and the demo URL: `https://demo.tylerportico.com/portal/community-profile-manager/`.
+- **For "I'm Tyler staff and I need CAPM access" questions** — DO NOT direct them to this Confluence page or PDF. Direct them to the **Tyler-staff CAPM access ticket** in `Knowledge-Shared/Conf-OneTylerTickets.md`, and the demo URL: `https://demo.tylerportico.com/portal/community-profile-manager/`.
 - **Customer CAPM URLs are org-specific** (they live under the customer's Tyler Cloud Platform portal). They are NOT the same as the demo URL. If a Tyler staff member tries the demo URL while a customer is asking about *their* CAPM, set the expectation clearly: the customer logs in via their own org-specific URL, not the demo.
 - **CAPM is a licensed app** — if a customer doesn't see it at all, check first that they have a Tyler product with a public-facing site/services. No public-facing product → no CAPM by default.
 - **Permission propagation has a small delay** — same as other Admin Center group changes. Newly added group members may take a few seconds to be able to actually open CAPM.

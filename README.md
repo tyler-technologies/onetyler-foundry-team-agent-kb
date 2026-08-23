@@ -28,7 +28,7 @@ Foundry team: **OneTyler Cloud Living** — Amazon Bedrock, Claude 4.5 Sonnet, t
 > trusting it.
 
 In addition, **`Knowledge-Shared/`** holds content every agent needs and is uploaded to all
-writable collections — currently the CorpDev ticket catalog. See its `_START_HERE.md`.
+writable collections — currently the OneTyler ticket catalog. See its `_START_HERE.md`.
 
 ---
 
@@ -48,7 +48,7 @@ Route on the **user's intent**, not on incidental keyword matches. A question th
 
 0. **Ticket questions always go to Ops Center.** Any "which ticket do I file / how do I
    request access or permissions" question — *including* Identity and Support Access Center
-   tickets — is answered from `Knowledge-OpsCenter/Conf-OpsCenterTickets.md`, the single
+   tickets — is answered from `Knowledge-Shared/Conf-OneTylerTickets.md`, the single
    authoritative catalog. One copy, not three, so the copies cannot drift. Never invent a
    ticket URL.
 

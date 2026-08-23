@@ -9,7 +9,7 @@ This document covers what "Gateway readiness" means, the four integration compon
 **Companion documents in this same Knowledge folder:**
 - `Docusaurus-Terminology.md` — see *Identity Workforce* (Workforce Direct / Managed / Delegated) for the canonical terminology and the **"Gateway" disambiguation** below.
 - `Docusaurus-OpsCenter.md` — for the Org Creation flow and Identity Tier details.
-- `Conf-OpsCenterTickets.md` — for the **Org Creation ticket** referenced in the net-new-customers section.
+- `Knowledge-Shared/Conf-OneTylerTickets.md` — for the **Org Creation ticket** referenced in the net-new-customers section.
 - `Misc-Links.md` — for the live link to this Confluence page and related bookmarks.
 
 ---
@@ -79,7 +79,7 @@ The progress of all Tyler products through Gateway readiness is tracked in Coda.
 
 ## Test org: `tylertownwa`
 
-CorpDev maintains a **"real-world"-like Workforce Direct (Gateway) configured organization** called **`tylertownwa`** in production. This is the canonical org for Gateway operational testing. The Ops Center links are:
+OneTyler maintains a **"real-world"-like Workforce Direct (Gateway) configured organization** called **`tylertownwa`** in production. This is the canonical org for Gateway operational testing. The Ops Center links are:
 
 | Environment | URL |
 |---|---|
@@ -138,8 +138,8 @@ Use the **"Tyler Town - WA 999999990126"** tenant in **External Tyler Deploy** t
 
 **Gateway-ready versions on Tyler Deploy must be backwards-compatible** during the transition period. They must be installable in BOTH legacy AND gateway modes depending on the product config generated in Tyler Deploy. So you do want to test **both organization types**:
 
-- **Gateway testing:** `Tyler Town - WA 999999990126` tenant (CorpDev supplies only this one for Gateway testing).
-- **Legacy testing:** Use your current testing environments (e.g., **Echo**) — CorpDev does not supply a CorpDev-side legacy testing tenant.
+- **Gateway testing:** `Tyler Town - WA 999999990126` tenant (OneTyler supplies only this one for Gateway testing).
+- **Legacy testing:** Use your current testing environments (e.g., **Echo**) — OneTyler does not supply a OneTyler-side legacy testing tenant.
 
 ---
 
@@ -155,7 +155,7 @@ This is how your team signals to the rest of Tyler that your Gateway-ready produ
 
 ## Net-new customers — operational considerations
 
-When a **net-new customer** (one for whom CorpDev has not previously provisioned an org — verifiable in Ops Center) licenses or subscribes to multiple products / a product suite, the products may have **mixed Gateway readiness**. Use these steps to decide identity setup:
+When a **net-new customer** (one for whom OneTyler has not previously provisioned an org — verifiable in Ops Center) licenses or subscribes to multiple products / a product suite, the products may have **mixed Gateway readiness**. Use these steps to decide identity setup:
 
 1. **Identify all products the customer has licensed/subscribed** in CRM via **"Active Customer Product Items"**.
 2. **Compare each product's Gateway readiness** against the **"Core gateway readiness"** column in Coda:
@@ -164,7 +164,7 @@ When a **net-new customer** (one for whom CorpDev has not previously provisioned
 
 | Finding | Action |
 |---|---|
-| **One or more products listed as "Not Ready"** | Request the Org be created as **Workforce Managed** using the **"Core"** selection when filing the *Org Creation* ticket (see `Conf-OpsCenterTickets.md`). **Note:** If the customer is an *explicit* "Workforce Managed" customer, select the appropriate **tier listed in CRM** instead of "Core". |
+| **One or more products listed as "Not Ready"** | Request the Org be created as **Workforce Managed** using the **"Core"** selection when filing the *Org Creation* ticket (see `Knowledge-Shared/Conf-OneTylerTickets.md`). **Note:** If the customer is an *explicit* "Workforce Managed" customer, select the appropriate **tier listed in CRM** instead of "Core". |
 | **All products listed as "Ready: <version>"** AND the customer is **directly federating** | Request the Org as **Workforce Direct** (or Direct Federation) on the *Org Creation* ticket. |
 
 ---
@@ -178,6 +178,6 @@ When a **net-new customer** (one for whom CorpDev has not previously provisioned
 - **You do not have the test password and must not guess one.** The shared password for `amelia.brady` / `joel.enlow` is deliberately excluded from this corpus. When a user asks for it, point them to the **Test credentials** section of the source Confluence page (https://tylertech.atlassian.net/wiki/spaces/TTI/pages/386600150), which requires Tyler SSO. Tell them not to copy it into tickets, chat, or code. The account emails above are safe to give out.
 - **The Outlook inbox needs Incognito** — repeat this whenever a user is testing User 1 email flows. Without Incognito they'll see their own inbox.
 - **Test with a non-Tyler-Tech account.** `@tylertech.com` accounts trigger special functionality and won't reflect real customer behavior — this is the whole point of providing the `amelia.brady@tylertownwa.org` and `joel.enlow@tylertownwa.org` accounts.
-- **For Tyler Deploy-based products, BOTH legacy and gateway modes must be tested.** CorpDev only supplies `Tyler Town - WA 999999990126` for the gateway side; the product team is responsible for sourcing their own legacy test env (Echo, etc.).
-- **Net-new customers with mixed-readiness products go to Workforce Managed (Core)** — even if the customer wanted Workforce Direct. The "Not Ready" product blocks WD adoption. Make sure this is clearly communicated to the customer expectation-wise. Once all their products reach Ready status, a conversion path is possible (see the WM→WD Retargeting and Migration runbook referenced in `Conf-OpsCenterTickets.md`).
+- **For Tyler Deploy-based products, BOTH legacy and gateway modes must be tested.** OneTyler only supplies `Tyler Town - WA 999999990126` for the gateway side; the product team is responsible for sourcing their own legacy test env (Echo, etc.).
+- **Net-new customers with mixed-readiness products go to Workforce Managed (Core)** — even if the customer wanted Workforce Direct. The "Not Ready" product blocks WD adoption. Make sure this is clearly communicated to the customer expectation-wise. Once all their products reach Ready status, a conversion path is possible (see the WM→WD Retargeting and Migration runbook referenced in `Knowledge-Shared/Conf-OneTylerTickets.md`).
 - **Issues with the test plan or the test org itself: contact Vijay Venkataraman.**

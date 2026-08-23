@@ -1,6 +1,6 @@
 # Product Registration — Concepts, Guidance, and Example
 
-Source: Docusaurus — *CorpDev Blueprint, Product/System Registration > Key Concepts > Registered Product* (`docs/product-system-reg/key-concepts/registered-product/**`)
+Source: Docusaurus — *OneTyler Blueprint, Product/System Registration > Key Concepts > Registered Product* (`docs/product-system-reg/key-concepts/registered-product/**`)
 Domain: Ops Center (Product Registration drives what appears in **Ops Center > Product Registry** and downstream in Admin Center, Workforce App Directory, and Community Services Directory.)
 Audience: Tyler Product Managers and Project Managers preparing a product for cloud release. Engineering owns the technical registration steps; PMs own the product details, application categorization, and contact info gathered here.
 
@@ -11,7 +11,7 @@ This document covers what product registration is, why it matters (where the dat
 **Companion documents in this same Knowledge folder:**
 - `Docusaurus-Terminology.md` — see *Application* (Workforce/Admin/Community/Ops/APIs), *Product*, *Workforce App Directory*, *Community Services Directory*, *Admin Apps*, *SKU* (Product ≠ SKU).
 - `Docusaurus-OpsCenter.md` — see **Product Registry** for how the registration surfaces inside Ops Center (Overview, Ops Apps tab, Registration Details, JSON tab).
-- `Conf-OpsCenterTickets.md` — for permissions related to using product-registration features in Ops Center (e.g., Bulk Licensing).
+- `Knowledge-Shared/Conf-OneTylerTickets.md` — for permissions related to using product-registration features in Ops Center (e.g., Bulk Licensing).
 
 **Companion technical documentation (engineering follow-up):** `/blueprints/product-reg` on the same Docusaurus site.
 
@@ -58,13 +58,13 @@ At a high level, a product represents a **licensable solution** with these chara
 
 **Important framing:** "Product" in registration is an **operational and administrative perspective**, NOT a marketing, sales, or contractual perspective.
 
-**Rule:** There should be **only one registration per product**. Multiple-registration cases are rare. If you feel your situation warrants splitting, **reach out to CorpDev via the Product Registration Community Teams Channel** (link below) before doing it.
+**Rule:** There should be **only one registration per product**. Multiple-registration cases are rare. If you feel your situation warrants splitting, **reach out to OneTyler via the Product Registration Community Teams Channel** (link below) before doing it.
 
 ---
 
 ## What is the Product Registry?
 
-The **Product Registry** is the registry of all Tyler products. Each registration contains basic product details, applications, contact info, etc. The Product Registry is **maintained by CorpDev**, with each product team responsible for contributing their own registration details.
+The **Product Registry** is the registry of all Tyler products. Each registration contains basic product details, applications, contact info, etc. The Product Registry is **maintained by OneTyler**, with each product team responsible for contributing their own registration details.
 
 In Ops Center, the Product Registry is reachable from the dashboard's **Products** link. See `Docusaurus-OpsCenter.md` → *Product Registry* for the tabs (Overview, Ops Apps, Registration details with Applications / Navigation Links / JSON sub-tabs, and Bulk Licensing).
 
@@ -88,7 +88,7 @@ The One Tyler Ecosystem recognizes **four application types** in a product regis
   - **Adopt the same name and icon as the product itself** for easy discoverability.
   - **Tweak description and help text** to reflect the application's purpose, using Tyler standards (e.g., Forge Punctuation Style guide).
 
-For complex needs (e.g., multiple entry points per app type), discuss with CorpDev via the Product Registration Community Teams Channel.
+For complex needs (e.g., multiple entry points per app type), discuss with OneTyler via the Product Registration Community Teams Channel.
 
 ### Ops App specifics
 
@@ -104,7 +104,7 @@ An Admin App serves **setup/configuration and user authorization** functionality
 
 ### Community App specifics
 
-A Community App serves **public users** — residents, small businesses, vendors, ex-employees, applicants, etc. — and may provide an optional guest experience without login. Public users discover Community apps as **services** they can access, so the **Title and Description should have service-level leanings**. Discuss titles/descriptions of Community apps with CorpDev via the Product Registration Community Teams Channel for guidance or approval.
+A Community App serves **public users** — residents, small businesses, vendors, ex-employees, applicants, etc. — and may provide an optional guest experience without login. Public users discover Community apps as **services** they can access, so the **Title and Description should have service-level leanings**. Discuss titles/descriptions of Community apps with OneTyler via the Product Registration Community Teams Channel for guidance or approval.
 
 ---
 
@@ -121,7 +121,7 @@ Product Management team members should work through these steps before handing o
 | 5 | **Product About & Help Text** | Longer description (~a paragraph) approved by Product Marketing/Marketing. | Not currently displayed (reserved). |
 | 6 | **Product Icon** | Select from the **Forge Icon Library** (Standard, Extended, Custom). If a custom icon is required, file a ticket first to have it added. | Surfaces in **Workforce App Directory** and **Community Services Directory** cards. |
 | 7 | **Product Contact Information** | Strongly suggested: (a) a **public community MS Teams channel** for others to post questions/get assistance, and (b) a **distribution list** for product dev/ops/support. Create private channels in your MS Team and use the channel email addresses. Alternatively, store contact info on Confluence pages and link to them. **AVOID registering individual contact info** — it goes stale quickly and is hard to maintain. | Allows others across Tyler to reach your team via Teams channel or email. |
-| 8 | **Registration review** | Once collected, review with stakeholders and CorpDev for feedback. | Avoids corrections later. |
+| 8 | **Registration review** | Once collected, review with stakeholders and OneTyler for feedback. | Avoids corrections later. |
 | 9 | **Prep for registration** | Hand off the collected info to product engineering and point them to the technical documentation. | Engineering can complete the technical registration steps. |
 
 ---
@@ -153,7 +153,7 @@ Two Workforce apps were registered (Cemetery Manager + Supervisor) because super
 | **Product About & Help Text** | About: *"Cemetery Manager allows management of plots using advanced geolocation tools, keeps track of plot ownership, manages customers, and integrates with Enterprise ERP and Payments for fast invoicing and payments collections."* Help text tailored per app. |
 | **Product Icon** | Selected **`hospital_marker`** (Forge **Extended**). Per-app icons: Ops/Workforce-CM/Admin-CM `hospital_marker` (ext); Community `person_pin_circle` (std); Workforce-CMS `approval` (std). Per-app Admin `admin_panel_settings` (std) in the Admin row. |
 | **Product Contact Information** | Development: MS Teams community channel link. Operations: distribution-list email. Support: `cemetery-manager-support@tylertech.com`. |
-| **Registration review** | Reviewed with stakeholders + CorpDev; feedback applied. |
+| **Registration review** | Reviewed with stakeholders + OneTyler; feedback applied. |
 | **Prep for registration** | Handed off to engineering. |
 
 ### Registration approach (per entity)
@@ -214,7 +214,7 @@ See *What is the Product Registry?* above. (Repeating for FAQ retrieval.)
 
 ### Where can Ops Apps appear in the Ops Center?
 
-Ops Apps surface in CorpDev's Ops Center in **three context locations** (clicking the link takes the user to the externally hosted Ops App):
+Ops Apps surface in OneTyler's Ops Center in **three context locations** (clicking the link takes the user to the externally hosted Ops App):
 
 - **Product context:** Ops Center > Product Registry > Ops App — for generalized access to the product's settings and functionality.
 - **Organization context:** Ops Center > Organization > Details > Licensed apps > Ops Apps — for org-wide settings and functionality.
@@ -224,7 +224,7 @@ Ops Apps surface in CorpDev's Ops Center in **three context locations** (clickin
 
 Some products (e.g., **Recording Access**, **AP Automation Vendor Hub**) use a special construct: a **single Tyler-branded web portal** used by public users across all organizations. Public users select the organization within the portal (or use a system that aliases directly/indirectly to an org).
 
-These are **domain-specific Tyler-branded products** that are **not designed to be licensable on regular customer organizations**, and therefore contain **no Workforce or Admin apps**. Registration guidance for these products is **case-by-case** — reach out to CorpDev via the Product Registration Community Teams Channel.
+These are **domain-specific Tyler-branded products** that are **not designed to be licensable on regular customer organizations**, and therefore contain **no Workforce or Admin apps**. Registration guidance for these products is **case-by-case** — reach out to OneTyler via the Product Registration Community Teams Channel.
 
 ### My implementation team routinely creates product groups manually. How can I minimize their work?
 
@@ -236,13 +236,13 @@ For Cloud Platform products that have adopted the **TCP group access management*
 
 For engineering-side guidance on actually performing the registration, see the technical doc:
 
-- `/blueprints/product-reg` on the CorpDev Blueprint Docusaurus site.
+- `/blueprints/product-reg` on the OneTyler Blueprint Docusaurus site.
 
 ---
 
 ## Questions, reviews, contact
 
-Reach out to CorpDev via the **Product Registration Community Teams Channel** for:
+Reach out to OneTyler via the **Product Registration Community Teams Channel** for:
 
 - Questions about registration.
 - Requesting a review of your planned registration **before** registering your product.

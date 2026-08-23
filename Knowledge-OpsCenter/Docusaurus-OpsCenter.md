@@ -1,6 +1,6 @@
 # Ops Center — Product & Process Guide
 
-Source: Docusaurus — *CorpDev Blueprint, App Guides > Ops > Ops Center* (`docs/app-guides/ops/ops-center/**`)
+Source: Docusaurus — *OneTyler Blueprint, App Guides > Ops > Ops Center* (`docs/app-guides/ops/ops-center/**`)
 Domain: Ops Center
 Audience: Tyler operational staff (project managers, deployment, implementation, support, system managers, devops engineers) using Ops Center as part of their daily workflows.
 
@@ -10,7 +10,7 @@ This document covers the Ops Center tool: how to get access, what is on the dash
 - `Docusaurus-Terminology.md` — canonical definitions for TCP, organization, workspace, identity tiers, etc.
 - `Docusaurus-TylerCRM.md` — how to prepare a valid Tyler CRM account record (prerequisite for creating customer orgs).
 - `Docusaurus-OrgAdminInfo.md` — what an Org Admin is and how to source the client IT contact.
-- `Conf-OpsCenterTickets.md` — full catalog of CorpDev tickets and permissions (the chatbot should hand out direct links from there for access requests).
+- `Knowledge-Shared/Conf-OneTylerTickets.md` — full catalog of OneTyler tickets and permissions (the chatbot should hand out direct links from there for access requests).
 
 ---
 
@@ -28,7 +28,7 @@ This document covers the Ops Center tool: how to get access, what is on the dash
 | Find / search an organization | **Organizations — list & search** |
 | Understand identity tiers (WD / WM / Delegated) | **Organizations — Identity Workforce product tiers** |
 | Create a customer org (Workforce Direct) | **Organizations — Import an organization** |
-| Create a customer org (Workforce Managed) | **Organizations — file a ticket** (see `Conf-OpsCenterTickets.md`) |
+| Create a customer org (Workforce Managed) | **Organizations — file a ticket** (see `Knowledge-Shared/Conf-OneTylerTickets.md`) |
 | Create an internal org | **Organizations — Create internal organization** |
 | Use a Tyler-provided pre-created standard org for dev/test/training | **Standard organizations** |
 | See org details / change contact / view admins | **Organization Details** |
@@ -60,8 +60,8 @@ Two-step process:
    - TylerPortico (production): https://admin.tylerportico.com/portal/ops-center
    - TCPQA: https://admin.tcpqa.com/portal/ops-center
    - TCPCI: https://admin.tcpci.com/portal/ops-center
-2. **For TCPCI / TCPQA / TylerPortico**, file the generic Ops Center access ticket: `https://help.center.tylertech.com/servicedesk/customer/portal/3168/group/3333/create/4133`. Select the matching environment from the **TCP Tool Selection** dropdown. Notes-field wording: `"Need access to Ops Center for <reason>"`. *(Same form 4133 is also used to request additional Ops Center permissions — federation management, +Import, AD Agent setup, Reestablish Federation, etc. — only the Notes-field wording varies. See `Conf-OpsCenterTickets.md` for the full catalog.)*
-3. **Non-prod shortcut** — in **TCPCI / TCPQA**, an existing Tyler Ops user on your team can promote you themselves (Ops Center → side menu → **Manage Tyler Ops users** → **+ Add Tyler Ops User**). **This shortcut is not available in TylerPortico** — production Tyler Ops users can only be added by the **CorpDev Engineering Services team**.
+2. **For TCPCI / TCPQA / TylerPortico**, file the generic Ops Center access ticket: `https://help.center.tylertech.com/servicedesk/customer/portal/3168/group/3333/create/4133`. Select the matching environment from the **TCP Tool Selection** dropdown. Notes-field wording: `"Need access to Ops Center for <reason>"`. *(Same form 4133 is also used to request additional Ops Center permissions — federation management, +Import, AD Agent setup, Reestablish Federation, etc. — only the Notes-field wording varies. See `Knowledge-Shared/Conf-OneTylerTickets.md` for the full catalog.)*
+3. **Non-prod shortcut** — in **TCPCI / TCPQA**, an existing Tyler Ops user on your team can promote you themselves (Ops Center → side menu → **Manage Tyler Ops users** → **+ Add Tyler Ops User**). **This shortcut is not available in TylerPortico** — production Tyler Ops users can only be added by the **OneTyler Engineering Services team**.
 
 For ongoing formal support: the *Tyler Cloud Platform (TCP) | Ops Center Related Tickets and Permissions* Confluence page (https://tylertech.atlassian.net/wiki/spaces/TTI/pages/386600308/). For informal support: the **CorpDev Collaboration** Microsoft Teams team — channels *Cloud Platform Community*, *Identity Workforce*, *Identity Community*.
 
@@ -76,9 +76,9 @@ The standard path is the **Client Admin Center access request** ticket:
 - After approval, expect up to **5 minutes** for access to take effect — a **clock icon** appears next to your name under Organization Details → Admins during the pending state; once it clears, you're live.
 - **Fields to fill in:** Product team(s); **CRM Customer Identifier** (= the Org Key from Ops Center); Reason for Access (closest matching reason for external orgs); Customer email address (if requesting on a customer IT admin's behalf); Notes (justification; include the customer IT admin's first/last name if applicable).
 
-**Alternative — self-promote in Ops Center (faster, but permission-gated):** CorpDev grants elevated *Promote / Remove yourself as Org Admin* rights to select Ops users whose roles require routine customer access. Managers of product ops teams can also be granted rights to add customer Org Admins and to let their direct reports self-promote (provided the report already has Ops Center access). If you've been granted these rights, you do this in-product under Ops Center → **Organization Details → Admins**. The canonical procedure is the **Tyler Cloud Platform (TCP) | Org Admin promotions (Admin Center access) — a Manager's guide** Confluence page (https://tylertech.atlassian.net/wiki/spaces/TTI/pages/386629479/). Important: this self-promote flow does **NOT** use generic ticket form 4133.
+**Alternative — self-promote in Ops Center (faster, but permission-gated):** OneTyler grants elevated *Promote / Remove yourself as Org Admin* rights to select Ops users whose roles require routine customer access. Managers of product ops teams can also be granted rights to add customer Org Admins and to let their direct reports self-promote (provided the report already has Ops Center access). If you've been granted these rights, you do this in-product under Ops Center → **Organization Details → Admins**. The canonical procedure is the **Tyler Cloud Platform (TCP) | Org Admin promotions (Admin Center access) — a Manager's guide** Confluence page (https://tylertech.atlassian.net/wiki/spaces/TTI/pages/386629479/). Important: this self-promote flow does **NOT** use generic ticket form 4133.
 
-See `Conf-OpsCenterTickets.md` → *Client Admin Center access request* and *Org Admins* for full detail, and `Docusaurus-OpsCenter.md` → *Organization Details — Admins*.
+See `Knowledge-Shared/Conf-OneTylerTickets.md` → *Client Admin Center access request* and *Org Admins* for full detail, and `Docusaurus-OpsCenter.md` → *Organization Details — Admins*.
 
 ### Where can I see the Identity Configuration details for a customer?
 
@@ -156,7 +156,7 @@ Content under Ops Center includes integration guides, change logs, and user guid
 
 For **localdev**, access is part of building the local developer environment — nothing to request.
 
-For **TCPCI / TCPQA / TylerPortico**, submit an Ops Center access request via the *Ops Center Related Tickets and Permissions* portal. Specifically, this is the generic Ops Center access form `…/create/4133` — see `Conf-OpsCenterTickets.md` for the exact URL and the Notes-field wording.
+For **TCPCI / TCPQA / TylerPortico**, submit an Ops Center access request via the *Ops Center Related Tickets and Permissions* portal. Specifically, this is the generic Ops Center access form `…/create/4133` — see `Knowledge-Shared/Conf-OneTylerTickets.md` for the exact URL and the Notes-field wording.
 
 When filing, **select the environment in which you need access** (TCPCI, TCPQA, TylerPortico).
 
@@ -169,7 +169,7 @@ For informal support, use the channels under the **CorpDev Collaboration** Micro
 
 ## Access — promote teammates (non-prod only)
 
-In **localdev, TCPCI, and TCPQA**, you are encouraged to promote other team members into Ops Center yourself. **In TylerPortico (production), only the CorpDev Engineering Services team can add Tyler Ops users.**
+In **localdev, TCPCI, and TCPQA**, you are encouraged to promote other team members into Ops Center yourself. **In TylerPortico (production), only the OneTyler Engineering Services team can add Tyler Ops users.**
 
 Steps:
 
@@ -192,7 +192,7 @@ The dashboard is the starting point of the Ops Center experience. It provides li
 - **Community Access Profile Manager (CAPM) access request** — Request CAPM access for Tyler staff to troubleshoot community resident accounts. **Note:** This cannot be used to request access for *client* staff to *their* CAPM tool — that is done by the client Org Admin through Admin Center.
 - **Ops Center access request (or additional permissions)** — To get access to this tool (typically for others, e.g. managers requesting it on behalf of staff).
 
-For full ticket details and exact URLs, see `Conf-OpsCenterTickets.md`.
+For full ticket details and exact URLs, see `Knowledge-Shared/Conf-OneTylerTickets.md`.
 
 ---
 
@@ -202,15 +202,15 @@ When you first land on Ops Center, you see a list of Organizations. You can also
 
 ## Organizations — Identity Workforce product tiers
 
-Each organization is configured with one of these Identity Tiers. **This cannot be changed after the organization is created** — to change the tier, the org must be deleted and recreated. (Limited exception: an UNINITIATED Workforce Direct org can be converted to Workforce Managed via a specific ticket — see `Conf-OpsCenterTickets.md`.)
+Each organization is configured with one of these Identity Tiers. **This cannot be changed after the organization is created** — to change the tier, the org must be deleted and recreated. (Limited exception: an UNINITIATED Workforce Direct org can be converted to Workforce Managed via a specific ticket — see `Knowledge-Shared/Conf-OneTylerTickets.md`.)
 
 - **Workforce Managed** — Provisioned an Okta user store. The org can federate to its IdP and add users outside the IdP.
 - **Workforce Direct** — Directly federated into the organization's IdP. All users must reside in the org's IdP unless the user is part of a global (B2B) domain.
 - **Workforce Delegated** — A special variant of Workforce Direct that delegates identity and user setup to another org (the "Super") it depends on. Orgs using this setup are called "Sub" orgs. Only the Super can set up federations and add users. Sub orgs can only add users that already exist in the Super. Both Super and Sub orgs can have their own solutions and grant access independently. Deleting a user in the Super removes them from all Sub orgs; deleting in a Sub only affects that Sub.
 
-## Organizations — when CorpDev needs to create the org (vs self-service)
+## Organizations — when OneTyler needs to create the org (vs self-service)
 
-CorpDev limits who can create organizations to ensure callers understand the prerequisites: a well-formed CRM record and the org's IT admin contact info. **Orgs in these cases must be requested through CorpDev support** (i.e., a ticket, not self-service):
+OneTyler limits who can create organizations to ensure callers understand the prerequisites: a well-formed CRM record and the org's IT admin contact info. **Orgs in these cases must be requested through OneTyler support** (i.e., a ticket, not self-service):
 
 - Organizations with **Workforce Managed** Identity Tier.
 - Organizations for internal uses that will not have well-formed CRM records (file a ticket OR use the Create internal feature if you have that permission).
@@ -219,7 +219,7 @@ For self-service paths, see Import and Create internal below.
 
 ## Organizations — Import an organization (self-service for Workforce Direct/Delegated)
 
-**As of 4/1/26, Ops Center automatically creates customer organizations** when CRM account records become sales-enabled (see *Tyler CRM* doc for what "sales-enabled" / "valid record" means). The need to manually use Import is therefore greatly reduced. Automatically-created orgs do **not** have customer contact information or domains set — to add a technical contact and set their userid domain as the org domain, go to **Organization Details > Admins** and use the **"Use as technical contact"** option when adding an Org Admin. These auto-created orgs are **Workforce Direct**. To change the Identity Tier, use the convert-org ticket (see `Conf-OpsCenterTickets.md`).
+**As of 4/1/26, Ops Center automatically creates customer organizations** when CRM account records become sales-enabled (see *Tyler CRM* doc for what "sales-enabled" / "valid record" means). The need to manually use Import is therefore greatly reduced. Automatically-created orgs do **not** have customer contact information or domains set — to add a technical contact and set their userid domain as the org domain, go to **Organization Details > Admins** and use the **"Use as technical contact"** option when adding an Org Admin. These auto-created orgs are **Workforce Direct**. To change the Identity Tier, use the convert-org ticket (see `Knowledge-Shared/Conf-OneTylerTickets.md`).
 
 The **+Import (an organization)** option remains available in Ops Center for users with the requisite permissions. Criteria for using Import:
 
@@ -234,7 +234,7 @@ The **+Import (an organization)** option remains available in Ops Center for use
 
 ### Import wizard — step by step
 
-1. **Access the Import** — From the Organizations list page, click **+Import (an organization)**. If you don't have permission, you'll see a no-access message; request permission via the generic Ops Center permission ticket (see `Conf-OpsCenterTickets.md`).
+1. **Access the Import** — From the Organizations list page, click **+Import (an organization)**. If you don't have permission, you'll see a no-access message; request permission via the generic Ops Center permission ticket (see `Knowledge-Shared/Conf-OneTylerTickets.md`).
 2. **Select Identity Setup** — Pick **Workforce Direct** for most orgs. (If the customer opted for **Workforce Managed**, you cannot use this wizard.) **Workforce Delegated** is for special cases: software installed in multiple sub-orgs with identity/users maintained at a higher super org (e.g., a school district with a global email domain across multiple schools, or a city across its departments). Note: When only 1–2 sub-orgs are involved and the Super isn't administering any Tyler solutions, prefer Workforce Direct with separate federations.
 3. **Look up CRM Customer** — Enter the **CRM Customer Identifier (Business Use=Default)** in the CRM ID Lookup tab. If the record fails validation, errors block you from proceeding.
 4. **Review imported info** — Confirm you are importing the correct account record. If anything is wrong, cancel and have your product sales team correct CRM.
@@ -248,23 +248,23 @@ The **+Create internal (organization)** option lets Ops Center users with the re
 
 ### Create-internal wizard — step by step
 
-1. **Access** — From the Organizations list page, click **+Create internal**. (Permission gated; see `Conf-OpsCenterTickets.md` for how to get it — note this option is handled out-of-band by reaching Vijay Venkataraman.)
+1. **Access** — From the Organizations list page, click **+Create internal**. (Permission gated; see `Knowledge-Shared/Conf-OneTylerTickets.md` for how to get it — note this option is handled out-of-band by reaching Vijay Venkataraman.)
 2. **Select Identity Setup** — Same options as Import (Workforce Direct typical; Workforce Delegated for special cases like a group/division with an IdP for internal demo users plus dependent internal orgs).
 3. **Enter Org Key + Org Title** — Manually enter both. Org Key format: `{3-char division/group code}{purpose code}{label}`, max 50 chars total. Follow internal-org naming conventions (Confluence: *Internal Orgs creation in Ops Center → Internal-Org-Naming-Construct*, `/wiki/spaces/SPY/pages/407176942/`).
 4. **(Workforce Delegated only) Select Super org** — Must be a valid existing internal org that is not itself Workforce Delegated.
 5. **Org Admin + magic link** — Same as Import. The contact here is a Tyler staff or demo user.
 6. **Review summary, Save & close** — The org is created and the production workspace is automatically created.
 
-## Standard organizations (CorpDev-provided for dev/test/training)
+## Standard organizations (OneTyler-provided for dev/test/training)
 
-**CorpDev intentionally limits org creation in TCPCI and TCPQA** to force product teams to learn to coexist on the same Organization and Workspace, reflecting real-world client experience. CorpDev provides standard demo/dev/test "customers" with corresponding CRM records and Tyler Deploy tenants. Two more (`uat`, `impl`) exist for high-quality data used for global/holistic testing/training.
+**OneTyler intentionally limits org creation in TCPCI and TCPQA** to force product teams to learn to coexist on the same Organization and Workspace, reflecting real-world client experience. OneTyler provides standard demo/dev/test "customers" with corresponding CRM records and Tyler Deploy tenants. Two more (`uat`, `impl`) exist for high-quality data used for global/holistic testing/training.
 
 | Environment | Standard "Customer" IDs (use only these unless one was specifically provisioned for your team) | Source |
 |---|---|---|
 | localdev | `tide-broker` | Part of local dev setup |
-| TCPCI | `demo`, `dev`, `test`, `uat`, `impl` | Standard 5 from CorpDev, sourced from CRM |
-| TCPQA | `demo`, `dev`, `test`, `uat`, `impl` | Standard 5 from CorpDev, sourced from CRM |
-| TylerPortico | `demo`, `testinprod` | Standard 2 from CorpDev, sourced from CRM |
+| TCPCI | `demo`, `dev`, `test`, `uat`, `impl` | Standard 5 from OneTyler, sourced from CRM |
+| TCPQA | `demo`, `dev`, `test`, `uat`, `impl` | Standard 5 from OneTyler, sourced from CRM |
+| TylerPortico | `demo`, `testinprod` | Standard 2 from OneTyler, sourced from CRM |
 
 **If you need your own dedicated org with valid business reason:** use **Create internal** to create a Workforce Direct/Delegated org. **If you need an Okta-tenant-based org** with a strong business justification, file a ticket on the Ops Center Tickets portal.
 
@@ -290,8 +290,8 @@ The **+Create internal (organization)** option lets Ops Center users with the re
 | **Admin Center — TylerPortico** | https://demo-admin.tylerportico.com/org/admin-center | — | — | — | — | https://testinprod-admin.tcpci.com/org/admin-center *(see note)* |
 
 **Tyler Deploy listing:** All portals for these orgs are under the **TCP Ecosystem** tool/project in TD's side navigation.
-- For TCPCI/TCPQA, search `Tyler Cloud Platform Demo Portals - CorpDev - <org>` in `dev.tylerdeploy.com` (→ tcpci) or `internal.tylerdeploy.com` (→ tcpqa).
-- For TylerPortico, search `Tyler Cloud Platform Demo Portals - CorpDev - <org> - TX 999999990000` in `tylerdeploy.com`.
+- For TCPCI/TCPQA, search `Tyler Cloud Platform Demo Portals - OneTyler - <org>` in `dev.tylerdeploy.com` (→ tcpci) or `internal.tylerdeploy.com` (→ tcpqa).
+- For TylerPortico, search `Tyler Cloud Platform Demo Portals - OneTyler - <org> - TX 999999990000` in `tylerdeploy.com`.
 
 ---
 
@@ -313,8 +313,8 @@ The organization-details view shows details about an org and lets you perform se
 ### Admins (Org Admins)
 - Lists all Org Admins (users with rights to the org's Admin Center).
 - **Tyler Tech Org Admins** can remove their own Org Admin rights and optionally delete their user record from the org's Admin Center entirely. Implementation/support should use this to clean up once they no longer need access.
-- For select Ops users whose roles require routine customer access, CorpDev provides elevated permissions to **Promote/Remove themselves as an Org Admin** quickly.
-- For managers of product ops teams, CorpDev provides elevated permissions to **add customer Org Admins** and to promote their direct reports to **self-promote** as Org Admins, provided (a) the user already has Ops Center access and (b) doesn't already have self-promotion permissions.
+- For select Ops users whose roles require routine customer access, OneTyler provides elevated permissions to **Promote/Remove themselves as an Org Admin** quickly.
+- For managers of product ops teams, OneTyler provides elevated permissions to **add customer Org Admins** and to promote their direct reports to **self-promote** as Org Admins, provided (a) the user already has Ops Center access and (b) doesn't already have self-promotion permissions.
 - When adding an Org Admin, the **"Use as technical contact"** option simultaneously sets that admin as the org's technical contact. Especially relevant for orgs auto-created from sales-enabled CRM records (which lack contact info).
 - For **Workforce Delegated** orgs, adding an Org Admin to a Sub org auto-adds the user to the Super if not already present.
 - **Permission propagation delay:** granting/removing Org Admin takes a small bit of time. Freshly granted permissions show a **"Pending"** status during which the user cannot yet access Admin Center.
@@ -371,7 +371,7 @@ A **Workspace** is analogous to a client environment in which solutions are inst
 ### Workspaces — create
 
 #### Step 1: Pick a standard customer when possible
-Use the standard customers (`demo`, `dev`, `test` or `testinprod` for unscripted use; `uat`, `impl` for scripted high-quality data). See the **Standard organizations** table above. If you have an unavoidable business reason for a dedicated org, open a discussion with CorpDev via the Tickets portal.
+Use the standard customers (`demo`, `dev`, `test` or `testinprod` for unscripted use; `uat`, `impl` for scripted high-quality data). See the **Standard organizations** table above. If you have an unavoidable business reason for a dedicated org, open a discussion with OneTyler via the Tickets portal.
 
 #### Step 2: Run the Add a Workspace wizard
 
@@ -473,7 +473,7 @@ Four sub-tabs:
 
 **Bulk Licensing** licenses a product across many orgs and their workspaces in one operation, instead of activating each workspace individually. Especially useful when onboarding a product across many existing customer orgs.
 
-- **Permission gated.** Request access via the *Ops Center Related Tickets and Permissions* portal (see `Conf-OpsCenterTickets.md`).
+- **Permission gated.** Request access via the *Ops Center Related Tickets and Permissions* portal (see `Knowledge-Shared/Conf-OneTylerTickets.md`).
 - A more comprehensive guide (with video) is in the Coda documentation: https://coda.io/d/_dKV_6fSnfBc/Post-registration-activities_suK0yhd_#_lu-oRzAm
 - Path: **Ops Center → Product Registry → (Select a Product) → Product details → Bulk License**.
 
@@ -510,13 +510,13 @@ After submission, job moves to **Submitted**. Click **View Log** for full result
 
 A **Tyler Ops User** is anyone with access to Ops Center. When you request access in TCPCI/TCPQA/TylerPortico, you become a Tyler Ops User with **basic** access.
 
-For restricted functionality (manage federations, +Import, +Create internal, AD Agent setup, Reestablish Federation, Bulk Licensing, etc.), request additional permissions via the *Ops Center Related Tickets and Permissions* portal. See `Conf-OpsCenterTickets.md` for ticket URLs and the exact Notes-field wording for each permission.
+For restricted functionality (manage federations, +Import, +Create internal, AD Agent setup, Reestablish Federation, Bulk Licensing, etc.), request additional permissions via the *Ops Center Related Tickets and Permissions* portal. See `Knowledge-Shared/Conf-OneTylerTickets.md` for ticket URLs and the exact Notes-field wording for each permission.
 
 ---
 
 ## Ops telemetry (AWS QuickSight)
 
-CorpDev publishes core telemetry on **production (tylerportico.com)** Organizations, Workspaces, Products/Licensing, and Systems on an AWS QuickSight dashboard called **"TCP Prod Stats"**.
+OneTyler publishes core telemetry on **production (tylerportico.com)** Organizations, Workspaces, Products/Licensing, and Systems on an AWS QuickSight dashboard called **"TCP Prod Stats"**.
 
 **Direct dashboard link** (does NOT prompt for Tyler SSO if you're not logged in — use the SSO flow below first if you hit issues):
 https://us-east-1.quicksight.aws.amazon.com/sn/dashboards/b10d73d5-06b6-4b74-8df4-6a15d4eaf8b6
@@ -562,13 +562,13 @@ This is a curated set of notable Ops Center changes. For the full chronological 
 ## Notes for the chatbot
 
 - **Always pair "license" with "activate/availability"** — they are not the same thing. Users frequently confuse them. A product not appearing for users on a workspace usually means licensed at org level but never activated on the workspace.
-- **Identity Tier cannot be changed after org creation** — except for the narrow UNINITIATED Workforce Direct → Workforce Managed conversion ticket (see `Conf-OpsCenterTickets.md`). For other tier changes, the org must be deleted and recreated.
+- **Identity Tier cannot be changed after org creation** — except for the narrow UNINITIATED Workforce Direct → Workforce Managed conversion ticket (see `Knowledge-Shared/Conf-OneTylerTickets.md`). For other tier changes, the org must be deleted and recreated.
 - **Workspace key conventions:** prod = org key; non-prod = `<orgkey>-<suffix>`, suffix must be alphanumeric (no spaces, special chars, or further `-`).
-- **CorpDev intentionally limits new-org creation in TCPCI/TCPQA.** When a user asks how to create an org for dev/test, first redirect to the standard orgs (`demo`, `dev`, `test`, `uat`, `impl`) or to **+Create internal** before recommending a ticket.
+- **OneTyler intentionally limits new-org creation in TCPCI/TCPQA.** When a user asks how to create an org for dev/test, first redirect to the standard orgs (`demo`, `dev`, `test`, `uat`, `impl`) or to **+Create internal** before recommending a ticket.
 - **Self-service hierarchy:** Workforce Direct → use **+Import**; internal org → use **+Create internal**; Workforce Managed → must file a ticket. Always prefer self-service.
 - **Magic-link emails for federation/AD Agent setup expire in 7 days** — call this out when discussing these flows.
 - **Org Admin permission propagation has a "Pending" period** — set expectations for users who can't immediately log in.
 - **Auto-created (4/1/26+) orgs have no contact info or domains** — always recommend the **"Use as technical contact"** option when first adding an Org Admin.
 - **Production org/workspace deletion is restricted to CorpDev Support.** For internal orgs, deletion is available to those with the maintain-internal-orgs permission.
-- **TylerPortico org creation by Tyler Ops users is restricted** — only CorpDev Engineering Services can add Tyler Ops users in production.
+- **TylerPortico org creation by Tyler Ops users is restricted** — only OneTyler Engineering Services can add Tyler Ops users in production.
 - For prerequisites on creating a customer org, the chatbot should always reach for `Docusaurus-TylerCRM.md` (CRM record validity) and `Docusaurus-OrgAdminInfo.md` (Org Admin sourcing).

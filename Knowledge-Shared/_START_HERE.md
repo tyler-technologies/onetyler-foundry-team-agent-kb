@@ -9,7 +9,7 @@ collections.
 
 | File | What it is |
 |---|---|
-| `Conf-CorpDevTickets.md` | The single authoritative catalog of **every CorpDev ticket**, across all domains — Ops Center, Identity, Support Access Center, Development/infrastructure, Forge/TCW, 3rd-party — plus the separate feature-request portal, deprecated and superseded forms, and known broken links. |
+| `Conf-OneTylerTickets.md` | The single authoritative catalog of **every OneTyler ticket**, across all domains — Ops Center, Identity, Support Access Center, Development/infrastructure, Forge/TCW, 3rd-party — plus the separate feature-request portal, deprecated and superseded forms, and known broken links. |
 
 ## Why this is shared, not owned by Ops Center
 
@@ -36,6 +36,6 @@ the copies drift:
 
 ## Maintenance
 
-`Conf-CorpDevTickets.md` is reconciled against **three** upstream sources — see
+`Conf-OneTylerTickets.md` is reconciled against **three** upstream sources — see
 `scripts/sources.json` and the *Keeping the ticket catalog current* section of `CLAUDE.md`.
 Never edit it from memory; always re-derive from the sources.

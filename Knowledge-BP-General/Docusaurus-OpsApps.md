@@ -23,7 +23,7 @@
 | User intent | Go to section |
 |---|---|
 | What are the two categories of Tyler applications? | [Client vs. Operations applications](#client-vs-operations-applications) |
-| What Ops apps does CorpDev build? | [CorpDev Ops applications](#corpdevelopment-operations-applications) |
+| What Ops apps does OneTyler build? | [OneTyler Ops applications](#onetylerelopment-operations-applications) |
 | What is Audit Center? | [Audit Center](#audit-center) |
 | What is Authorization Config? | [Authorization Config](#authorization-config) |
 | Where is Ops Center documentation? | [Hand-off: Ops Center](#hand-off-ops-center) |
@@ -37,7 +37,7 @@
 |---|---|
 | Ops app / Operations application | Tyler-staff-only application for managing client environments (provisioning, support, monitoring, etc.) |
 | Client application | Application licensed to customers; used by the customer (and sometimes Tyler staff on behalf of a customer) |
-| CorpDev | Tyler's Corporate Development team — builds and maintains the platform apps covered here |
+| OneTyler | Tyler's Corporate Development team — builds and maintains the platform apps covered here |
 | Audit Center | Ops application for auditing/reviewing platform activity |
 | Authorization Config | Ops application for configuring authorization settings on the platform |
 | Ops Center | The primary Tyler ops application for org/workspace lifecycle management (has its own Foundry agent) |
@@ -57,13 +57,13 @@ Tyler Tech builds two categories of applications:
 
 ---
 
-## CorpDevelopment: client and operations applications
+## OneTylerelopment: client and operations applications
 
 **Source:** https://docs.tylerdev.io/app-guides
 
-CorpDev builds and maintains both categories:
+OneTyler builds and maintains both categories:
 
-### CorpDev Client applications
+### OneTyler Client applications
 
 | Application | Brief description |
 |---|---|
@@ -76,7 +76,7 @@ CorpDev builds and maintains both categories:
 
 For details on all client applications, see `Docusaurus-ClientApps.md`.
 
-### CorpDev Operations applications
+### OneTyler Operations applications
 
 | Application | Brief description |
 |---|---|
@@ -151,4 +151,4 @@ Keywords that indicate SAC: "support access", "Tyler employee access to customer
 
 5. **What this file does NOT cover:** Ops Center workflows, SAC workflows, Identity platform internals, product registration mechanics, individual product administration, customer-facing workflows. Deep platform questions belong in `Docusaurus-PlatformOverview.md` or a specialized agent.
 
-6. **App taxonomy is useful context:** The client vs. ops application distinction (and the CorpDev app list) is frequently useful context for orienting users who ask "what apps does Tyler's platform have?" or "where do I go to do X?" — use this file's taxonomy table as a routing aid.
+6. **App taxonomy is useful context:** The client vs. ops application distinction (and the OneTyler app list) is frequently useful context for orienting users who ask "what apps does Tyler's platform have?" or "where do I go to do X?" — use this file's taxonomy table as a routing aid.

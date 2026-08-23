@@ -8,7 +8,7 @@ Domain: Ops Center (Tyler Cloud Platform — operational tooling, organization/w
 
 ## File catalog at a glance
 
-16 files in this folder (plus this one). The ticket catalog that used to live here has moved to `Knowledge-Shared/Conf-CorpDevTickets.md`. One-liner per file — read the full file for the substance.
+16 files in this folder (plus this one). The ticket catalog that used to live here has moved to `Knowledge-Shared/Conf-OneTylerTickets.md`. One-liner per file — read the full file for the substance.
 
 | File | One-liner — what's in it |
 |---|---|
@@ -33,7 +33,7 @@ Domain: Ops Center (Tyler Cloud Platform — operational tooling, organization/w
 ## ⛔ Ticket questions are answered from the SHARED catalog
 
 Any "which ticket do I file / how do I request access or permissions" question — in **any**
-domain — is answered from **`Knowledge-Shared/Conf-CorpDevTickets.md`**, not from this
+domain — is answered from **`Knowledge-Shared/Conf-OneTylerTickets.md`**, not from this
 corpus. It is the only authoritative catalog, covering Ops Center, Identity, Support Access
 Center, infrastructure, Forge/TCW and 3rd-party tickets, plus the separate feature-request
 portal and the deprecated forms. **Never construct a ticket URL.**
@@ -47,13 +47,13 @@ When the user asks about… reach for these first (in order of priority):
 ### Foundry **starting prompts** — answer from the dedicated quick-answer section first
 The Ops Center Foundry agent surfaces four starting prompts to new users. The canonical answers live in `Docusaurus-OpsCenter.md` → **Starting prompts — quick answers** (placed deliberately near the top of the file, right after the *How to use this guide* table). **Prefer those answers verbatim** when a user's question matches one of the four — they are tuned to start the conversation well. Route to deeper sections only if the user follows up with more detail. The four prompts:
 
-1. **"How do I get access to Ops Center?"** — *Starting prompts → How do I get access to Ops Center?*; deeper: `Docusaurus-OpsCenter.md` → *Access — environment URLs*, *Access — request a ticket*, *Access — promote teammates*; `Conf-OpsCenterTickets.md` → *Basic Access* for the exact Notes-field wording on shared form 4133.
-2. **"How can I get access to a client's Admin Center?"** — *Starting prompts → How can I get access…*; deeper: `Conf-OpsCenterTickets.md` → *Client Admin Center access request* (form 4165) for the standard path, and `Docusaurus-OpsCenter.md` → *Organization Details — Admins* + the *Org Admin promotions — a Manager's guide* Confluence page for the elevated-permission self-promote alternative.
+1. **"How do I get access to Ops Center?"** — *Starting prompts → How do I get access to Ops Center?*; deeper: `Docusaurus-OpsCenter.md` → *Access — environment URLs*, *Access — request a ticket*, *Access — promote teammates*; `Knowledge-Shared/Conf-OneTylerTickets.md` → *Basic Access* for the exact Notes-field wording on shared form 4133.
+2. **"How can I get access to a client's Admin Center?"** — *Starting prompts → How can I get access…*; deeper: `Knowledge-Shared/Conf-OneTylerTickets.md` → *Client Admin Center access request* (form 4165) for the standard path, and `Docusaurus-OpsCenter.md` → *Organization Details — Admins* + the *Org Admin promotions — a Manager's guide* Confluence page for the elevated-permission self-promote alternative.
 3. **"Where can I see the Identity Configuration details for a customer?"** — *Starting prompts → Where can I see the Identity Configuration…*; deeper: `Docusaurus-OpsCenter.md` → *Organization Details* (Basic details for Identity Tier; Manage workspaces for per-workspace OnPrem Target), *Identity Workforce (org details)* for tier-specific federation/AD-Agent setup, and *Authentication logs* for sign-in history. Always flag that Identity Tier cannot be changed after org creation (the narrow UNINITIATED WD→WM conversion ticket is the only exception).
 4. **"Where can I see Ops Center training and other useful guides?"** — *Starting prompts → Where can I see Ops Center training…*. **Primary URL — must be surfaced verbatim, never paraphrased:** https://tylertech.atlassian.net/wiki/spaces/TTI/pages/386599613/Tyler+Cloud+Platform+TCP+Deployment — the Tyler Cloud Platform Deployment / Operational Training Hub on Confluence, which hosts the 6-part video series, the slide deck, and the handout PDF. Deeper: `Misc-Links.md` → *TCP / TID Operational Training* for the same URL plus the individual demo/setup Confluence pages; `Training-OpsCenterOperations.md` → *Resources* table also carries the URL; `Training-OpsCenterOperations.md` and `Training-WorkforceManagedToDirectMigration.md` for the GPT-distilled training narratives.
 
 ### "How do I file a ticket / what's the right ticket for X?"
-- `Conf-OpsCenterTickets.md` (start here always)
+- `Knowledge-Shared/Conf-OneTylerTickets.md` (start here always)
 - **Critical disambiguation:** "Add an Org Admin / Promote me as admin" does NOT use the generic form 4133 — see *Org Admins* section in that file.
 
 ### "What does this Tyler term mean?"
@@ -67,7 +67,7 @@ The Ops Center Foundry agent surfaces four starting prompts to new users. The ca
 
 ### "How do I integrate my deployment tool with Ops Center via API?"
 - `Docusaurus-OpsCenterAdoption.md` (canonical reference — TCP Search API for listing; Provisioning v2 for Licensing/Availability/workspace create; Platform Service for Internal-Org workspace deactivate/activate; Webhook API for change events)
-- **Customer-Org workspace deletion / Org lifecycle changes are forbidden for external tools** — route via OneTyler ticket (`Conf-OpsCenterTickets.md`).
+- **Customer-Org workspace deletion / Org lifecycle changes are forbidden for external tools** — route via OneTyler ticket (`Knowledge-Shared/Conf-OneTylerTickets.md`).
 - For the broader webhook catalog (Identity, Support Access, User Group events): `GitHub-TCPWebhookApi.md`
 
 ### "Why is my customer's org / Customer Identifier missing or wrong?"
@@ -86,7 +86,7 @@ The Ops Center Foundry agent surfaces four starting prompts to new users. The ca
 
 ### "How does my product migrate a customer from Workforce Managed to Workforce Direct?"
 - `Training-WorkforceManagedToDirectMigration.md` (both parts)
-- `Conf-OpsCenterTickets.md` → *Orgs > Organization Details > Workspace migration* for the permission gate
+- `Knowledge-Shared/Conf-OneTylerTickets.md` → *Orgs > Organization Details > Workspace migration* for the permission gate
 - For Gateway-readiness prerequisite: `Conf-GatewayOperationalTesting.md`
 
 ### "How do I test my Gateway-ready product?"
@@ -97,7 +97,7 @@ The Ops Center Foundry agent surfaces four starting prompts to new users. The ca
 
 ### "Customer wants to give helpdesk staff access to CAPM"
 - `Conf-CommunityAccessProfileManager.md` — customer Org Admin flow.
-- For TYLER STAFF requesting CAPM access (different flow): `Conf-OpsCenterTickets.md` → CAPM access request.
+- For TYLER STAFF requesting CAPM access (different flow): `Knowledge-Shared/Conf-OneTylerTickets.md` → CAPM access request.
 
 ### "I'm registering a product / what app types exist / Product vs SKU?"
 - `Docusaurus-ProductRegistration.md`
@@ -114,7 +114,7 @@ The Ops Center Foundry agent surfaces four starting prompts to new users. The ca
 
 ### "What support team owns this issue / where do I escalate?"
 - `Training-OpsCenterOperations.md` → *Support — distributed support model* and *Issue routing rules*
-- For ticket URLs: `Conf-OpsCenterTickets.md`
+- For ticket URLs: `Knowledge-Shared/Conf-OneTylerTickets.md`
 
 ### "Give me the URL / link to <some Tyler doc>"
 - `Misc-Links.md` (bookmark catalog)
@@ -135,17 +135,17 @@ The Ops Center Foundry agent surfaces four starting prompts to new users. The ca
 | `Docusaurus-OpsCenter.md` vs `Training-OpsCenterOperations.md` | **Docusaurus-OpsCenter** is the *product reference* (how the screens work). **Training-OpsCenterOperations** is the *narrative* (why we do this, the OTCOM context, the typical end-to-end process). For "how do I import an org?" → Docusaurus. For "why does Tyler require a CRM record?" → Training. |
 | `Docusaurus-OpsCenter.md` vs `Docusaurus-OpsCenterAdoption.md` | **Docusaurus-OpsCenter** is for users *operating Ops Center through the UI* — wizards, screens, AD Agent, federation, Bulk Licensing, Permissions. **Docusaurus-OpsCenterAdoption** is for engineers *integrating with Ops Center via API* from another deployment tool — Search API, Provisioning v2, Platform Service, Webhook API. For "how do I license a product in the Ops Center UI?" → Docusaurus-OpsCenter. For "what API do I call to license a product from my deployment tool?" → Docusaurus-OpsCenterAdoption. |
 | `Docusaurus-OpsCenterAdoption.md` vs `GitHub-TCPWebhookApi.md` | **OpsCenterAdoption** enumerates only the Org / Workspace / Product webhook events relevant to integration. **GitHub-TCPWebhookApi** is the full catalog (all 25 events across 6 domains, including Identity / Support Access / User Group). For the integration-focused subset → OpsCenterAdoption; for any other event family → GitHub-TCPWebhookApi. |
-| `Conf-OpsCenterTickets.md` vs `Misc-Links.md` | **Conf-OpsCenterTickets** is the *distilled catalog* with exact field instructions. **Misc-Links** has the live Confluence catalog URL plus other Confluence deep-dives. For "what ticket?" → Conf-OpsCenterTickets. For "give me the URL to the live catalog or to a sibling Confluence page" → Misc-Links. |
+| `Knowledge-Shared/Conf-OneTylerTickets.md` vs `Misc-Links.md` | **Conf-OneTylerTickets** is the *distilled catalog* with exact field instructions. **Misc-Links** has the live Confluence catalog URL plus other Confluence deep-dives. For "what ticket?" → Conf-OneTylerTickets. For "give me the URL to the live catalog or to a sibling Confluence page" → Misc-Links. |
 | `Docusaurus-OpsCenter.md` (Bulk Licensing section) vs `Misc-Links.md` (Bulk licensing preview entry) | Docusaurus has the *how-to*; Misc-Links has the live Coda guide URL with videos. Use Docusaurus first, then offer the Coda URL for video walkthrough. |
 | Conf-* files vs Blueprint catalog in Misc-Links.md | **Conf-** files are DISTILLED Confluence content (Tyler-internal, sometimes customer-side guidance). **Blueprint** is the public-facing Docusaurus reference (`docs.tylerdev.io`). When the user wants the public, current, evolving doc → Blueprint URL. When they want a fast answer the chatbot can ground in → Conf-* or Docusaurus-* file. |
 | `Training-OpsCenterOperations.md` vs `Training-WorkforceManagedToDirectMigration.md` | Both are training distillations. The first is the *general* 6-part operational training (overview, basic concepts, typical process, support). The second is *specifically* the WM→WD conversion. For broad ops questions → general; for the specific migration → WM-to-WD. |
-| `Conf-CommunityAccessProfileManager.md` vs `Conf-OpsCenterTickets.md` (CAPM access) | **Conf-CommunityAccessProfileManager** is the customer-side flow (Org Admin grants their staff access via Admin Center). **Conf-OpsCenterTickets** → CAPM access request is the TYLER-STAFF flow (Tyler employee requests access to the *demo* CAPM instance via a ticket). Different audience + different URL. |
+| `Conf-CommunityAccessProfileManager.md` vs `Knowledge-Shared/Conf-OneTylerTickets.md` (CAPM access) | **Conf-CommunityAccessProfileManager** is the customer-side flow (Org Admin grants their staff access via Admin Center). **Conf-OneTylerTickets** → CAPM access request is the TYLER-STAFF flow (Tyler employee requests access to the *demo* CAPM instance via a ticket). Different audience + different URL. |
 
 ---
 
 ## Cross-domain pointer
 
-When the user asks about **Support Access Center (SAC)** — engineering requirements, group setup, request flow, security API, the support-access-revoked webhook — look in the **`Knowledge-SupportAccessCenter/`** folder (sibling of this one), specifically `Docusaurus-SupportAccessCenter.md`. The Ops Center corpus only references SAC at the level of "here's the ticket to enable it" (`Conf-OpsCenterTickets.md`) and "here's the webhook signature" (`GitHub-TCPWebhookApi.md`). For everything else SAC-related, hand off to the SAC corpus.
+When the user asks about **Support Access Center (SAC)** — engineering requirements, group setup, request flow, security API, the support-access-revoked webhook — look in the **`Knowledge-SupportAccessCenter/`** folder (sibling of this one), specifically `Docusaurus-SupportAccessCenter.md`. The Ops Center corpus only references SAC at the level of "here's the ticket to enable it" (`Knowledge-Shared/Conf-OneTylerTickets.md`) and "here's the webhook signature" (`GitHub-TCPWebhookApi.md`). For everything else SAC-related, hand off to the SAC corpus.
 
 ---
 
@@ -181,7 +181,7 @@ The filename prefix tells you the source system. Use this to assess freshness an
 ## Operating principles for the chatbot
 
 1. **Read this file first on every session.** Then retrieve / consult the specific files routing tells you to.
-2. **Cite the file you're answering from** when relevant — e.g., "per `Conf-OpsCenterTickets.md`…" — so the user can verify.
+2. **Cite the file you're answering from** when relevant — e.g., "per `Knowledge-Shared/Conf-OneTylerTickets.md`…" — so the user can verify.
 3. **Surface URLs verbatim.** Don't paraphrase or guess them. If a URL appears in a file, copy it exactly. If you don't have a URL for something the user asks about, say so.
 4. **Match audience tags.** Many files are Tyler-internal guidance and **must not** be shared with customers directly. Flag this when surfacing internal content. The `Notes for the chatbot` section in each file usually calls out specific audience constraints.
 5. **Prefer the distilled file over the live URL for fast answers**, but **prefer the live URL** when the user explicitly asks "where can I learn more?" or "show me the current source" — content evolves, and the live source is canonical for currency.

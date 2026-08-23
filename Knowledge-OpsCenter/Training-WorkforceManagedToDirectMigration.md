@@ -14,7 +14,7 @@ This document explains the two-part WM→WD conversion: (a) **Retargeting** — 
 
 **Companion documents in this same Knowledge folder:**
 - `Conf-GatewayOperationalTesting.md` — Gateway-readiness validation (a prerequisite for WM→WD eligibility).
-- `Conf-OpsCenterTickets.md` — see *Orgs > Organization Details > Workspace migration* for the gating permission/ticket route.
+- `Knowledge-Shared/Conf-OneTylerTickets.md` — see *Orgs > Organization Details > Workspace migration* for the gating permission/ticket route.
 - `Docusaurus-Terminology.md` — *Identity Workforce* (Workforce Direct / Managed / Delegated) canonical definitions; also "Gateway is internal code, Identity Workforce is the customer-facing brand."
 - `Docusaurus-OpsCenter.md` — *Workspace migration* and *Add/Reset AD Agent account* / *Federation* setup flows in Ops Center.
 - `Misc-Links.md` — the live Confluence page *Tyler Cloud Platform (TCP) | Workforce Managed to Workforce Direct Retargeting and Migration* (`/wiki/spaces/TTI/pages/386635412/`) is bookmarked there.
@@ -71,7 +71,7 @@ This process converts **eligible Workforce Managed (Okta-based) orgs** into **Wo
 
 The **"Workspace Migration"** menu option in **Ops Center > Organization details** is **permission-gated**. Tyler staff must be **granted explicit access** via a support ticket before they can see/use the option.
 
-- See `Conf-OpsCenterTickets.md` → *Orgs > Organization Details > Workspace migration* for the request flow.
+- See `Knowledge-Shared/Conf-OneTylerTickets.md` → *Orgs > Organization Details > Workspace migration* for the request flow.
 - The Confluence runbook bookmarked in `Misc-Links.md` (page `386635412`) is the authoritative live document.
 
 ## Eligibility checklist
@@ -348,7 +348,7 @@ If the organization has utilized the **PASC** (Public Access Support Center) sup
 ## Notes for the chatbot
 
 - **"Retargeting" and "Migration" are NOT synonyms.** Retargeting is the **Tyler-staff workspace-flag flip + product redeployment coordination** in Ops Center. Migration is the **customer-side federation reconfiguration** in Admin Center. Migration is gated by Retargeting being complete on all workspaces in the org AND self-service being enabled.
-- **The Workspace Migration menu option in Ops Center is permission-gated** — request access via ticket (`Conf-OpsCenterTickets.md`).
+- **The Workspace Migration menu option in Ops Center is permission-gated** — request access via ticket (`Knowledge-Shared/Conf-OneTylerTickets.md`).
 - **Eligibility is 3 hard requirements:** no local accounts, existing federation under current Okta tenant, all installed Tyler products support Gateway. If ANY is not met, the org is not eligible — explain the specific blocker.
 - **Cross-product coordination is the responsibility of the Tyler employee initiating the retargeting** — they must check the customer's CRM record for products that may not yet be in Ops Center.
 - **SubjectId reset is needed for @tylertech.com users tracked by SubjectId.** PASC users on `@tidsupport.com` are NOT at risk.

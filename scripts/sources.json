@@ -17,7 +17,7 @@
       "confluence_page_id": "386600308",
       "title": "Confluence - Ops Center Related Tickets and Permissions",
       "files": [
-        "Knowledge-Shared/Conf-CorpDevTickets.md"
+        "Knowledge-Shared/Conf-OneTylerTickets.md"
       ],
       "interval_days": 7,
       "last_verified": "2026-08-23",
@@ -29,7 +29,7 @@
       "url": "https://help.center.tylertech.com/servicedesk/customer/portal/3168",
       "title": "JSM - CorpDev Support portal (all request types)",
       "files": [
-        "Knowledge-Shared/Conf-CorpDevTickets.md"
+        "Knowledge-Shared/Conf-OneTylerTickets.md"
       ],
       "interval_days": 30,
       "last_verified": "2026-08-23",
@@ -41,7 +41,7 @@
       "url": "https://help.center.tylertech.com/servicedesk/customer/portal/3185",
       "title": "JSM - CorpDev Feature Requests portal",
       "files": [
-        "Knowledge-Shared/Conf-CorpDevTickets.md"
+        "Knowledge-Shared/Conf-OneTylerTickets.md"
       ],
       "interval_days": 30,
       "last_verified": "2026-08-23",
@@ -50,7 +50,7 @@
     }
   ],
   "upload_targets": {
-    "Knowledge-Shared/Conf-CorpDevTickets.md": [
+    "Knowledge-Shared/Conf-OneTylerTickets.md": [
       "OT-OpsCenter",
       "OT-BPD",
       "OT-SAC"

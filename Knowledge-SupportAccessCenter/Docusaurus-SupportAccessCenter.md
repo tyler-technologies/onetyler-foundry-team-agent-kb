@@ -1,6 +1,6 @@
 # Support Access Center (SAC) — Concepts, Administration, and Usage
 
-Source: Docusaurus — *CorpDev Blueprint, App Guides > Ops > Support Access Center* (`docs/app-guides/ops/support-access-center/**`)
+Source: Docusaurus — *OneTyler Blueprint, App Guides > Ops > Support Access Center* (`docs/app-guides/ops/support-access-center/**`)
 Domain: Support Access Center
 Audience: Tyler product engineering teams adopting SAC; Support Council representatives administering SAC groups; Tyler operational staff making access requests to customer installations; customer Org Admins approving/denying those requests.
 
@@ -9,7 +9,7 @@ This document covers what SAC is, compatibility constraints with Org Identity Ti
 **Companion documents (cross-domain):**
 - `../Knowledge-OpsCenter/Docusaurus-Terminology.md` — see *Identity Workforce* (Workforce Direct / Managed / Delegated), *Organization*, *Workspace*, *Org Admin*, *Tyler Ops User*.
 - `../Knowledge-OpsCenter/Docusaurus-OpsCenter.md` — context on Org Identity Tier and Workspace OnPrem target (both gate SAC compatibility).
-- `../Knowledge-OpsCenter/Conf-OpsCenterTickets.md` — the ticket for **enabling SAC on a Workforce Managed org with OnPrem Target=Gateway** (form `…/create/4149`).
+- `../Knowledge-Shared/Conf-OneTylerTickets.md` — the ticket for **enabling SAC on a Workforce Managed org with OnPrem Target=Gateway** (form `…/create/4149`).
 
 ---
 
@@ -135,7 +135,7 @@ SAC is **not compatible with all combinations** of Organization Identity Tier an
 
 For Workforce Managed + Gateway orgs, SAC must be **explicitly enabled**:
 
-- File the ticket: `https://help.center.tylertech.com/servicedesk/customer/portal/3168/group/3329/create/4149` (see `Conf-OpsCenterTickets.md` → *Support Access Center*).
+- File the ticket: `https://help.center.tylertech.com/servicedesk/customer/portal/3168/group/3329/create/4149` (see `Knowledge-Shared/Conf-OneTylerTickets.md` → *Support Access Center*).
 - **Before enabling**, alert the customer to the updated Gateway login screen they will see post-change.
 
 ---
@@ -422,7 +422,7 @@ It is **strongly recommended** to periodically audit access history for your pro
 ## Notes for the chatbot
 
 - **Always check both Identity Tier and OnPrem target** when a user asks "does SAC work for this org?". WM/Okta is the **only** unsupported combination. WM/Gateway needs explicit **enablement** + customer pre-notification + Jason Howard.
-- For **WM/Okta orgs**, the chatbot should suggest the customer needs to be moved to WM/Gateway (or WD/Gateway) to get SAC — and flag that this requires CorpDev coordination (Jason Howard) plus a customer-facing change to the login screen.
+- For **WM/Okta orgs**, the chatbot should suggest the customer needs to be moved to WM/Gateway (or WD/Gateway) to get SAC — and flag that this requires OneTyler coordination (Jason Howard) plus a customer-facing change to the login screen.
 - **Any Tyler staff member with an `@tylertech.com` email can log into SAC and reach the dashboard — no special authorization or group membership is required just to sign in.** What is gated by SAC group membership is the ability to **request access to a specific product**: the *Select products* step of the request wizard is filtered to products reachable via the staff member's SAC group memberships. When the user asks "how do I get access to SAC?", default to this login-is-open interpretation — it's by far the most common framing. Only mention the Support Council administration path as a brief aside, since that audience is specifically trained for the role and rarely asks the chatbot this question. Non-Tyler email logins are not supported.
 - The **"Tyler access" Admin Center setting** is the gating control between auto-approval (**Full access**, default) and manual approval (**Limited access**). When a user reports their request is stuck, first check the org's Tyler access setting.
 - **Extensions create a second audit record** — if a user thinks they have "duplicate" requests after extending, that is by design (audit trail preservation). Revoking the extension does NOT revoke the original; remind users they must revoke both if they want all access gone.

@@ -8,7 +8,7 @@ This document describes a 3-step workaround on the **customer's** Entra ID insta
 
 **Companion documents in this same Knowledge folder:**
 - `Docusaurus-Terminology.md` — see *Identity Workforce* (Workforce Direct vs Managed vs Delegated). This whole workaround is specific to **Workforce Direct**.
-- `Conf-OpsCenterTickets.md` — for unrelated Identity Workforce permission and authentication tickets.
+- `Knowledge-Shared/Conf-OneTylerTickets.md` — for unrelated Identity Workforce permission and authentication tickets.
 - `Misc-Links.md` — for the live link to this Confluence page and related bookmarks.
 
 ---

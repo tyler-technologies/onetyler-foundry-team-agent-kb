@@ -1,4 +1,4 @@
-# Identity — CorpDev Ticket Reference
+# Identity — OneTyler Ticket Reference
 
 Source: Tyler CorpDev Support portal — *Tyler Identity Cloud* group
 (https://help.center.tylertech.com/servicedesk/customer/portal/3168/group/3329), harvested
@@ -7,7 +7,7 @@ from the live JSM forms 2026-08-23, cross-checked against Confluence
 (https://tylertech.atlassian.net/wiki/spaces/TTI/pages/386600308).
 
 Domain: Tyler Identity
-Audience: Tyler staff who need to file an Identity-related request against CorpDev.
+Audience: Tyler staff who need to file an Identity-related request against OneTyler.
 
 **⚠ NOT YET DEPLOYED.** This file exists in the repo only. It has deliberately **not** been
 uploaded to the `TCP-KB-Identity` Foundry collection, because that collection's on-disk
@@ -15,13 +15,13 @@ structure differs from the repo's and the switchover needs agreement with the co
 See Hard Rule 1 in `CLAUDE.md`.
 
 **⚠ DERIVED FILE — do not edit directly.** This is an identity-scoped extract of
-`Knowledge-Shared/Conf-CorpDevTickets.md`, kept separate only because the Identity corpus is
+`Knowledge-Shared/Conf-OneTylerTickets.md`, kept separate only because the Identity corpus is
 a single monolithic document whose owner may prefer a small identity-only addition to the
 whole cross-domain catalog. When the shared catalog changes, re-derive this file from it.
 
 **Companion:** the authoritative full ticket catalog — covering Ops Center, Support Access
 Center, infrastructure and general-inquiry tickets as well as these — is
-`Knowledge-Shared/Conf-CorpDevTickets.md`. The team router also sends *all* "which ticket do
+`Knowledge-Shared/Conf-OneTylerTickets.md`. The team router also sends *all* "which ticket do
 I file" questions to the Ops Center agent, which holds a copy. This file exists so the Identity
 agent can answer identity-ticket questions directly without a hand-off.
 
@@ -110,7 +110,7 @@ updating to match.
 
 **Terminology trap:** "Identity Client" means a **registered OAuth/OIDC application**, not a
 Tyler customer. If the user says "client" meaning a customer or organization, they want an
-Ops Center ticket instead — see `Knowledge-Shared/Conf-CorpDevTickets.md`.
+Ops Center ticket instead — see `Knowledge-Shared/Conf-OneTylerTickets.md`.
 
 Follow the on-form header instructions.
 

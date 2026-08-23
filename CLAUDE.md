@@ -478,7 +478,7 @@ agents' chat experience is reconfigured, or the filter will silently stop workin
 
 ## Keeping the ticket catalog current
 
-`Knowledge-Shared/Conf-CorpDevTickets.md` answers every "which ticket do I file" question
+`Knowledge-Shared/Conf-OneTylerTickets.md` answers every "which ticket do I file" question
 for every agent. It is reconciled from **three** upstream sources — all of them, every time,
 because each covers something the others do not:
 
@@ -518,7 +518,7 @@ direct (non-team) conversation there is nobody to hand off to, and the failure m
 invented ticket URL.
 
 `scripts/sources.json` → `upload_targets` is the authoritative list. Today:
-`Knowledge-Shared/Conf-CorpDevTickets.md` → `OT-OpsCenter`, `OT-BPD`, `OT-SAC`.
+`Knowledge-Shared/Conf-OneTylerTickets.md` → `OT-OpsCenter`, `OT-BPD`, `OT-SAC`.
 **`TCP-KB-Identity` is excluded** — Hard Rule 1.
 
 A change to a shared file that is not uploaded to *every* target leaves the copies drifting.

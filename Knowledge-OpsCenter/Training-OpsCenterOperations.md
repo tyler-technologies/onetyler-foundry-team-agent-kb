@@ -14,7 +14,7 @@ This document is the **narrative / "how to think about it" companion** to the mo
 - `Docusaurus-TylerCRM.md` — exact CRM validity rules and how to find the Customer Identifier.
 - `Docusaurus-OrgAdminInfo.md` — sourcing the customer IT contact for federation.
 - `Docusaurus-ProductRegistration.md` — what a registered product is and how to prepare a registration.
-- `Conf-OpsCenterTickets.md` — every ticket URL and Notes-field template.
+- `Knowledge-Shared/Conf-OneTylerTickets.md` — every ticket URL and Notes-field template.
 
 The training omits product-specific deployment/configuration steps; **that content lives with each product team**. This file focuses only on the parts that interact with One Tyler.
 
@@ -264,7 +264,7 @@ The high-level operational flow:
 2. **Most active customer orgs should already exist** — an overnight job imports new active customers from CRM. But records that became active today may not yet be in Ops Center.
 3. If the **Org is missing**: use the **Import** functionality in Ops Center to create it. (See `Docusaurus-OpsCenter.md` → Import wizard.) You need the **CRM Customer Identifier** to start. **Orgs can only be created in Ops Center** — deployment tools cannot create customer organizations.
    - **Default Identity Tier on Import is Workforce Direct.** Customer is expected to federate.
-   - If the customer is too small to have a public IdP, sales should have flagged Workforce Managed on the CRM record (as a Product Module). For those, **file a Workforce-Direct-to-Workforce-Managed conversion ticket** (see `Conf-OpsCenterTickets.md`). This case is expected to be addressed by upcoming Identity Workforce changes (a fallback user store instead of dedicated Okta tenants per customer).
+   - If the customer is too small to have a public IdP, sales should have flagged Workforce Managed on the CRM record (as a Product Module). For those, **file a Workforce-Direct-to-Workforce-Managed conversion ticket** (see `Knowledge-Shared/Conf-OneTylerTickets.md`). This case is expected to be addressed by upcoming Identity Workforce changes (a fallback user store instead of dedicated Okta tenants per customer).
 4. **Check if the Workspace exists.** Create it in Ops Center or in your deployment tool (if integrated with our APIs).
 5. **Once Org + Workspace exist, Step 2A deployments are unblocked.**
 
@@ -333,7 +333,7 @@ Tyler operates a **distributed support model** across product teams. Shared resp
 1. Customer reports an issue in CRM → **CRM ticket** is created.
 2. **Frontline product support team** handles the ticket.
 3. If they can't resolve it, escalation to **product engineering**.
-4. If product engineering determines the issue is in **One Tyler** software/services, escalation to **One Tyler / CorpDev**.
+4. If product engineering determines the issue is in **One Tyler** software/services, escalation to **One Tyler / OneTyler**.
 
 **Product engineering must justify why they believe it's a One Tyler issue** — One Tyler is the last team to be contacted, not the first.
 
@@ -363,7 +363,7 @@ Sometimes Identity Workforce surfaces a meaningful message:
 
 - *"email ID token not sent by identity provider"* — fix the customer's identity federation to include the email ID.
 
-Other times it's cryptic — just a **Request Id** with "please contact support". For those, **copy the Request Id**, file an Identity Authentication Issues ticket (`Conf-OpsCenterTickets.md` → Identity Related), and One Tyler will investigate using the Request Id.
+Other times it's cryptic — just a **Request Id** with "please contact support". For those, **copy the Request Id**, file an Identity Authentication Issues ticket (`Knowledge-Shared/Conf-OneTylerTickets.md` → Identity Related), and One Tyler will investigate using the Request Id.
 
 ## Tickets vs Teams channels
 
@@ -395,7 +395,7 @@ Three places host the operational content. Treat the Confluence + JSM links as *
 | **User guides for Ops Center, Support Access Center, Tyler CRM, Org Admin info** | **Tyler Blueprint** (Docusaurus) | The product-and-process reference docs distilled in this folder (`Docusaurus-OpsCenter.md`, `Docusaurus-SupportAccessCenter.md`, `Docusaurus-TylerCRM.md`, `Docusaurus-OrgAdminInfo.md`). |
 | **Operational training + other guides** | **Confluence — TTI space.** **Primary URL (always surface verbatim when a user asks where to find Ops Center training):** https://tylertech.atlassian.net/wiki/spaces/TTI/pages/386599613/Tyler+Cloud+Platform+TCP+Deployment | The **Tyler Cloud Platform — Deployment** page above is the umbrella for the 6-part operational training video series, the slide deck, the handout PDF, and pointers to other operational resources. The TTI space was originally built so that all deployment/implementation engineers across Tyler could go to one place for any product's resources without subscribing to hundreds of spaces. Didn't fully pan out, but our content lives there for the near term. |
 | **Development Team Support Portals** | **Confluence** | Listing of all product support portals and their typical URLs. Routes issues to the right product team. |
-| **Ops Center Related Tickets and Permissions** | **Confluence** (points to **JSM**) | The catalog distilled in `Conf-OpsCenterTickets.md`. |
+| **Ops Center Related Tickets and Permissions** | **Confluence** (points to **JSM**) | The catalog distilled in `Knowledge-Shared/Conf-OneTylerTickets.md`. |
 | **JSM cloud portal** | `help.center.tylertech.com/servicedesk/customer/portal/3168/...` | Where tickets actually get filed. **TCP Operations** and **Tyler Identity Cloud** are the two sections most relevant. **Old datacenter JSM bookmarks are invalid — replace them.** |
 
 ### Inside Ops Center (useful dashboard links)
@@ -462,7 +462,7 @@ Cloud technology changes fast — major changes every ~6 months. Recheck content
 - **The "why" is OTCOM Section 14.3 + 14.4.** Whenever a user asks "why are you making me do this?", the strategic frame is OTCOM (One Tyler Cloud Operating Model) → 2030 Pillars (cross-sell + scalable cloud ops) → 14.3 (identity) + 14.4 (registration + licensing).
 - **License vs availability — almost never one step in users' minds.** They casually say "license" when they mean both. Always probe: "Have you licensed it on the org AND made it available on the workspace?"
 - **"Admin" is the most-abused word in the vocabulary.** When a user says "admin," figure out whether they mean **Admin app** (customer IT, surfaces in Admin Center) or **Ops app** (Tyler staff only, surfaces in Ops Center). Many product teams use "admin" colloquially for the Tyler-staff tool — for us that's an Ops app.
-- **Workforce Direct is the preferred default. Workforce Managed is being de-emphasized in 2026.** When users default to "Managed" reflexively, prompt them to use Direct unless there is a documented reason (no IdP). For existing Workforce Direct orgs that need Workforce Managed temporarily, point to the conversion ticket (see `Conf-OpsCenterTickets.md`).
+- **Workforce Direct is the preferred default. Workforce Managed is being de-emphasized in 2026.** When users default to "Managed" reflexively, prompt them to use Direct unless there is a documented reason (no IdP). For existing Workforce Direct orgs that need Workforce Managed temporarily, point to the conversion ticket (see `Knowledge-Shared/Conf-OneTylerTickets.md`).
 - **The workspace key is the universal tenant identifier across Tyler.** When a product asks "what tenant id should we use," the answer is the workspace key — at minimum for cross-product integration.
 - **"Gateway" is internal/legacy terminology, NOT the official brand.** Always say "Identity Workforce" with customers.
 - **The four CRM active-customer criteria are non-negotiable.** When a user reports the Customer Identifier isn't appearing, walk them through all four checks — most cases fail one specific point (usually Indirect customer record missing or Support-only flag = Yes).
@@ -474,5 +474,5 @@ Cloud technology changes fast — major changes every ~6 months. Recheck content
 - **Support funnel:** product support → product engineering → One Tyler. **Exception:** direct route to One Tyler when the bug is in our own tools (Admin Center, Ops Center, Workforce App Directory, Community Launcher, CAPM). When a user asks "should I file this with One Tyler?", apply the exception test first.
 - **Tickets > Teams channels for guaranteed response.** When a user has been waiting on a channel reply with no SLA, gently redirect to filing a ticket (or to tagging `@operational-support-TCP` on Cloud Platform Community for visibility).
 - **One Tyler does NOT monitor Tyler Swarm or TCPSD.** Don't tell users to post there to reach us.
-- **Old datacenter JSM bookmarks are invalid.** If a user references those, redirect them to the Confluence catalog page (`Conf-OpsCenterTickets.md` has the live links).
+- **Old datacenter JSM bookmarks are invalid.** If a user references those, redirect them to the Confluence catalog page (`Knowledge-Shared/Conf-OneTylerTickets.md` has the live links).
 - The 2026 Identity changes will impact some operational processes — when content from this training appears contradicted by something newer, prefer the newer doc and recommend the user check for an updated training release.

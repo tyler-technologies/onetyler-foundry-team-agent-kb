@@ -1,4 +1,4 @@
-# CorpDev Tickets and Permissions — the authoritative catalog
+# OneTyler Tickets and Permissions — the authoritative catalog
 
 **This is the single source for every "which ticket do I file?" question, in every domain.**
 Shared across all agents — see `Knowledge-Shared/_START_HERE.md`.
@@ -12,9 +12,27 @@ Reconciled from **three** upstream sources:
 | 3 | JSM — CorpDev Feature Requests portal (https://help.center.tylertech.com/servicedesk/customer/portal/3185) | All feature requests and enhancement ideas | Sole authority for feature requests |
 
 Domain: cross-domain (Ops Center · Identity · Support Access Center · Development/Infra · Forge/TCW · 3rd-party)
-Audience: Tyler product, deployment, implementation, identity-support and engineering staff who need to file a request against CorpDev.
+Audience: Tyler product, deployment, implementation, identity-support and engineering staff who need to file a request against OneTyler.
 
 This document catalogs every Ops Center–related ticket: what it does, when to use it, who is eligible, prerequisites, the direct link to file it, and the exact fields/Notes content expected. Each ticket is a self-contained entry — they can be read independently.
+
+---
+
+## Terminology note — "CorpDev" is the former name
+
+The team is now called **OneTyler**. "CorpDev" is the old name and is **still used verbatim
+in several live systems**, so recognise it and treat the two as the same team:
+
+- The JSM portal is still titled **"CorpDev Support"** (`portal/3168`) and
+  **"CorpDev Feature Requests"** (`portal/3185`).
+- Several ticket forms still say "CorpDev maintained applications" in their own help text.
+- The Microsoft Teams space is still **"CorpDev Collaboration"**.
+- GitHub repos and infrastructure identifiers keep the old prefix — `corpdev-tf-docs`,
+  `corpdev-automation-shared`, the `corpdev_db_admin` IAM user, the `orgs/CorpDev/` Harness
+  path. **These are identifiers, not names — never rewrite them.**
+
+If a user says "CorpDev", answer as though they said OneTyler. When quoting a portal or repo
+name, use the name as it actually appears in that system.
 
 ---
 
@@ -26,7 +44,7 @@ Match the user's intent to one of the entries below. Each row points to the sect
 |---|---|
 | Get basic access to Ops Center, Admin Center, or CAPM | **Basic Access** |
 | Get additional permissions inside Ops Center (federation mgmt, Import org, AD Agent, Reestablish Federation, etc.) | **Basic Access** (same generic form; Notes field varies) |
-| Report a bug in a CorpDev-maintained application | **General Issues — Bug Report** |
+| Report a bug in a OneTyler-maintained application | **General Issues — Bug Report** |
 | Delete a workspace or delete an organization, or any other org/workspace request that doesn't fit elsewhere | **General Issues — Other org/workspace assistance** |
 | Create a NEW customer organization (Workforce Managed) | **New Org Request** |
 | Create a NEW Workforce Direct (federation-only) org | **Use self-service +Import** — see *Import an organization* |
@@ -36,7 +54,7 @@ Match the user's intent to one of the entries below. Each row points to the sect
 | Migrate workspaces (WM → WD retargeting) | **Workspace Migration** |
 | Request a non-standard workspace (suffix not in the standard set) | **Non-Standard Workspace Request** |
 | Report that an entire environment is down (platform-wide issue) | **Environment Issues (global)** |
-| Request a new feature or give feedback on a CorpDev tool | **Feature Requests** |
+| Request a new feature or give feedback on a OneTyler tool | **Feature Requests** |
 | Enable Support Access Center on a WM org with OnPrem Target=Gateway | **Support Access Center** |
 | Report an authentication issue (Workforce or Community) | **Identity — Authentication Issues** |
 | File an Identity Client request | **Identity — Identity Client** |
@@ -53,7 +71,7 @@ Match the user's intent to one of the entries below. Each row points to the sect
 - **OC** — Ops Center. Internal Tyler tool for managing TCP orgs/workspaces.
 - **AC** — Admin Center. Customer-facing administration UI per org.
 - **CAPM** — Community Access Profile Manager. Lives at `https://demo.tylerportico.com/portal/community-profile-manager/`.
-- **CorpDev** — The internal team that maintains Ops Center and many TCP tools and that fulfills these tickets.
+- **OneTyler** — The internal team that maintains Ops Center and many TCP tools and that fulfills these tickets.
 - **Org / Organization** — A TCP customer or internal tenant (has a `customerId` / org key).
 - **Workspace** — A sub-tenant under an organization (has a `portalId`). Production workspace key usually equals the org key; non-prod uses suffixes. The **6 standard non-prod suffixes** are `test`, `train`, `staging`, `dev`, `uat`, `impl`; anything else is a "non-standard workspace" requiring a separate request.
 - **Workforce Direct** — Federation-only identity model. Customer brings their own IdP. **Self-service org creation is supported** via +Import in Ops Center.
@@ -132,8 +150,8 @@ Exception: Org Admin promotion / "Add an Org Admin" / self-promote — **does NO
 
 ### Report bugs in CorpDev-maintained applications
 
-- **Use when:** You have a confirmed bug in a CorpDev-maintained app.
-- **Before filing:** Confirm the bug is in a CorpDev-maintained application. See Confluence — *Tyler Cloud Platform (TCP) | Development team support portals* (`/wiki/spaces/TTI/pages/386599215/`).
+- **Use when:** You have a confirmed bug in a OneTyler-maintained app.
+- **Before filing:** Confirm the bug is in a OneTyler-maintained application. See Confluence — *Tyler Cloud Platform (TCP) | Development team support portals* (`/wiki/spaces/TTI/pages/386599215/`).
 - **Ticket:** https://help.center.tylertech.com/servicedesk/customer/portal/3168/group/3333/create/4143
 - **Fields:**
   - **Product team(s):** As above.
@@ -153,7 +171,7 @@ Exception: Org Admin promotion / "Add an Org Admin" / self-promote — **does NO
 - **Ticket:** https://help.center.tylertech.com/servicedesk/customer/portal/3168/group/3333/create/4150
 - **Fields:**
   - **Product team(s):** As above.
-  - **Delivery Deadline:** Yes/No. CorpDev typically completes org tasks within **5 business days** (often sooner). They will try to honor deadlines but no guarantees.
+  - **Delivery Deadline:** Yes/No. OneTyler typically completes org tasks within **5 business days** (often sooner). They will try to honor deadlines but no guarantees.
   - **Delivery Date:** Required if Delivery Deadline = Yes.
   - **CRM Id:** Numeric CRM Id (NOT the Customer Identifier). Enter `0` if not applicable.
   - **CRM Company Name:** Org's company name in CRM, or `"Not applicable"`.
@@ -168,7 +186,7 @@ Exception: Org Admin promotion / "Add an Org Admin" / self-promote — **does NO
 ### Create a NEW Organization
 
 - **Use when:** A new customer org needs to be created (typically Workforce Managed). Also for internal-org creation when you can't self-service.
-- **Self-service alternative:** If you are creating a **Workforce Direct (federation-only)** org, do NOT file this ticket — use the **+Import an organization** feature in Ops Center yourself. Self-service is strongly preferred over loading CorpDev support. To get the +Import permission, see *Orgs > +Import (an organization)* below.
+- **Self-service alternative:** If you are creating a **Workforce Direct (federation-only)** org, do NOT file this ticket — use the **+Import an organization** feature in Ops Center yourself. Self-service is strongly preferred over loading OneTyler support. To get the +Import permission, see *Orgs > +Import (an organization)* below.
 - **Ticket:** https://help.center.tylertech.com/servicedesk/customer/portal/3168/group/3333/create/4158
 - **Prerequisites:**
   - A "well-formed" CRM customer account record. See https://docs.tylerdev.io/opscenter/tylercrm/ for what "well-formed" means.
@@ -181,7 +199,7 @@ Exception: Org Admin promotion / "Add an Org Admin" / self-promote — **does NO
   - **CRM Contract Quote URL:** Link to the contract URL (required for Workforce Managed purchases).
   - **Customer Technical Contact Name:** First/last name of the Client IT Admin who will federate (WD) or take Admin Center ownership (WD/WM).
   - **Customer Technical Contact Email:** Email of the above.
-  - **Delivery Deadline / Delivery Date:** Same as above; CorpDev targets 5 business days.
+  - **Delivery Deadline / Delivery Date:** Same as above; OneTyler targets 5 business days.
   - **Notes:** Any extras, especially for internal-org requests.
 
 ---
@@ -288,7 +306,7 @@ Exception: Org Admin promotion / "Add an Org Admin" / self-promote — **does NO
 - **Instructions:**
   - In the description, justify why you need the non-standard workspace. Workspaces represent a "customer business purpose" — explain how your suffix reflects a customer business purpose.
   - For a limited time, **numbered extensions** to the approved suffixes are being approved — e.g. `impl1`, `impl2`, `impl3`, `test1`, `test2`, etc.
-  - Any other suffix, or any request for **more than 7 workspaces total per customer**, is subject to greater scrutiny and CorpDev will likely reach out to understand the business need.
+  - Any other suffix, or any request for **more than 7 workspaces total per customer**, is subject to greater scrutiny and OneTyler will likely reach out to understand the business need.
 
 ---
 
@@ -296,21 +314,21 @@ Exception: Org Admin promotion / "Add an Org Admin" / self-promote — **does NO
 
 ### Environment not working (platform-wide issue)
 
-- **Use when:** An entire environment is not working AND you have already done the research to show it is a **platform-wide** issue. (CorpDev is NOT the default first investigator.)
+- **Use when:** An entire environment is not working AND you have already done the research to show it is a **platform-wide** issue. (OneTyler is NOT the default first investigator.)
 - **Ticket:** https://help.center.tylertech.com/servicedesk/customer/portal/3168/group/3328/create/4129
 - **Instructions:**
   - Preferably filed by an engineer.
   - Must include logs, investigation notes, etc. demonstrating why the engineer believes it is a platform issue.
 
-> Note: the "Request new features or provide feedback on any CorpDev tool" row that appears alongside this in the source is covered separately under **Feature Requests** (portal 3185).
+> Note: the "Request new features or provide feedback on any OneTyler tool" row that appears alongside this in the source is covered separately under **Feature Requests** (portal 3185).
 
 ---
 
 ## Feature Requests
 
-### Request a new feature or provide feedback on any CorpDev tool
+### Request a new feature or provide feedback on any OneTyler tool
 
-- **Use when:** You want to propose a new feature or leave feedback on a CorpDev tool (Ops Center, Admin Center, CAPM, etc.).
+- **Use when:** You want to propose a new feature or leave feedback on a OneTyler tool (Ops Center, Admin Center, CAPM, etc.).
 - **Where to go:** https://help.center.tylertech.com/servicedesk/customer/portal/3185
 
 ---
@@ -322,7 +340,7 @@ Exception: Org Admin promotion / "Add an Org Admin" / self-promote — **does NO
 - **Use when:** You need to enable Support Access Center on a WM org whose OnPrem Target is Gateway.
 - **Ticket:** ⚠ **Link unresolved — do not guess.** The Confluence source page points this at
   `group/3329/create/4149`, but that form is verified live as **"Identity SKU Change"**, a
-  different request entirely. Direct the user to the CorpDev portal
+  different request entirely. Direct the user to the OneTyler portal
   (https://help.center.tylertech.com/servicedesk/customer/portal/3168) → **2. TCP - Operations**
   and pick the closest matching request, or file *General Information / Inquiry*
   (`group/3333/create/4141`) asking to be routed. Flag to the page owner that the link needs fixing.
@@ -421,7 +439,7 @@ Exception: Org Admin promotion / "Add an Org Admin" / self-promote — **does NO
 |---|---|
 | `.../create/4133` | **Generic** Ops Center / CAPM access AND additional permissions (Notes field varies: manage federations, +Import, AD Agent setup, Reestablish Federation) |
 | `.../create/4165` | Client Admin Center access |
-| `.../create/4143` | Bug report in CorpDev-maintained apps |
+| `.../create/4143` | Bug report in OneTyler-maintained apps |
 | `.../create/4150` | Other org/workspace assistance (incl. delete workspace, delete org) |
 | `.../create/4158` | New org request (Workforce Managed creation; internal-org creation) |
 | `.../create/4860` | Convert UNINITIATED Workforce Direct org → Workforce Managed |
@@ -434,7 +452,7 @@ Exception: Org Admin promotion / "Add an Org Admin" / self-promote — **does NO
 | `.../create/4176` | GitHub user license |
 | `.../create/4140` | Other infra requests (GitHub teams/permissions, other infra tools) |
 | `.../create/4141` | General questions / catch-all |
-| `https://help.center.tylertech.com/servicedesk/customer/portal/3185` | Feature requests / feedback on CorpDev tools |
+| `https://help.center.tylertech.com/servicedesk/customer/portal/3185` | Feature requests / feedback on OneTyler tools |
 
 Full URL prefix for all of the above (except the feature-request portal): `https://help.center.tylertech.com/servicedesk/customer/portal/3168/group/<group>/create/<id>`
 
@@ -456,7 +474,7 @@ Full URL prefix for all of the above (except the feature-request portal): `https
 
 ---
 
-# Complete CorpDev portal reference (harvested from JSM, 2026-08-23)
+# Complete OneTyler portal reference (harvested from JSM, 2026-08-23)
 
 The sections above are the **curated** catalog, mirroring the Confluence source page, which
 deliberately covers only the most common requests. This section is the **complete** set of
@@ -479,14 +497,14 @@ Portal groups:
 | `3329` | Tyler Identity Cloud | Authentication, federation, identity clients, Okta, SKU |
 | `3332` | Forge and TCW | Design system: components, icons, illustrations, glossary, UX |
 | `3330` | 3rd Party Solutions | OneTrust cookie reporting |
-| `3331` | Internal CorpDev ONLY | Not for product teams |
+| `3331` | Internal OneTyler ONLY | Not for product teams |
 
 ---
 
 ## Feature requests — a DIFFERENT portal (3185)
 
 **Use when:** requesting any new feature, enhancement, or modification to existing
-functionality, or giving feedback on any CorpDev-owned solution — Ops Center, Admin Center,
+functionality, or giving feedback on any OneTyler-owned solution — Ops Center, Admin Center,
 Identity Workforce, Community Access, Workforce/Community App Directories, Workforce and
 Community profiles, CAPM, and so on.
 
@@ -588,7 +606,7 @@ Fields: Product Team(s) · Org Key (Customer Identifier) · Workspace Name · Ex
 
 ### `4177` — Retarget Workspace
 
-Retargets a workspace for use with Gateway. CorpDev performs the retarget on processing.
+Retargets a workspace for use with Gateway. OneTyler performs the retarget on processing.
 Provide: your product team name, the CRM Customer Identifier for the org containing the
 workspace, the workspace name, and the **type of deployment** to retarget.
 
@@ -642,7 +660,7 @@ support, and implementation teams. (Also present in group 3328.)
 ### `4129` — Environment
 
 Issues with TCP environment availability. Gated: intended for engineers who have already
-established a platform-wide problem, with logs and investigation notes. CorpDev is not the
+established a platform-wide problem, with logs and investigation notes. OneTyler is not the
 default investigator.
 
 ### `4126` — Production deployment review
@@ -675,8 +693,8 @@ provisions the pipeline.
 
 ### `4170` — Troubleshoot Infrastructure
 
-Troubleshooting AWS infrastructure or **CorpDev-owned Terraform modules**. For
-infrastructure CorpDev does not own, they will try to help but ultimate responsibility
+Troubleshooting AWS infrastructure or **OneTyler-owned Terraform modules**. For
+infrastructure OneTyler does not own, they will try to help but ultimate responsibility
 remains with the owning team.
 
 ### `4175` — Move Product Registration
@@ -693,7 +711,7 @@ Access to the Tyler GitHub Enterprise. **Create your GitHub user id first.**
 ## Group 3332 — Forge and Tyler Components Web (complete)
 
 Design-system requests. These are **not** Ops Center or Identity topics — they belong to the
-Forge/TCW team — but they live on the same CorpDev portal, so they are catalogued here.
+Forge/TCW team — but they live on the same OneTyler portal, so they are catalogued here.
 
 | ID | Request type |
 |---|---|
@@ -722,7 +740,7 @@ accessible through the TCP domains.
 
 ---
 
-## Group 3331 — Internal CorpDev ONLY
+## Group 3331 — Internal OneTyler ONLY
 
 Contains `tcpsd test` and `Security Event`. **Not for product teams** — do not recommend
 these.
