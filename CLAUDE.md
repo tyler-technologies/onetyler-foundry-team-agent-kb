@@ -27,9 +27,16 @@ depth, but never assume they are present.)
 4. **`main` is protected.** A pull request is required for every change, including from
    admins. Zero approvals are required, so you can merge your own PR — but you cannot push
    to `main` directly. Branch, PR, merge.
-5. **A KB write is a production change.** These collections back live agents. Confirm with
-   the user before uploading, deleting, or syncing. Never do it as a side effect of another
-   task.
+5. **A Foundry write is a production change.** Collections and configs back live agents.
+   Confirm with the user before uploading, deleting, syncing, or changing any config. Never
+   do it as a side effect of another task.
+6. **ALWAYS back up before changing anything in Foundry, and commit the backup.** Backups
+   live in the repo forever — `team-config/backups/<object>-backup-<YYYYMMDD-HHMMSS>.json`,
+   never in a scratch dir, never deleted. Fetch the current object, scan it for credentials,
+   commit the backup, and only then write. This applies to every config object that exists
+   **only** in Foundry — teams, agents, collections metadata — because there is no other
+   copy and no undo. Knowledge-file *content* is already covered by git history, but a
+   config object is not.
 
 ---
 
