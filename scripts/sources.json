@@ -1,0 +1,31 @@
+{
+  "_comment": [
+    "Upstream sources that must be re-checked on a schedule, because the live page changes",
+    "and our distilled copy silently goes stale.",
+    "",
+    "`last_verified` is the date a human or Claude last diffed the live source against the",
+    "file and reconciled them \u2014 NOT the date the file was last edited. Bump it only after",
+    "an actual comparison.",
+    "",
+    "scripts/check_freshness.py reads this and reports what is overdue. It is a pure date",
+    "comparison: no network, no API key, safe to run on every session start."
+  ],
+  "sources": [
+    {
+      "id": "ops-center-tickets",
+      "url": "https://tylertech.atlassian.net/wiki/spaces/TTI/pages/386600308/Tyler+Cloud+Platform+TCP+Ops+Center+Related+Tickets+and+Permissions",
+      "confluence_page_id": "386600308",
+      "title": "Tyler Cloud Platform (TCP) | Ops Center Related Tickets and Permissions",
+      "files": [
+        "Knowledge-OpsCenter/Conf-OpsCenterTickets.md"
+      ],
+      "also_relevant_to": [
+        "Knowledge-TylerIdentity",
+        "Knowledge-SupportAccessCenter"
+      ],
+      "interval_days": 7,
+      "last_verified": "2026-08-23",
+      "notes": "Ticket forms and instructions change without notice. The page also carries Identity-related and Support Access Center tickets, so those corpora reference this file rather than duplicating it."
+    }
+  ]
+}

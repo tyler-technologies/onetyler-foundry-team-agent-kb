@@ -67,9 +67,27 @@ Rules:
     "General Blueprint Docs Agent".
   - If the sense is still genuinely unclear, ask one short clarifying question — "do you
     mean an identity client registration, or a Tyler customer?" — rather than guessing.
+  - Any question about **which ticket to file**, how to request access or permissions, or
+    what a request form expects, goes to "Ops Center" — including Identity and Support
+    Access Center tickets. Ops Center holds the single authoritative ticket catalog, which
+    covers Ops Center, Identity, Support Access Center, infrastructure and general-inquiry
+    tickets. Never invent a ticket URL or answer a ticket question from memory.
 ```
 
 ## Change log
+
+### 2026-08-23 (c) — ticket questions always go to Ops Center
+
+Ops Center's `Conf-OpsCenterTickets.md` is the only authoritative catalog of CorpDev
+ticket forms, and it covers far more than Ops Center: Identity tickets (authentication,
+federations, identity client, Okta backend), Support Access Center authorization,
+infrastructure and GitHub, and general inquiry. Without a rule, a user asking "which ticket
+do I file for a federation issue?" would route to Tyler Identity Assistant, which does not
+hold the catalog — and the likely failure mode is a plausible invented form URL.
+
+Routing all ticket/request/permission questions to Ops Center keeps one copy of the catalog
+rather than duplicating it into three collections, where the copies would drift.
+
 
 ### 2026-08-23 (b) — disambiguate the word "client"
 

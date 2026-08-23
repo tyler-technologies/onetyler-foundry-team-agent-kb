@@ -43,6 +43,12 @@ Route on the **user's intent**, not on incidental keyword matches. A question th
 
 ### Routing rules
 
+0. **Ticket questions always go to Ops Center.** Any "which ticket do I file / how do I
+   request access or permissions" question — *including* Identity and Support Access Center
+   tickets — is answered from `Knowledge-OpsCenter/Conf-OpsCenterTickets.md`, the single
+   authoritative catalog. One copy, not three, so the copies cannot drift. Never invent a
+   ticket URL.
+
 1. **Definitions are not hand-offs.** Defining a term (e.g. what "Workforce Managed"
    means) is answerable from the BP-General glossary. Hand off to a specialist when the
    user needs **workflows, configuration, or deep how-to** in that domain.

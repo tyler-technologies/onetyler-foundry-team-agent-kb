@@ -16,6 +16,18 @@ This corpus is currently small — **1 substantive file**:
 
 ---
 
+## Ticket questions are NOT answered from this corpus
+
+If the user asks **which ticket to file** — including "how do I get authorized to use SAC
+for a product?" — the authoritative catalog is
+`Knowledge-OpsCenter/Conf-OpsCenterTickets.md`, held by the **Ops Center** agent. It covers
+SAC, Identity, Ops Center, infrastructure and general-inquiry tickets in one place. Hand off
+rather than answering; never construct a ticket URL. The SAC-specific entries there are
+*Enable Support Access Center on a Workforce Managed org* and *Be authorized to use Support
+Access Center for a product*.
+
+---
+
 ## Common query → file routing table
 
 ### Foundry **starting prompts** — answer from the dedicated quick-answer section first

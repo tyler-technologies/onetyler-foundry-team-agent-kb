@@ -308,6 +308,25 @@ Exception: Org Admin promotion / "Add an Org Admin" / self-promote — **does NO
 - **Ticket:** https://help.center.tylertech.com/servicedesk/customer/portal/3168/group/3329/create/4149
 - **Reference:** https://help.center.tylertech.com/servicedesk/customer/portal/3185
 
+### Be authorized to use Support Access Center for a product
+
+- **Use when:** You are Tyler staff who needs to be authorized to use SAC **for a specific
+  product** — i.e. added to that product's SAC group. This is the per-product authorization,
+  distinct from simply logging in to the SAC dashboard (any `@tylertech.com` user can do that).
+- **Ticket:** https://help.center.tylertech.com/servicedesk/customer/portal/3168/group/3333/create/4150
+  ⚠ This is the **shared generic form** (`create/4150`) — see *IMPORTANT: shared "generic
+  access" ticket form* above. It is distinguished only by the description content below.
+- **In the description, specify all three:**
+  - **Division** — the division/group code. Codes are listed at
+    https://tylertech.atlassian.net/wiki/spaces/SPY/pages/407176942/Internal+Orgs+creation+in+Ops+Center#Division/Group-Codes-(up-to-3-char)
+  - **Product** — the product **registration Id** (e.g. `pbb`), as shown in
+    Ops Center → Product Registry → (select product) → Registration details.
+  - **Role** — your job role, e.g. `Development-Engineering`,
+    `Development-Product Management`, `Operations-Project Manager`,
+    `Operations-Deployment`, `Operations-Implementation`, `Operations-Support`.
+- **Companion:** `Knowledge-SupportAccessCenter/Docusaurus-SupportAccessCenter.md` — for what
+  SAC groups are, the all-or-nothing vs fine-grained distinction, and the naming convention.
+
 ---
 
 ## Identity Related
@@ -322,9 +341,23 @@ Exception: Org Admin promotion / "Add an Org Admin" / self-promote — **does NO
   - Detailed description of the problem.
   - If there is a login error code, paste it in the description.
 
+### Federations
+
+- **Use when:** Anything federation-related — creating, changing, or troubleshooting a
+  customer federation.
+- **Ticket:** https://help.center.tylertech.com/servicedesk/customer/portal/3168/group/3329/create/4128
+- **What to include:**
+  - **Organization Key** (CRM Customer Identifier).
+  - Details of the federation or the change being requested.
+- **Do NOT use this for Ops Center *permissions*.** If what you actually need is permission
+  to manage federations *within Ops Center*, that is the Ops Center access/permissions
+  ticket (`create/4133`) — see *Ops Center access request (and additional permissions)*
+  above, and *Reestablish Federation — permission request*.
+
 ### Identity Client
 
-- **Use when:** Identity Client-related request.
+- **Use when:** Identity Client-related request. Note "Identity Client" here means a
+  registered OAuth/OIDC **application**, not a Tyler customer.
 - **Ticket:** https://help.center.tylertech.com/servicedesk/customer/portal/3168/group/3329/create/4153
 - **Notes:** Follow the on-form header instructions.
 
