@@ -84,6 +84,19 @@ the team's `chatExperience.sampleQuestions`, which currently offers "I need help
 Identity / Ops Center / Support Access Center / other topics" — agent names again, not
 tasks. Tracked separately.
 
+**Pushed live** 2026-08-23 via `PUT /api/teams/{teamId}` (full-object replace). Verified:
+live `system_prompt` byte-identical to the block above; diff against
+`backups/team-backup-20260823-123806.json` shows only `system_prompt` and `updated_at`
+changed; all four quoted agent names now resolve to real team agents.
+
+**Verified by live test.** Re-asked "How do I grant access to CAPM?" on the team. The run
+reported `routingDecisions: 1, agentsInvoked: 1` (previously `routingDecisions: 0`) and the
+answer opened "I'll search the **Ops Center** knowledge base…", then returned the real
+pre-configured-group flow from `Conf-CommunityAccessProfileManager.md` — instead of the
+earlier hedge, "the specific steps for granting access to CAPM would follow the standard…".
+The run's `spans` array had not populated at check time, so attribution here rests on the
+routing stats and the answer content rather than on span names.
+
 **Previous version:**
 
 ```text
