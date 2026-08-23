@@ -33,7 +33,7 @@ FIELDS = ["conversation_id", "answered_by", "date", "exchanges", "foundry_feedba
           "action_status", "notes"]
 
 VALID = {
-    "review_status":   {"", "pending", "reviewed"},
+    "review_status":   {"", "pending", "reviewed", "excluded"},
     "routing_verdict": {"", "correct", "wrong-agent", "ambiguous"},
     "reassign_to":     {"", "ops-center", "bp-general", "sac", "identity", "team"},
     "answer_verdict":  {"", "good", "incomplete", "wrong", "stale", "refused"},
@@ -90,8 +90,8 @@ def main():
         rv = d.get("reviewer", "")
         if rv and rv not in people:
             bad.append((f, f"reviewer={rv!r} is not in contributors.json"))
-        if d.get("review_status") == "reviewed" and not rv:
-            bad.append((f, "review_status=reviewed but no reviewer set"))
+        if d.get("review_status") in ("reviewed", "excluded") and not rv:
+            bad.append((f, f"review_status={d.get('review_status')} but no reviewer set"))
         rows.append((f, d))
 
     if a.check:
@@ -101,7 +101,7 @@ def main():
 
     if a.pending:
         for f, d in rows:
-            if d.get("review_status", "pending") != "reviewed":
+            if d.get("review_status", "pending") not in ("reviewed", "excluded"):
                 print(f.relative_to(REPO))
         return
     if a.actions:
@@ -113,7 +113,11 @@ def main():
     # dashboard
     tot = len(rows)
     done = sum(1 for _, d in rows if d.get("review_status") == "reviewed")
-    print(f"Transcripts: {tot}   reviewed: {done}   pending: {tot-done}   ({100*done//tot if tot else 0}%)")
+    excl = sum(1 for _, d in rows if d.get("review_status") == "excluded")
+    inscope = tot - excl
+    print(f"Transcripts: {tot}   excluded: {excl}   in scope: {inscope}   "
+          f"reviewed: {done}   pending: {inscope-done}   "
+          f"({100*done//inscope if inscope else 0}% of in-scope)")
     print()
     print("by agent (reviewed/total):")
     per = Counter(d.get("answered_by", "?") for _, d in rows)

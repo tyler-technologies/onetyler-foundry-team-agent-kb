@@ -45,7 +45,7 @@ REVIEW_KEYS = ["review_status", "reviewer", "routing_verdict", "reassign_to",
                "kb_files", "action_status", "notes"]
 
 CHOICES = {
-    "review_status":   ["pending", "reviewed"],
+    "review_status":   ["pending", "reviewed", "excluded"],
     "routing_verdict": ["", "correct", "wrong-agent", "ambiguous"],
     "reassign_to":     ["", "ops-center", "bp-general", "sac", "identity", "team"],
     "answer_verdict":  ["", "good", "incomplete", "wrong", "stale", "refused"],
@@ -177,6 +177,7 @@ th,td{padding:8px 10px;text-align:left;border-bottom:1px solid #eef1f4;font-size
 th{background:#f0f2f5;font-weight:600}tr:hover td{background:#fafbfc}
 .pill{display:inline-block;padding:1px 8px;border-radius:10px;font-size:11px;font-weight:600}
 .pending{background:#fff3d6;color:#8a5a00}.reviewed{background:#dcf5e4;color:#0f6b34}
+.excluded{background:#e8e9ec;color:#5b6470}
 .bad{background:#fde4e4;color:#a11}.warn{background:#ffeccc;color:#8a4b00}
 .card{background:#fff;border:1px solid #dfe3e8;border-radius:8px;padding:16px;margin-bottom:14px}
 .q{background:#eef4ff;border-left:3px solid #2b6cb0;padding:10px 12px;border-radius:4px;white-space:pre-wrap}
@@ -408,8 +409,8 @@ class H(BaseHTTPRequestHandler):
                 allowed = contributors()
                 if rv and rv not in allowed:
                     raise ValueError(f"'{rv}' is not in contributors.json — add them there first")
-                if (fields.get("review_status") or "").strip() == "reviewed" and not rv:
-                    raise ValueError("pick a reviewer before marking this reviewed")
+                if (fields.get("review_status") or "").strip() in ("reviewed", "excluded") and not rv:
+                    raise ValueError("pick a reviewer before marking this reviewed or excluded")
                 save(p, fields, data.get("exchanges", {}),
                      data.get("proposed", ""))
                 refresh_index()

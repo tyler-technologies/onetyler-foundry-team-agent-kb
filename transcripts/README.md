@@ -106,7 +106,7 @@ blank if it doesn't apply.
 
 | Field | Values | What it means |
 |---|---|---|
-| `review_status` | `pending` · `reviewed` | Set to `reviewed` when you're done. |
+| `review_status` | `pending` · `reviewed` · `excluded` | Set `reviewed` when you're done. Use `excluded` for a transcript that is not real feedback at all (see below) — it leaves the queue without counting as review work. |
 | `reviewer` | a `github` value from [`contributors.json`](../contributors.json) | Who reviewed it. **Not free text** — the UI offers only registered contributors, and `--check` fails on anything else. Required to mark a transcript `reviewed`. |
 | `routing_verdict` | `correct` · `wrong-agent` · `ambiguous` | Did the *right* sub-agent handle this? |
 | `reassign_to` | `ops-center` · `bp-general` · `sac` · `identity` | Which agent *should* have. Only if `wrong-agent`. |
@@ -117,6 +117,18 @@ blank if it doesn't apply.
 | `kb_files` | paths | Which files, e.g. `Knowledge-OpsCenter/Misc-Links.md`. |
 | `action_status` | `open` · `applied` · `wontfix` | Claude sets `applied` once the change ships. |
 | `notes` | free text | Anything else. |
+
+### `excluded` — not everything is feedback
+
+The Foundry chatbot went live in Ops Center on **2026-08-19** (tcp-ops-center PR #1206).
+Conversations before that are us testing our own agents, so they say nothing about how real
+users behave. Marking them `excluded` (rather than `reviewed`) keeps them out of the pending
+queue *and* out of the reviewed percentage — otherwise the dashboard would claim review work
+that never happened.
+
+Use `excluded` for anything that isn't a genuine user signal: pre-go-live testing, your own
+probing, deliberate attempts to break the agent. Always say why in `notes`, and set
+`reviewer` — an exclusion is still a judgement someone made.
 
 ### `diagnosis` — pick from the **Tools called** line
 
