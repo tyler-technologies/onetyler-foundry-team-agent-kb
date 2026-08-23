@@ -66,6 +66,12 @@ Verified live 2026-08-21. Everything lives in tenant **Tyler Technologies**, pro
 
 Team **OneTyler Cloud Living**: `e92bd437-cb84-4e18-88e6-757370b39c90`
 
+**Go-live: `2026-08-19 19:42:29 UTC`.** The merge of `tyler-technologies/tcp-ops-center`
+PR **#1206** ("Feat/cd 285/foundry chatbot"), which shipped the chatbot into Ops Center.
+Every Foundry conversation **before** that instant is the team testing their own agents, not
+user signal — see *Acting on transcript reviews*. Use the full timestamp, not the date: the
+2026-08-19 21:28 UTC transcript is post-go-live while the merge was 19:42 the same day.
+
 Base URL: `https://foundry.tylertechai.com` (override with `$FOUNDRY_API_URL`).
 
 Re-verify IDs rather than trusting this table if anything 404s — agents can be recreated.
@@ -453,6 +459,15 @@ If a reviewer set `reassign_to`, the fix is usually in the **team routing table*
 `README.md`, or in the sibling-agent hand-off guidance inside the relevant
 `_START_HERE.md` — not in the answer content. Repeated reassignments to the same target
 are the strongest signal the routing rules need work.
+
+**Pre-go-live transcripts are not feedback.** Anything before `2026-08-19 19:42:29 UTC`
+(see *Constants*) is internal testing. Mark it `review_status: excluded` — **not**
+`reviewed`, which would inflate the reviewed percentage with work nobody did — with
+`fix_target: none`, `kb_action: none`, `action_status: wontfix`, and a `notes` line citing
+the cutoff. An exclusion still needs a `reviewer`, because it is a judgement. 34 of the
+first 41 transcripts fall before go-live; only 7 are in scope, all `team` or `identity`.
+Do not re-litigate the cutoff: it was settled against PR #1206's merge time, and the
+commit linked from that PR (`a3be96ca`) is only a merge-from-main dated Aug 11.
 
 **Pulling new transcripts:** `python3 scripts/fetch_transcripts.py`. It never overwrites an
 existing file, so review edits are safe. It also drops canned starting-prompt exchanges
