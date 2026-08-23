@@ -269,7 +269,12 @@ Exception: Org Admin promotion / "Add an Org Admin" / self-promote — **does NO
 ### Request a non-standard workspace for a customer org
 
 - **Use when:** You need a non-production workspace whose suffix is NOT one of the 6 standard values: `test`, `train`, `staging`, `dev`, `uat`, `impl`.
-- **Ticket link:** *To be published in August '26.* (No live ticket URL yet — note this when answering.)
+- **Ticket:** https://help.center.tylertech.com/servicedesk/customer/portal/3168/group/3333/create/7513
+  — **"Non-Standard Workspace Request"**, a dedicated form (verified live 2026-08-23). This
+  replaces the older guidance of filing the general `create/4150` form with a prose
+  description; the Confluence source page still shows the old route.
+- **Required fields on the form:** Product Team(s) · Org Key (Customer Identifier) ·
+  Workspace Name · Explanation ("Please explain why this non-standard workspace is required").
 - **Instructions:**
   - In the description, justify why you need the non-standard workspace. Workspaces represent a "customer business purpose" — explain how your suffix reflects a customer business purpose.
   - For a limited time, **numbered extensions** to the approved suffixes are being approved — e.g. `impl1`, `impl2`, `impl3`, `test1`, `test2`, etc.
@@ -305,7 +310,12 @@ Exception: Org Admin promotion / "Add an Org Admin" / self-promote — **does NO
 ### Enable Support Access Center on a Workforce Managed org with OnPrem Target=Gateway
 
 - **Use when:** You need to enable Support Access Center on a WM org whose OnPrem Target is Gateway.
-- **Ticket:** https://help.center.tylertech.com/servicedesk/customer/portal/3168/group/3329/create/4149
+- **Ticket:** ⚠ **Link unresolved — do not guess.** The Confluence source page points this at
+  `group/3329/create/4149`, but that form is verified live as **"Identity SKU Change"**, a
+  different request entirely. Direct the user to the CorpDev portal
+  (https://help.center.tylertech.com/servicedesk/customer/portal/3168) → **2. TCP - Operations**
+  and pick the closest matching request, or file *General Information / Inquiry*
+  (`group/3333/create/4141`) asking to be routed. Flag to the page owner that the link needs fixing.
 - **Reference:** https://help.center.tylertech.com/servicedesk/customer/portal/3185
 
 ### Be authorized to use Support Access Center for a product
@@ -426,7 +436,283 @@ Full URL prefix for all of the above (except the feature-request portal): `https
 - Watch for the **shared form 4133** confusion — many distinct asks land at the same URL with different Notes wording. Always give the user the exact Notes-field template.
 - "Add an Org Admin" / "Promote me as admin" is NOT handled by the generic form 4133 — route to the manager's-guide flow under *Org Admins*.
 - For workspace migration (WM → WD retargeting), there is no single ticket URL — route the user to the migration runbook on Confluence.
-- The **non-standard workspace request** ticket is not live yet (publishing August '26). Until then, tell the user the form is pending and relay the suffix rules (standard set + numbered extensions like `impl1`/`test2`; >7 workspaces gets scrutiny) rather than handing out a URL.
+- The **non-standard workspace request** now has a dedicated live form: `group/3333/create/7513`. Hand out that URL plus the suffix rules (standard set + numbered extensions like `impl1`/`test2`; >7 workspaces gets scrutiny). Do NOT send people to the general `4150` form for this any more.
 - The **Environment not working** ticket (4129) is in **group 3328**, not the usual 3333 — and is gated on the filer having already proven a platform-wide issue with logs. Don't recommend it for ordinary single-org outages.
 - Internal-org creation is gated and largely manual — direct users to Vijay Venkataraman for `+Create Internal`.
+- **Never invent a ticket URL.** If the right form is not listed here, send the user to the portal root (https://help.center.tylertech.com/servicedesk/customer/portal/3168) and name the group to pick, or to *Request or Share Functional Information* (`group/3333/create/4141`).
+- **All feature requests and enhancement ideas go to a different portal** — `3185`, not `3168`. See *Feature requests* below.
 - Confluence wiki links in this document use Tyler-internal paths (e.g. `/wiki/spaces/...`). They are usable from inside Tyler systems; tell external readers they are internal references.
+
+
+---
+
+# Complete CorpDev portal reference (harvested from JSM, 2026-08-23)
+
+The sections above are the **curated** catalog, mirroring the Confluence source page, which
+deliberately covers only the most common requests. This section is the **complete** set of
+request types on the live portal, captured directly from JSM including each form's own
+top-of-form instructions.
+
+**Precedence:** where this section and the curated sections above disagree on *how to fill
+in* a form, the Confluence-derived guidance above wins — it is more pointed. Where they
+disagree on *which form exists*, the live portal wins, because a form either exists or it
+does not.
+
+URL pattern: `https://help.center.tylertech.com/servicedesk/customer/portal/3168/group/GROUP/create/ID`
+
+Portal groups:
+
+| Group | Name | Scope |
+|---|---|---|
+| `3328` | TCP - Development | Environments, GitHub, infrastructure, deployment pipelines, training |
+| `3333` | TCP - Operations | Orgs, workspaces, access, Gateway migration, portal issues |
+| `3329` | Tyler Identity Cloud | Authentication, federation, identity clients, Okta, SKU |
+| `3332` | Forge and TCW | Design system: components, icons, illustrations, glossary, UX |
+| `3330` | 3rd Party Solutions | OneTrust cookie reporting |
+| `3331` | Internal CorpDev ONLY | Not for product teams |
+
+---
+
+## Feature requests — a DIFFERENT portal (3185)
+
+**Use when:** requesting any new feature, enhancement, or modification to existing
+functionality, or giving feedback on any CorpDev-owned solution — Ops Center, Admin Center,
+Identity Workforce, Community Access, Workforce/Community App Directories, Workforce and
+Community profiles, CAPM, and so on.
+
+- **Portal:** https://help.center.tylertech.com/servicedesk/customer/portal/3185
+  — *CorpDev Feature Requests*
+- **Form:** *Suggest a feature or provide feedback* —
+  https://help.center.tylertech.com/servicedesk/customer/portal/3185/group/3385/create/4367
+- **Voting and comments:** existing requests are visible on the CorpDev Feature Requests
+  board, where you can comment and vote after submission. The board shows tickets up to
+  **60 days after completion**.
+- This is where the deprecated `4137` *Enhancement request* form now redirects.
+
+---
+
+## Deprecated and superseded forms — do not use
+
+These still exist and are reachable, so users will find them. Recognise them and redirect.
+
+### `3333/create/4137` — Enhancement request — **DEPRECATED**
+
+The form's own help text reads: *"This ticket has been deprecated - DO NOT SUBMIT A TICKET
+HERE."* It redirects to:
+- New features → the feature-request portal `3185` (above).
+- Anything infrastructure-related → *Infrastructure resource or access requests*
+  (`3328/create/4140`).
+
+### `3329/create/4154` — TID Okta Tenant Request — **SUPERSEDED**
+
+*"This request type has been superseded by the Org Creation request for TCP - Operations.
+Unless you have a pre-approved reason to use this form, please use the Org Creation request
+instead."* → `3333/create/4158`. **Unapproved requests are auto-closed.**
+
+### Broken links inside the portal itself
+
+The `3333/create/4150` form's help text links to `create/1853` ("2. TCP Operations > Admin
+Center Access Request") and `create/956` ("2. TCP Operations > OPS Center/Okta Access").
+**Both 404.** The current IDs are `4165` and `4133` respectively. If a user reports a dead
+link from that form, this is why — give them the working IDs.
+
+---
+
+## Group 3329 — Tyler Identity Cloud (complete)
+
+### `4128` — Federate Identity Provider
+
+Assistance federating a client's identity provider when it cannot be set up in Admin Center.
+
+- The description **must state what prevented using Admin Center** for the federation.
+- **Configuration settings must be sent securely via Kiteworks — never in the ticket.**
+- For adding or modifying a client's IdP in TID-W, the description must list: a client ID on
+  the provider, scopes, issuer endpoint, authorization endpoint, token endpoint, JWKS
+  endpoint, userinfo endpoint, and a **test user account** on the provider for validation.
+- The TID team will contact you separately for the client secret and test user password.
+- Requires the CRM Customer Identifier. Related: Federation FAQ.
+
+### `4138` — Authentication Issues
+
+Inability to log in, failed email verification, and similar. Provide: which solution
+(Identity Workforce or Community Access), the Organization Key or Okta tenant, a detailed
+description, and any login error code verbatim.
+
+### `4149` — Identity SKU Change
+
+Updates a customer's TID deployment after their Identity Workforce SKU changes.
+
+- **READ ME FIRST:** the org must **already exist in Ops Center**. If not, file *Org
+  Creation* (`3333/create/4158`) instead.
+- Provide the correct **CRM Customer Identifier** — see *TID - Finding the CRM Customer
+  Identifier (and other information in Dynamics CRM)*.
+- Provide the **new Identity SKU level**, which is verified against current records.
+- ⚠ Note the Confluence source page mislabels this URL as the Support Access Center enable
+  request. It is not.
+
+### `4152` — Okta Access Request
+
+Access to TID Okta tenants. Provide the organization key or the Okta tenant URL.
+
+### `4153` — Identity Client
+
+Add, modify, or request details of **OAuth clients** for applications. "Client" here means a
+registered application, not a Tyler customer. Follow the on-form header instructions.
+
+### `4159` — Custom IdP Investigation
+
+For a customer requesting a **non-standard** custom IdP for federation. Tyler Identity vets
+it and concludes whether that IdP type will be supported. Reference: *Non-Standard IdP
+Verification Process*. Required fields include Customer Name and Vendor Name.
+
+### `4154` — TID Okta Tenant Request — superseded, see above.
+
+---
+
+## Group 3333 — TCP Operations (additions beyond the curated sections)
+
+### `7513` — Non-Standard Workspace Request
+
+Dedicated form; see *Orgs > Manage workspaces* above for the suffix rules.
+Fields: Product Team(s) · Org Key (Customer Identifier) · Workspace Name · Explanation.
+
+### `4177` — Retarget Workspace
+
+Retargets a workspace for use with Gateway. CorpDev performs the retarget on processing.
+Provide: your product team name, the CRM Customer Identifier for the org containing the
+workspace, the workspace name, and the **type of deployment** to retarget.
+
+### `4162` — Enable Org migration to Gateway
+
+Enables the Gateway migration option in a customer's Admin Center, after which an org admin
+can migrate the org's identity provider(s) themselves.
+**By submitting you confirm the organization is ready to migrate** — read the form's
+readiness criteria before filing.
+
+### `4150` — TylerPortico.com: Requests and Issues
+
+The general Operations form. Its own help text redirects several common cases:
+- Admin Center access for you or a client → *Admin Center Access Request* (`4165`).
+- Ops Center / Okta access → *OPS Center / CAPM Access Request* (`4133`).
+- **Tyler Deploy issues → do NOT file here until the Tyler Deploy team has sent a JSON
+  payload to the TCP APIs first.**
+
+### `4166` — Delete Org
+
+Requests deletion of an existing org.
+**READ ME FIRST: you must confirm the org is not in use by another application team.**
+Tyler Identity does not validate this for you.
+
+### `4178` — Tylertechnologiestx Access
+
+**Authorized users only** — a stop-gap letting managers request access to the
+`tylertechnologiestx` org without org-admin access there. Unauthorized requests are not
+serviced; the authorized-user list is in the linked Confluence documentation.
+
+### `4174` — TCP Documentation and Support Portal Feedback
+
+Report errors or suggest improvements to the internal TCP documentation and support portal.
+
+### `4141` — Request or Share Functional Information
+
+Functional information requests to or from the TCP team. Also the safe fallback when no
+other form clearly fits.
+
+### `4164` — Request functional consulting or training
+
+Functional consulting or training on TCP and core applications, for product development,
+support, and implementation teams. (Also present in group 3328.)
+
+### `4137` — Enhancement request — deprecated, see above.
+
+---
+
+## Group 3328 — TCP Development (complete)
+
+### `4129` — Environment
+
+Issues with TCP environment availability. Gated: intended for engineers who have already
+established a platform-wide problem, with logs and investigation notes. CorpDev is not the
+default investigator.
+
+### `4126` — Production deployment review
+
+Review of a deployment pipeline before Production, for new applications or modifications to
+an existing Harness pipeline. Before filing, confirm: the product is deployed and tested in
+QA, and a Tyler customer is ready.
+
+### `4130` — Troubleshoot deployments
+
+Help creating or updating a deployment pipeline. **Read the deployment documentation first.**
+
+### `4140` — Infrastructure resource or access requests
+
+Infrastructure resources or access. Covers several tools and options — read them carefully
+before submitting. Also the destination for infrastructure requests that used to go to the
+deprecated `4137`.
+
+### `4147` — Request technical training
+
+Technical introduction and training for a new product development team. If requesting for an
+**entire product team as part of a new product/project launch, you must select a JS/IMM
+session.**
+
+### `4161` — New product/project deployment pipeline
+
+Help setting up a new project for TCP. Post questions about the requested information in the
+**`#tyler-cloud-platform` Slack channel**. Supplying all required information correctly
+provisions the pipeline.
+
+### `4170` — Troubleshoot Infrastructure
+
+Troubleshooting AWS infrastructure or **CorpDev-owned Terraform modules**. For
+infrastructure CorpDev does not own, they will try to help but ultimate responsibility
+remains with the owning team.
+
+### `4175` — Move Product Registration
+
+Moves a product registration currently maintained via a bootstrapper to the new Product
+Catalog. Provide the product's **registration-id** and name.
+
+### `4176` — GitHub Access Request
+
+Access to the Tyler GitHub Enterprise. **Create your GitHub user id first.**
+
+---
+
+## Group 3332 — Forge and Tyler Components Web (complete)
+
+Design-system requests. These are **not** Ops Center or Identity topics — they belong to the
+Forge/TCW team — but they live on the same CorpDev portal, so they are catalogued here.
+
+| ID | Request type |
+|---|---|
+| `4132` | Request new component |
+| `4139` | Request enhancement to component |
+| `4157` | Report a component bug |
+| `4146` | Request a new icon |
+| `4155` | Request new illustration |
+| `4167` | Request empty or error state |
+| `4168` | Request content writing |
+| `4148` | Request UX Consulting |
+| `4160` | App Launcher Application (add an app to the application launcher) |
+| `4163` | Request Glossary Addition |
+| `4169` | Request Glossary Change |
+| `4156` | Forge Feedback (feedback on the Forge website) |
+
+---
+
+## Group 3330 — 3rd Party Solutions
+
+### `4135` — OneTrust: 1st Party Cookie & 3rd Party Cookie/Solution Reporting
+
+Updates OneTrust cookie and third-party solution reporting for **public** applications.
+**READ ME FIRST:** only for TCP product teams with public applications running and
+accessible through the TCP domains.
+
+---
+
+## Group 3331 — Internal CorpDev ONLY
+
+Contains `tcpsd test` and `Security Event`. **Not for product teams** — do not recommend
+these.

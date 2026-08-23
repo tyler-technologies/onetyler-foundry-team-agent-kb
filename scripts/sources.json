@@ -26,6 +26,21 @@
       "interval_days": 7,
       "last_verified": "2026-08-23",
       "notes": "Ticket forms and instructions change without notice. The page also carries Identity-related and Support Access Center tickets, so those corpora reference this file rather than duplicating it."
+    },
+    {
+      "id": "corpdev-jsm-portal",
+      "url": "https://help.center.tylertech.com/servicedesk/customer/portal/3168",
+      "title": "CorpDev Support portal (JSM) - all request types",
+      "files": [
+        "Knowledge-OpsCenter/Conf-OpsCenterTickets.md",
+        "Knowledge-TylerIdentity/Conf-IdentityTickets.md"
+      ],
+      "also_relevant_to": [
+        "Knowledge-SupportAccessCenter"
+      ],
+      "interval_days": 30,
+      "last_verified": "2026-08-23",
+      "notes": "Request types are added, renamed, deprecated and superseded without notice, and form help text changes. Needs a browser (Claude in Chrome) to harvest - the portal is an authenticated SPA. Groups: 3328 TCP-Development, 3333 TCP-Operations, 3329 Tyler Identity Cloud, 3332 Forge/TCW, 3330 3rd Party, 3331 internal-only. Feature requests live on a separate portal, 3185."
     }
   ]
 }
