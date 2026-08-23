@@ -38,6 +38,7 @@ portal and the deprecated forms. **Never construct a ticket URL.**
 
 | File | One-liner — what's in it |
 |---|---|
+| `FAQ-BPGeneral.md` | **Authored answers with no upstream source.** Empty of entries today — it exists so the next unsourced answer has a home instead of being wedged into a `Docusaurus-` file, where re-derivation would delete it. |
 | `Docusaurus-PlatformOverview.md` | **Orientation + canonical glossary + specialized-agent routing.** Cloud Living / Tyler 2030, what TCP is, platform applications, Client vs Ops app types, getting support (service desk + Teams channels), and the full Blueprint **terminology glossary**. The agent's grounding file — read it early. |
 | `Docusaurus-ClientApps.md` | The **client-application reference**: Admin Center (sign-in, roles, ACLs, Identity Workforce config in the AC UI, users/bulk import, page-by-page feature reference, Tyler-internal integration + sandbox tenants), App Directory, CAPM, Community Launcher, Community Profile, Workforce Profile, and Community Services Directory (CSD admin/config/public directory). |
 | `Docusaurus-OpsApps.md` | The **Tyler-staff Ops app family** *excluding* Ops Center & SAC: app taxonomy (client vs ops), **Audit Center**, **Authorization Config**. (Audit Center / Authorization Config source pages are stubs — file says so; don't fabricate.) Hands off to the Ops Center & SAC agents. |

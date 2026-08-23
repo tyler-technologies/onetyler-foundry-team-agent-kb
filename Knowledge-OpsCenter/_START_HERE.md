@@ -12,6 +12,7 @@ Domain: Ops Center (Tyler Cloud Platform — operational tooling, organization/w
 
 | File | One-liner — what's in it |
 |---|---|
+| `FAQ-OpsCenter.md` | **Authored answers with no upstream source** — verbal SME guidance, observed behaviour, corrections upstream owners have not yet made. Currently: how to disambiguate the word "client", and the OneTyler / CorpDev rename. Check here when no `Conf-`/`Docusaurus-` file answers the question. |
 | `Conf-CRMCustomerIdentifiers.md` | The deep technical/operational reference for the **CRM Customer Identifier** (= the Ops Center Org Key). Generation algorithm, portability across CRM merges, usage across TCP / Tyler Deploy / TID-W / SaaS / Twilio, troubleshooting tree, exact ticket subjects. |
 | `Conf-GatewayOperationalTesting.md` | How to validate a **Gateway-ready product** against the real-world test org `tylertownwa`. Test account emails (**password NOT in this corpus** — points to the source Confluence page), 4 Gateway integration components, Core vs Full compliance, Tyler Deploy addendum, net-new-customer routing rules. |
 | `Conf-AddingExternalUsersToEntraId.md` | The **Workforce Direct-only** workaround for adding non-employee users (temps, contractors) to a customer's Entra ID **without consuming an Office 365 license**. Tyler-staff coaching material — NOT to share with customers directly. |

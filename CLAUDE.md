@@ -532,6 +532,13 @@ Full conventions are in `README.md`. The essentials:
 
 - `.md` only; filename is `<Source>-<Topic>.md` (`Conf-`, `Docusaurus-`, `Training-`,
   `GitHub-`, `Misc-`).
+- **`FAQ-<Domain>.md` is the exception**: one per agent corpus, authored here with no upstream
+  source. It is the home of record for answers that exist nowhere else — verbal SME guidance,
+  observed behaviour, corrections an upstream owner has not yet made. Put such content
+  **there, not in a `Docusaurus-` or `Conf-` file**, because those are re-derived from their
+  sources and the next reconciliation would silently delete it. Every entry carries
+  `Source` / `Added` / `Confidence` / `Promote when`. Never add an unconfirmed claim: the
+  agent will state it as fact.
 - Optimize for **retrieval**, not source fidelity: clean markdown, a decision/lookup table
   near the top, self-contained sections (RAG chunks independently of headings), repeated
   explicit "Use when:" / "Prerequisites:" / "Fields:" patterns, and URLs preserved verbatim.

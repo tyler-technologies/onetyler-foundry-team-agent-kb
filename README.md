@@ -79,6 +79,7 @@ Filename prefixes encode the **source system**, which signals authority and fres
 | `Training-` | Distilled from official training assets (videos, decks, PDFs) |
 | `GitHub-` | GitHub repo content (`github.com/tyler-technologies/...`) |
 | `Misc-` | Curated bookmark catalog spanning multiple source systems |
+| `FAQ-` | **Authored here — no upstream source.** One per agent corpus. The home of record for answers that exist nowhere else: SME guidance given verbally, behaviour learned by observation, corrections an upstream owner has not yet made. Everything else in a corpus is re-derived from its source; these entries would be lost by that, so they live apart and carry their own provenance. |
 | `_START_HERE.md` | Per-corpus routing guide; leading underscore sorts it first |
 
 Files are the **GPT-optimized** form, not raw scrape output: clean markdown, a decision
