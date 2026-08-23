@@ -254,6 +254,11 @@ else{set('f_status','pending');}   // default view: only what still needs review
  const e=document.getElementById(id); if(!e)return;
  e.addEventListener((e.tagName==='SELECT'||e.type==='date')?'change':'input',applyFilters)});
 applyFilters()}
+
+// This block is emitted at the END of the body, so the table above is already parsed.
+// Do NOT call initFilters() from inside the table markup: that runs before these
+// definitions exist and throws a ReferenceError, leaving the filters inert.
+if(document.getElementById('tbl')) initFilters();
 """
 
 
@@ -356,8 +361,7 @@ def list_page():
     return page("Transcripts", bar
                 + "<table id=tbl><tr><th>First question<th>Handled by<th>Date<th>Ex"
                   "<th>Foundry FB<th>Status<th>Routing<th>Answer<th>Diagnosis<th>Fix target</tr>"
-                + filt + "".join(rows) + "</table>"
-                + "<script>initFilters()</script>")
+                + filt + "".join(rows) + "</table>")
 
 
 def field(k, val):
