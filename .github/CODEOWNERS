@@ -1,0 +1,28 @@
+# Every path is owned by @vijay-tylertech, so every pull request needs his approval while
+# this review workflow is still bedding in. Combined with branch protection's
+# "Require review from Code Owners", that is what makes the approval mandatory rather
+# than advisory.
+#
+# Note the deliberate asymmetry: because a PR author can never approve their own PR,
+# @vijay-tylertech would be permanently blocked on his own changes if administrators were
+# also forced through the gate. Branch protection therefore leaves "Do not allow bypassing"
+# OFF, so repo admins can merge their own work while everyone else waits for review.
+# Loosen this to a team (e.g. @tyler-technologies/onetyler-tcp-pm-admins) once the team is
+# comfortable with the process.
+
+*                       @vijay-tylertech
+
+# Called out for visibility, not different ownership — these carry the most risk:
+#   knowledge files change what a live Foundry agent tells people
+#   team-config changes the router for every conversation
+#   scripts and workflows gate everyone else's contributions
+/Knowledge-OpsCenter/           @vijay-tylertech
+/Knowledge-BP-General/          @vijay-tylertech
+/Knowledge-SupportAccessCenter/ @vijay-tylertech
+/Knowledge-TylerIdentity/       @vijay-tylertech
+/Knowledge-Shared/              @vijay-tylertech
+/team-config/                   @vijay-tylertech
+/scripts/                       @vijay-tylertech
+/.github/                       @vijay-tylertech
+/contributors.json              @vijay-tylertech
+/CLAUDE.md                      @vijay-tylertech

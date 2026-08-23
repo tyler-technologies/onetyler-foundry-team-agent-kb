@@ -1,0 +1,54 @@
+name: Validate
+
+# Runs on every pull request. Two checks, both stdlib-only Python — no dependencies,
+# no build step, so this stays fast and cannot break on a package update.
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history so validate_reviews.py can diff against the base branch.
+          fetch-depth: 0
+
+      - name: Frontmatter is well-formed
+        run: python3 scripts/review_status.py --check
+
+      - name: No two first-reviews of the same transcript
+        run: python3 scripts/validate_reviews.py --base "origin/${{ github.base_ref }}"
+
+      - name: No credentials committed
+        run: |
+          # Cheap belt-and-braces over .gitignore. Looks for the shapes that have actually
+          # shown up here: the tylertownwa test password an agent reproduced from its KB,
+          # real JWTs, and password/secret assignments with a value.
+          set -o pipefail
+          if grep -rInE 'W#lcome123\$|eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}' \
+               --include='*.md' --include='*.json' --include='*.py' --include='*.yml' . ; then
+            echo "::error::Credential-shaped string committed — see the match above"
+            exit 1
+          fi
+          if grep -rInE '(?i)\b(password|client_secret|api[_-]?key)\b\s*[:=]\s*.?[A-Za-z0-9#$!@%^&*_-]{8,}' \
+               --include='*.md' --include='*.json' --include='*.py' . \
+               | grep -viE 'REDACTED|<[A-Za-z_ -]+>|\{\{|placeholder|X-API-Key|\$FOUNDRY|paste_key|your[_-]' ; then
+            echo "::error::Looks like a real secret was committed — see the match above"
+            exit 1
+          fi
+          echo "no credential-shaped strings found"
+
+      - name: transcripts/INDEX.md is up to date
+        run: |
+          python3 scripts/review_status.py > /dev/null
+          if ! git diff --quiet -- transcripts/INDEX.md; then
+            echo "::error::transcripts/INDEX.md is stale. Run 'python3 scripts/review_status.py' and commit."
+            git --no-pager diff --stat -- transcripts/INDEX.md
+            exit 1
+          fi
+          echo "INDEX.md matches the transcript frontmatter"

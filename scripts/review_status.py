@@ -30,7 +30,7 @@ def contributors():
 FIELDS = ["conversation_id", "answered_by", "date", "exchanges", "foundry_feedback",
           "review_status", "reviewer", "routing_verdict", "reassign_to",
           "answer_verdict", "diagnosis", "fix_target", "kb_action", "kb_files",
-          "action_status", "notes"]
+          "action_status", "notes", "review_round"]
 
 VALID = {
     "review_status":   {"", "pending", "reviewed", "excluded"},
@@ -42,7 +42,7 @@ VALID = {
     "fix_target":      {"", "none", "knowledge-file", "agent-instructions",
                         "team-routing", "sample-prompts"},
     "kb_action":       {"", "none", "add", "update", "split"},
-    "action_status":   {"", "open", "applied", "wontfix"},
+    "action_status":   {"", "none-needed", "open", "applied", "wontfix"},
 }
 
 

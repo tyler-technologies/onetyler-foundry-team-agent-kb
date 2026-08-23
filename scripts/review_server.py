@@ -40,9 +40,21 @@ def contributors():
 # Ordered so rewritten frontmatter keeps a stable, diff-friendly shape.
 SOURCE_KEYS = ["conversation_id", "answered_by", "date", "exchanges",
                "dropped_sample_prompts", "foundry_feedback", "user_comments"]
-REVIEW_KEYS = ["review_status", "reviewer", "routing_verdict", "reassign_to",
-               "answer_verdict", "diagnosis", "fix_target", "kb_action",
+REVIEW_KEYS = ["review_status", "reviewer", "review_round", "routing_verdict",
+               "reassign_to", "answer_verdict", "diagnosis", "fix_target", "kb_action",
                "kb_files", "action_status", "notes"]
+
+# Most transcripts need no corpus change. Pre-selecting the "nothing wrong" answer means
+# "Mark reviewed & next" on an untouched form records a deliberate no-change review rather
+# than a blank one, so a reviewer can move through a clean batch at one click each.
+NO_CHANGE_DEFAULTS = {
+    "routing_verdict": "correct",
+    "answer_verdict": "good",
+    "diagnosis": "n-a",
+    "fix_target": "none",
+    "kb_action": "none",
+    "action_status": "none-needed",
+}
 
 CHOICES = {
     "review_status":   ["pending", "reviewed", "excluded"],
@@ -54,7 +66,7 @@ CHOICES = {
     "fix_target":      ["", "none", "knowledge-file", "agent-instructions",
                         "team-routing", "sample-prompts"],
     "kb_action":       ["", "none", "add", "update", "split"],
-    "action_status":   ["", "open", "applied", "wontfix"],
+    "action_status":   ["", "none-needed", "open", "applied", "wontfix"],
 }
 HELP = {
     "reviewer":        "Your GitHub username. Add yourself to contributors.json first.",
@@ -66,7 +78,8 @@ HELP = {
                        "no knowledge file needs to change.",
     "kb_action":       "What must happen to the corpus. 'none' is a valid, useful answer.",
     "kb_files":        "Comma-separated paths, e.g. Knowledge-OpsCenter/Misc-Links.md",
-    "action_status":   "Claude sets this to 'applied' once the change ships.",
+    "action_status":   "'none-needed' when nothing must change. Claude sets 'applied' once a change ships.",
+    "review_round":    "1 for a first review. Use the Re-review button to start round 2+.",
     "notes":           "One line. Long-form goes in Proposed fix below.",
 }
 
@@ -213,6 +226,8 @@ body:JSON.stringify(body)});return r.json()}
 function toast(m,ok=true){const t=document.getElementById('toast');t.textContent=m;
 t.style.background=ok?'#0f6b34':'#a11';t.classList.add('on');setTimeout(()=>t.classList.remove('on'),2600)}
 async function saveDoc(path,then){const fields={},ex={};
+const rv=document.querySelector('[data-fm=reviewer]');
+if(rv&&rv.value){try{localStorage.setItem('lastReviewer',rv.value)}catch(e){}}
 document.querySelectorAll('[data-fm]').forEach(e=>fields[e.dataset.fm]=e.value);
 document.querySelectorAll('[data-ex]').forEach(e=>ex[e.dataset.ex]=e.value);
 const proposed=(document.getElementById('proposed')||{}).value||'';
@@ -220,6 +235,10 @@ const r=await post('/save',{path,fields,exchanges:ex,proposed});
 if(r.ok){toast('Saved to '+r.path);if(then)location.href=then}else toast(r.error||'Save failed',false)}
 async function markAndNext(path,next){document.querySelector('[data-fm=review_status]').value='reviewed';
 await saveDoc(path,next)}
+async function reReview(path){const r=document.querySelector('[data-fm=review_round]');
+r.value=String((parseInt(r.value||'1',10)||1)+1);
+document.querySelector('[data-fm=review_status]').value='reviewed';
+await saveDoc(path)}
 async function gitDo(action){const branch=(document.getElementById('branch')||{}).value||'';
 const msg=(document.getElementById('cmsg')||{}).value||'';
 const r=await post('/git',{action,branch,message:msg});
@@ -259,6 +278,12 @@ applyFilters()}
 // Do NOT call initFilters() from inside the table markup: that runs before these
 // definitions exist and throws a ReferenceError, leaving the filters inert.
 if(document.getElementById('tbl')) initFilters();
+
+// Carry the reviewer between transcripts so a clean batch is one click each.
+(function(){const rv=document.querySelector('[data-fm=reviewer]');
+ if(!rv||rv.value) return;
+ let last=null; try{last=localStorage.getItem('lastReviewer')}catch(e){}
+ if(last&&[...rv.options].some(o=>o.value===last)) rv.value=last;})();
 """
 
 
@@ -410,8 +435,31 @@ def detail_page(rel):
             + f"<br><small style='color:#6b7280'>{html.escape(rel)} · "
               f"conversation {html.escape(fm.get('conversation_id',''))}</small></div>")
 
-    parts = [head, "<div class=card><div class=grid>"
-             + "".join(field(k, fm.get(k, "")) for k in REVIEW_KEYS) + "</div></div>"]
+    # A pending transcript renders pre-filled with the "nothing wrong" answer so an
+    # untouched form + "Mark reviewed & next" is a deliberate no-change review.
+    prefill = dict(fm)
+    is_new = (fm.get("review_status", "pending") or "pending") == "pending"
+    if is_new:
+        for k, v in NO_CHANGE_DEFAULTS.items():
+            if not prefill.get(k):
+                prefill[k] = v
+        prefill.setdefault("review_round", "") or None
+        if not prefill.get("review_round"):
+            prefill["review_round"] = "1"
+
+    banner = ("<div class=bar style='background:#eef7ee;border-color:#c6e3c6'>"
+              "Pre-filled as <b>no changes needed</b> — routing correct, answer good, "
+              "nothing to fix. Just pick your name and hit "
+              "<b>Mark reviewed &amp; next</b>. Change any field if that is not true."
+              "</div>" if is_new else
+              f"<div class=bar style='background:#fff6e5;border-color:#e8d3a8'>"
+              f"Already <b>{html.escape(fm.get('review_status',''))}</b> by "
+              f"<b>{html.escape(fm.get('reviewer','?'))}</b> (round "
+              f"{html.escape(fm.get('review_round','1'))}). Saving edits keeps the same round; "
+              f"use <b>Re-review</b> to start a new one.</div>")
+
+    parts = [head, banner, "<div class=card><div class=grid>"
+             + "".join(field(k, prefill.get(k, "")) for k in REVIEW_KEYS) + "</div></div>"]
 
     for n, tools, q, a, rv in exchanges_of(body):
         none_tools = "none" in tools.lower()
@@ -435,6 +483,7 @@ def detail_page(rel):
         f"<div class=nav><div>{f'<a href=\"{prev_}\"><button class=sec>&larr; Previous</button></a>' if prev_ else ''}</div>"
         f"<div style='display:flex;gap:8px'>"
         f"<button class=sec onclick=\"saveDoc('{html.escape(rel)}')\">Save</button>"
+        f"<button class=sec onclick=\"reReview('{html.escape(rel)}')\">Re-review</button>"
         f"<button onclick=\"markAndNext('{html.escape(rel)}','{next_}')\">Mark reviewed &amp; next &rarr;</button>"
         f"</div></div>")
     return page(f"{fm.get('answered_by','')} {rel}", "".join(parts))

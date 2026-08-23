@@ -2,17 +2,26 @@
 #
 # Apply repo governance for onetyler-foundry-team-agent-kb.
 #
-# These settings mirror tyler-technologies/tcp-oc-reports-tools exactly (verified
-# against its live config on 2026-08-21), which is the reference behaviour we want:
+# The goal of this configuration is one thing: **contributors must not silently overwrite
+# each other's work.** Two reviewers can each pick up the same pending transcript, and both
+# diffs apply cleanly, so git reports no conflict and whoever merges second wins invisibly.
 #
-#   * A pull request is REQUIRED to change main — for everyone, admins included
-#     (enforce_admins=true). That gives every change a diff, a record, and a place
-#     to hang CI later.
-#   * ZERO required approving reviews. This is what makes admin changes effectively
-#     "auto-approved": the PR is immediately mergeable by anyone with write access,
-#     with no bot, no workflow, and no second reviewer needed. Outside contributors
-#     can open a PR but still cannot merge it — merging needs push access.
+#   * A pull request is REQUIRED to change main. Every change gets a diff and a record.
+#   * ONE required approving review, from a CODE OWNER. .github/CODEOWNERS makes
+#     @vijay-tylertech the owner of every path, so every contributor's PR needs his
+#     approval while this workflow is bedding in.
+#   * Administrators are NOT forced through the gate (enforce_admins=false). This is
+#     deliberate: a PR author can never approve their own PR, so with a single code
+#     owner, enforcing it on admins would permanently block him on his own changes.
+#     Admins can merge their own work; everyone else waits for review.
+#   * Status checks from .github/workflows/validate.yml are required, so a PR that
+#     collides with someone else's review cannot merge.
 #   * Force pushes and branch deletion on main are blocked.
+#
+# The pairing that actually prevents overwrites is `strict: true` on the status check plus
+# scripts/validate_reviews.py. `strict` forces a PR to be up to date with main before it can
+# merge, which re-runs the collision check against the *current* main — so a review that
+# landed while this PR was open is seen, not clobbered.
 #
 # Idempotent — safe to re-run to re-assert settings after manual changes.
 #
@@ -48,10 +57,9 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 2. Merge settings — matching the reference repo
-#    Auto-merge stays OFF: with zero required approvals and no required status
-#    checks, a PR is mergeable the moment it opens, so "merge when checks pass"
-#    would have nothing to wait for.
+# 2. Merge settings
+#    Auto-merge stays OFF: a PR now needs a human code-owner approval, so there is no
+#    point queueing a merge on checks alone.
 # ---------------------------------------------------------------------------
 echo "==> Merge settings (all three methods; auto-merge off; keep branches)"
 gh api -X PATCH "repos/${SLUG}" \
@@ -66,15 +74,18 @@ gh api -X PATCH "repos/${SLUG}" \
 # 3. Branch protection on main — classic protection, no rulesets
 #    (the reference repo has zero rulesets; all of this is classic protection)
 # ---------------------------------------------------------------------------
-echo "==> Protecting '${BRANCH}': PR required, 0 approvals, admins included"
+echo "==> Protecting '${BRANCH}': PR + 1 code-owner approval + validate check; admins exempt"
 gh api -X PUT "repos/${SLUG}/branches/${BRANCH}/protection" --input - <<'JSON'
 {
-  "required_status_checks": null,
-  "enforce_admins": true,
+  "required_status_checks": {
+    "strict": true,
+    "contexts": ["validate"]
+  },
+  "enforce_admins": false,
   "required_pull_request_reviews": {
-    "dismiss_stale_reviews": false,
-    "require_code_owner_reviews": false,
-    "required_approving_review_count": 0,
+    "dismiss_stale_reviews": true,
+    "require_code_owner_reviews": true,
+    "required_approving_review_count": 1,
     "require_last_push_approval": false
   },
   "restrictions": null,
@@ -101,6 +112,8 @@ if [[ "${OWNER_TYPE}" == "Organization" ]]; then
   gh api "repos/${SLUG}/teams" -q '.[] | "    team: " + .slug + " = " + .permission'
 fi
 echo
-echo "Governance applied, mirroring tcp-oc-reports-tools. Direct pushes to ${BRANCH}"
-echo "are blocked for everyone including admins; admin PRs need no approval and can"
-echo "be merged immediately."
+echo "Governance applied. Direct pushes to ${BRANCH} are blocked. Contributor PRs need"
+echo "an approving review from a CODEOWNER (@vijay-tylertech) and a passing validate"
+echo "check. Repo admins are exempt from the gate so they are not blocked on their own"
+echo "PRs - a PR author cannot approve themselves. Loosen CODEOWNERS to the admin team"
+echo "once the process is settled."

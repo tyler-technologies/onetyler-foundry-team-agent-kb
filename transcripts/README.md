@@ -72,8 +72,11 @@ Same job, whether in the UI or a text editor:
 
 1. Pick a `pending` transcript.
 2. Read the **Q**, the **A**, and the **Tools called** line.
-3. Fill in the review fields.
-4. Set `review_status: reviewed`.
+3. **If nothing is wrong, change nothing.** The form opens pre-filled as *no changes
+   needed* — routing `correct`, answer `good`, diagnosis `n-a`, fix target `none`, kb action
+   `none`, action status `none-needed`. Pick your name once and it is remembered, so a clean
+   transcript is a single click on **Mark reviewed & next**.
+4. Otherwise correct the fields that are wrong, and set `review_status: reviewed`.
 5. If the answer was wrong, write what it *should* have said, and say what should change in
    **Proposed fix**.
 
@@ -106,6 +109,7 @@ blank if it doesn't apply.
 
 | Field | Values | What it means |
 |---|---|---|
+| `review_round` | integer, default `1` | Which round of review this is. The **Re-review** button raises it. Required to re-review something already reviewed on `main` — see *Why the checks exist*. |
 | `review_status` | `pending` · `reviewed` · `excluded` | Set `reviewed` when you're done. Use `excluded` for a transcript that is not real feedback at all (see below) — it leaves the queue without counting as review work. |
 | `reviewer` | a `github` value from [`contributors.json`](../contributors.json) | Who reviewed it. **Not free text** — the UI offers only registered contributors, and `--check` fails on anything else. Required to mark a transcript `reviewed`. |
 | `routing_verdict` | `correct` · `wrong-agent` · `ambiguous` | Did the *right* sub-agent handle this? |
@@ -115,7 +119,7 @@ blank if it doesn't apply.
 | `fix_target` | `none` · `knowledge-file` · `agent-instructions` · `team-routing` · `sample-prompts` | **Where the fix belongs.** Pick `agent-instructions` or `team-routing` when no knowledge file needs to change. |
 | `kb_action` | `none` · `add` · `update` · `split` | What needs to happen to the corpus. `none` is a valid answer. |
 | `kb_files` | paths | Which files, e.g. `Knowledge-OpsCenter/Misc-Links.md`. |
-| `action_status` | `open` · `applied` · `wontfix` | Claude sets `applied` once the change ships. |
+| `action_status` | `none-needed` · `open` · `applied` · `wontfix` | Claude sets `applied` once the change ships. |
 | `notes` | free text | Anything else. |
 
 ### `excluded` — not everything is feedback
@@ -175,6 +179,7 @@ python3 scripts/review_status.py             # dashboard + regenerate INDEX.md
 python3 scripts/review_status.py --pending    # just what's left to review
 python3 scripts/review_status.py --actions    # open KB actions
 python3 scripts/review_status.py --check      # validate frontmatter (exit 1 on error)
+python3 scripts/validate_reviews.py           # check for review collisions vs origin/main
 
 python3 scripts/fetch_transcripts.py          # pull new conversations
 python3 scripts/fetch_transcripts.py --dry-run
@@ -184,6 +189,36 @@ python3 scripts/fetch_transcripts.py --dry-run
 safe — your review edits can't be clobbered. It only adds new conversations as `pending`.
 
 ---
+
+## Why the checks exist: nobody overwrites anybody
+
+Two reviewers can pick up the same `pending` transcript, review it, and open a PR. **Both
+diffs apply cleanly** — git sees no conflict, because each branch changed the file relative
+to a base where it was still `pending`. Whoever merges second silently overwrites the first
+reviewer's verdict, and neither of them ever finds out. That is the specific failure this
+guards against.
+
+Three things work together:
+
+1. **`scripts/validate_reviews.py`** runs on every PR. For each transcript you touched it
+   compares the review state on `main` with yours:
+
+   | On `main` | In your PR | Verdict |
+   |---|---|---|
+   | `pending` | `reviewed`, round 1 | ✅ first review |
+   | `reviewed` | `reviewed`, round **n+1** | ✅ deliberate re-review |
+   | `reviewed` | `reviewed`, same round | ❌ **collision** |
+   | anything | `reviewed`, no `reviewer` | ❌ un-attributable |
+
+2. **"Require branches to be up to date before merging"** is on. This is the part that makes
+   it airtight: a PR cannot merge against a stale `main`, so the check always re-runs against
+   the *current* state. A review that landed while your PR was open gets seen, not clobbered.
+
+3. **A code-owner approval** is required on every PR, so a human also sees it.
+
+**If you hit a collision:** don't force it. Pull `main`, read what the other reviewer
+concluded, and if you still disagree, hit **Re-review** — that raises `review_round` and both
+verdicts end up on the record. Re-reviewing is encouraged; it just has to be explicit.
 
 ## Working as a team
 

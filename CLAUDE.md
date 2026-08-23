@@ -432,6 +432,13 @@ python3 scripts/review_status.py --actions   # reviewed items with an open KB ac
 python3 scripts/review_status.py             # dashboard + regenerate INDEX.md
 ```
 
+**Review collisions are a real failure mode.** Two people can first-review the same
+transcript and both diffs apply cleanly, so the second merge silently overwrites the first
+verdict. `scripts/validate_reviews.py` runs in CI and fails a PR that re-marks something
+already `reviewed` on the base branch unless `review_round` is raised. Never resolve that by
+lowering the round or reverting the other person's verdict — pull the base branch, read it,
+and re-review explicitly if you still disagree.
+
 **Only act on files with `review_status: reviewed`.** A `pending` file has not been looked
 at by a human; do not infer corpus changes from it unprompted.
 
