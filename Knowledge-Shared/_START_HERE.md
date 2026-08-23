@@ -32,7 +32,7 @@ the copies drift:
 | `OT-OpsCenter` | Ops Center | ✅ upload |
 | `OT-BPD` | General Blueprint Docs | ✅ upload |
 | `OT-SAC` | Support Access Center | ✅ upload |
-| `TCP-KB-Identity` | Tyler Identity Assistant | ❌ **do not upload** — Hard Rule 1; pending agreement with that corpus's owner |
+| `TCP-KB-Identity` | Tyler Identity Assistant | ❌ **do not upload to Foundry** — Hard Rule 1; pending agreement with that corpus's owner. (Unrelated to git: `Knowledge-TylerIdentity/` is committed and pushed normally.) |
 
 ## Maintenance
 

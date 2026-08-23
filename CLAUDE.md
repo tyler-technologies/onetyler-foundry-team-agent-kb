@@ -11,11 +11,20 @@ depth, but never assume they are present.)
 
 ## 🚫 HARD RULES — read these first
 
-1. **Do NOT push anything to the `TCP-KB-Identity` collection.** The Tyler Identity corpus
-   is maintained by another owner outside this repo. `Knowledge-TylerIdentity/` is a
-   **read-only snapshot**. Pulling/re-pulling is fine; uploading, deleting, or syncing that
-   collection is **forbidden until the repo owner (Vijay Venkataraman) explicitly
-   authorizes it**. The other three collections may be updated normally.
+1. **`Knowledge-TylerIdentity/` — commit to git YES, upload to Foundry NO.** These are two
+   separate things and only the second is restricted:
+
+   | Action | Allowed? |
+   |---|---|
+   | Author, edit and **commit** files in `Knowledge-TylerIdentity/` | ✅ **Yes — treat it like any other corpus.** It must be pushed to the GitHub repo along with everything else |
+   | Upload / delete / sync against the **`TCP-KB-Identity` Foundry collection** | ❌ **No** — until the repo owner (Vijay Venkataraman) says otherwise |
+   | Pull *from* `TCP-KB-Identity` (download, re-pull a snapshot) | ✅ Yes |
+
+   The reason is narrow: that Foundry collection is maintained by another owner and its
+   on-disk structure differs from this repo's, so a switchover needs their agreement. It is
+   expected to be resolved soon. Nothing about that restricts version control — never
+   gitignore this folder, never skip it in a commit, and never describe it as "read-only".
+   The other three collections may be uploaded to normally.
 2. **Never commit credentials.** No API keys, tokens, or passwords in any file, including
    knowledge files. `.gitignore` blocks the obvious names but is not a substitute for
    checking. The Foundry API key lives only in the environment.
@@ -57,12 +66,12 @@ within-corpus routing.
 Verified live 2026-08-21. Everything lives in tenant **Tyler Technologies**, project
 *OneTyler - Cloud Living Agents - v1.0.0*.
 
-| Sub-agent | Agent ID | KB collection | Local folder | Writable? |
+| Sub-agent | Agent ID | KB collection | Local folder | Foundry upload? |
 |---|---|---|---|---|
 | Ops Center | `5b3efdff-921a-4131-be81-b7a4be427d9b` | `OT-OpsCenter` | `Knowledge-OpsCenter/` | ✅ yes |
 | General Blueprint Docs Agent | `bd1c5d91-8234-486e-9f5a-2f1b7a947426` | `OT-BPD` | `Knowledge-BP-General/` | ✅ yes |
 | Support Access Center | `55444576-1fa3-4d12-a738-6ba83b17e6a7` | `OT-SAC` | `Knowledge-SupportAccessCenter/` | ✅ yes |
-| Tyler Identity Assistant | `3f5e586f-0d0f-4638-9839-bebe45a6cb47` | `TCP-KB-Identity` | `Knowledge-TylerIdentity/` | ❌ **NO — see Hard Rule 1** |
+| Tyler Identity Assistant | `3f5e586f-0d0f-4638-9839-bebe45a6cb47` | `TCP-KB-Identity` | `Knowledge-TylerIdentity/` | ❌ **not yet — Hard Rule 1.** Git commits are fine and required |
 
 Team **OneTyler Cloud Living**: `e92bd437-cb84-4e18-88e6-757370b39c90`
 

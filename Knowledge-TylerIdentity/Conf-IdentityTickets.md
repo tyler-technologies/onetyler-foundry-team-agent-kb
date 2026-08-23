@@ -9,10 +9,12 @@ from the live JSM forms 2026-08-23, cross-checked against Confluence
 Domain: Tyler Identity
 Audience: Tyler staff who need to file an Identity-related request against OneTyler.
 
-**⚠ NOT YET DEPLOYED.** This file exists in the repo only. It has deliberately **not** been
-uploaded to the `TCP-KB-Identity` Foundry collection, because that collection's on-disk
-structure differs from the repo's and the switchover needs agreement with the corpus owner.
-See Hard Rule 1 in `CLAUDE.md`.
+**⚠ Not yet in Foundry — but fully version-controlled.** This file is committed to the
+GitHub repo like any other knowledge file. What it is *not* yet is **uploaded to the
+`TCP-KB-Identity` Foundry collection**, because that collection's on-disk structure differs
+from this repo's and the switchover needs agreement with the corpus owner. Expected to be
+resolved soon. See Hard Rule 1 in `CLAUDE.md`. Until then the live Identity agent cannot
+retrieve this content.
 
 **⚠ DERIVED FILE — do not edit directly.** This is an identity-scoped extract of
 `Knowledge-Shared/Conf-OneTylerTickets.md`, kept separate only because the Identity corpus is

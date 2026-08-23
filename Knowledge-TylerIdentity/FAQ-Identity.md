@@ -7,9 +7,12 @@ answers that exist nowhere else.
 Domain: Tyler Identity
 Audience: Tyler product, engineering and identity-support staff.
 
-**⚠ NOT DEPLOYED.** Like everything in `Knowledge-TylerIdentity/`, this file has **not** been
-uploaded to the `TCP-KB-Identity` Foundry collection — that corpus is maintained by another
-owner and the switchover needs their agreement. See Hard Rule 1 in `CLAUDE.md`.
+**⚠ Not yet in Foundry — but fully version-controlled.** This file is committed to the
+GitHub repo like any other knowledge file; edit and commit it freely. What it is *not* yet is
+**uploaded to the `TCP-KB-Identity` Foundry collection**, because that collection is
+maintained by another owner whose on-disk structure differs from this repo's, so the
+switchover needs their agreement. Expected to be resolved soon. See Hard Rule 1 in
+`CLAUDE.md`. Until then the live Identity agent cannot retrieve this content.
 
 **Companion:** for "which ticket do I file", use `Knowledge-Shared/Conf-OneTylerTickets.md`.
 
