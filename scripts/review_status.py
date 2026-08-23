@@ -11,12 +11,21 @@ Usage:
     python3 scripts/review_status.py --actions    # list open KB actions only
     python3 scripts/review_status.py --check      # exit 1 on malformed frontmatter (CI)
 """
-import argparse, re, sys
+import argparse, json, re, sys
 from collections import Counter
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
 TDIR = REPO / "transcripts"
+CONTRIB = REPO / "contributors.json"
+
+
+def contributors():
+    try:
+        d = json.loads(CONTRIB.read_text(encoding="utf-8"))
+        return {c["github"] for c in d.get("contributors", []) if c.get("github")}
+    except Exception:
+        return set()
 
 FIELDS = ["conversation_id", "answered_by", "date", "exchanges", "foundry_feedback",
           "review_status", "reviewer", "routing_verdict", "reassign_to",
@@ -65,6 +74,10 @@ def main():
     if not files:
         sys.exit("No transcripts found. Run: python3 scripts/fetch_transcripts.py")
 
+    people = contributors()
+    if not people:
+        print("warning: contributors.json missing or empty — reviewer cannot be validated",
+              file=sys.stderr)
     rows, bad = [], []
     for f in files:
         d = parse(f)
@@ -74,6 +87,11 @@ def main():
         for k, allowed in VALID.items():
             if d.get(k, "") not in allowed:
                 bad.append((f, f"{k}={d.get(k)!r} not in {sorted(allowed - {''})}"))
+        rv = d.get("reviewer", "")
+        if rv and rv not in people:
+            bad.append((f, f"reviewer={rv!r} is not in contributors.json"))
+        if d.get("review_status") == "reviewed" and not rv:
+            bad.append((f, "review_status=reviewed but no reviewer set"))
         rows.append((f, d))
 
     if a.check:

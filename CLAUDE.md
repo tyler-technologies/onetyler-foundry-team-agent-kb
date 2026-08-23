@@ -413,6 +413,12 @@ python3 scripts/review_status.py             # dashboard + regenerate INDEX.md
 **Only act on files with `review_status: reviewed`.** A `pending` file has not been looked
 at by a human; do not infer corpus changes from it unprompted.
 
+The `reviewer` field is constrained to the `github` values in `contributors.json`. Never
+invent a reviewer name, and never set `review_status: reviewed` yourself — that field
+records a human's judgement. `python3 scripts/review_status.py --check` enforces both
+(unknown reviewer, or reviewed-with-no-reviewer, exits 1); run it before committing review
+changes.
+
 For each open action:
 
 1. Read the transcript — the `diagnosis` field, and the reviewer's "should have said" text

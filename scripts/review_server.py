@@ -24,6 +24,19 @@ REPO = Path(__file__).resolve().parent.parent
 TDIR = REPO / "transcripts"
 STATUS = REPO / "scripts" / "review_status.py"
 
+CONTRIB = REPO / "contributors.json"
+
+
+def contributors():
+    """GitHub usernames allowed in the `reviewer` field. Read fresh each request so
+    adding someone to contributors.json takes effect without a server restart."""
+    try:
+        d = json.loads(CONTRIB.read_text(encoding="utf-8"))
+        return [c["github"] for c in d.get("contributors", []) if c.get("github")]
+    except Exception:
+        return []
+
+
 # Ordered so rewritten frontmatter keeps a stable, diff-friendly shape.
 SOURCE_KEYS = ["conversation_id", "answered_by", "date", "exchanges",
                "dropped_sample_prompts", "foundry_feedback", "user_comments"]
@@ -44,6 +57,7 @@ CHOICES = {
     "action_status":   ["", "open", "applied", "wontfix"],
 }
 HELP = {
+    "reviewer":        "Your GitHub username. Add yourself to contributors.json first.",
     "routing_verdict": "Did the right sub-agent handle this?",
     "reassign_to":     "Which agent should have. Only if wrong-agent.",
     "answer_verdict":  "Quality of the answer that was given.",
@@ -236,6 +250,17 @@ def list_page():
 def field(k, val):
     hint = f"<span class=hint> — {html.escape(HELP[k])}</span>" if k in HELP else ""
     lab = f"<label>{k.replace('_',' ')}{hint}</label>"
+    if k == "reviewer":
+        people = contributors()
+        if not people:
+            return (f"<div>{lab}<input data-fm=reviewer value=\"{html.escape(val)}\" "
+                    f"placeholder='contributors.json is empty or unreadable'></div>")
+        opts = "".join(f"<option{' selected' if o == val else ''}>{html.escape(o)}</option>"
+                       for o in [""] + people)
+        stale = ("<div class=hint style='color:#a11'>current value "
+                 f"'{html.escape(val)}' is not in contributors.json</div>"
+                 if val and val not in people else "")
+        return f"<div>{lab}<select data-fm=reviewer>{opts}</select>{stale}</div>"
     if k in CHOICES:
         opts = "".join(f"<option{' selected' if o == val else ''}>{html.escape(o)}</option>"
                        for o in CHOICES[k])
@@ -356,7 +381,14 @@ class H(BaseHTTPRequestHandler):
                 p = (TDIR / rel).resolve()
                 if not str(p).startswith(str(TDIR.resolve())) or not p.is_file():
                     raise ValueError("bad path")
-                save(p, data.get("fields", {}), data.get("exchanges", {}),
+                fields = data.get("fields", {})
+                rv = (fields.get("reviewer") or "").strip()
+                allowed = contributors()
+                if rv and rv not in allowed:
+                    raise ValueError(f"'{rv}' is not in contributors.json — add them there first")
+                if (fields.get("review_status") or "").strip() == "reviewed" and not rv:
+                    raise ValueError("pick a reviewer before marking this reviewed")
+                save(p, fields, data.get("exchanges", {}),
                      data.get("proposed", ""))
                 refresh_index()
                 return self._send(200, json.dumps({"ok": True, "path": rel}), "application/json")

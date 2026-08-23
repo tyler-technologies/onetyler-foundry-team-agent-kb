@@ -1,0 +1,22 @@
+{
+  "_comment": [
+    "Authorized transcript reviewers. The `reviewer` field on every transcript must be",
+    "one of the `github` values below — the review UI offers only these as choices, and",
+    "scripts/review_status.py --check fails the build on anything else.",
+    "",
+    "To add someone: append an entry and open a PR. Use their GitHub username as `github`",
+    "so a review attributes to the same identity that authors the PR. Keep the list sorted",
+    "by github username.",
+    "",
+    "This list is repo-local and provisional until the GitHub repo exists and the",
+    "onetyler-tcp-pm-admins / global-fte teams are attached; at that point it should be",
+    "reconciled against actual repo collaborators."
+  ],
+  "contributors": [
+    {
+      "github": "vijay-tylertech",
+      "name": "Vijay Venkataraman",
+      "role": "maintainer"
+    }
+  ]
+}

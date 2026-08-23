@@ -30,6 +30,24 @@ Don't want the browser auto-opened? add `--no-browser`.
 You do **not** need a Foundry API key to review — the transcripts are already in the repo.
 A key is only needed to pull *new* transcripts (`scripts/fetch_transcripts.py`).
 
+### Add yourself as a contributor first
+
+The `reviewer` field is restricted to people listed in
+[`contributors.json`](../contributors.json), so a review always attributes to the same
+GitHub identity that authors the PR. If you aren't in the list yet, add yourself:
+
+```json
+{
+  "github": "your-github-username",
+  "name": "Your Name",
+  "role": "reviewer"
+}
+```
+
+Keep the list sorted by username, and include the change in your review PR — it's a
+one-line addition and doesn't need a separate one. Until you're listed, the reviewer
+dropdown won't offer your name and you won't be able to mark anything reviewed.
+
 ### Using it
 
 - The landing page lists all transcripts with their status. Click one.
@@ -89,7 +107,7 @@ blank if it doesn't apply.
 | Field | Values | What it means |
 |---|---|---|
 | `review_status` | `pending` · `reviewed` | Set to `reviewed` when you're done. |
-| `reviewer` | free text | Your name or initials. |
+| `reviewer` | a `github` value from [`contributors.json`](../contributors.json) | Who reviewed it. **Not free text** — the UI offers only registered contributors, and `--check` fails on anything else. Required to mark a transcript `reviewed`. |
 | `routing_verdict` | `correct` · `wrong-agent` · `ambiguous` | Did the *right* sub-agent handle this? |
 | `reassign_to` | `ops-center` · `bp-general` · `sac` · `identity` | Which agent *should* have. Only if `wrong-agent`. |
 | `answer_verdict` | `good` · `incomplete` · `wrong` · `stale` · `refused` | Quality of the answer given. |
@@ -163,7 +181,8 @@ convention is deliberately light:
 - **Claim a slice out loud** — by agent folder (`identity/`, `ops-center/`) or by date
   range. One reviewer per folder at a time avoids merge conflicts entirely, since each
   transcript is its own file.
-- **Put your initials in `reviewer`** so credit and questions have an owner.
+- **Pick yourself in `reviewer`** so credit and questions have an owner. Add yourself to
+  `contributors.json` if you aren't there yet.
 - **The PR submitter** runs `review_status.py` before committing so `INDEX.md` reflects
   reality, and titles the PR with what was covered, e.g.
   `Review: identity transcripts 2026-06`.
