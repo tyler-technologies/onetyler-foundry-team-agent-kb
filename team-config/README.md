@@ -34,6 +34,20 @@ backup, and note the redaction in the file.
 
 To restore: PUT the backup body back (full-object replace), then re-fetch and diff.
 
+## ⚠ Foundry sanitises angle brackets on write — keep them out of prompts
+
+The team-config write path HTML-escapes `>` to `&gt;` **and deletes anything that looks
+like an HTML tag**. Observed 2026-08-23: `- **"the <product> client"**` came back as
+`- **"the  client"**`, with the placeholder silently gone, and every `->` became `-&gt;`.
+
+The escaping and the deletion happened to cancel out in length, so the payload was the
+**same byte count** before and after. A size check would have passed. Only a content diff
+caught it.
+
+So: **write prompts with no `<` or `>` at all** — use "then route to" instead of `->`, and
+an uppercase word like `PRODUCT` instead of `<product>`. And always diff the live value
+against the mirror after a write, not just the field list.
+
 ## Pushing a change to Foundry
 
 `PUT /api/teams/{teamId}` is a **full-object replace**: GET the team, change only the field

@@ -51,11 +51,61 @@ Rules:
   agent can point to another domain if a follow-up is needed.
 - If asked what you can do, describe the four areas above in the user's own terms rather
   than listing agent names.
+- The word "client" is ambiguous and is the most common source of misrouting. Decide from
+  the surrounding phrasing:
+  - **"identity client"** explicitly, or "client" near authentication, authorization,
+    OAuth, OIDC, SAML, token, scope, claim, client credentials or CCF, client_id or
+    client_secret, redirect URI, PKCE, application_type, or a login or consent error
+    then route to "Tyler Identity Assistant". Here a client is a registered application,
+    not a company.
+  - **"client" meaning the customer or organization** — near licensing, contract, SKU,
+    onboarding, org key, CRM, customer identifier, workspace, Admin Center, or in phrases
+    like "a client's Admin Center", "client administrator", "our clients"
+    then route to "Ops Center". Here a client is a Tyler customer.
+  - **"the PRODUCT client"** meaning a client application or SDK, as in "the Ops Center
+    client", goes to whichever agent owns that product; default is
+    "General Blueprint Docs Agent".
+  - If the sense is still genuinely unclear, ask one short clarifying question — "do you
+    mean an identity client registration, or a Tyler customer?" — rather than guessing.
 ```
 
 ## Change log
 
-### 2026-08-23 — route on topics, not agent names
+### 2026-08-23 (b) — disambiguate the word "client"
+
+**Why.** "client" carries three unrelated senses across these domains, and the router had
+no way to tell them apart. Attested in our own transcripts:
+
+| Sense | Real examples from transcripts | Owner |
+|---|---|---|
+| Registered OAuth/OIDC application | "What scopes do I need for an identity client", "Do I need a separate client for CCF and user authentication with gateway?", "Clients with 'application_type' of 'service' are not allowed to access the 'authorize'..." | Tyler Identity Assistant |
+| Tyler customer / organization | "Organizations are Tyler Clients", "How do client administrators request access to CAPM?", "How can I get access to a client's Admin Center?" | Ops Center |
+| A client *application* | "What's available via the Ops Center client?" | owner of that product |
+
+The third sense was not in the guidance given and surfaced from the data — "the Ops Center
+client" means neither a customer nor an identity client, but the client app.
+
+The rule routes on nearby vocabulary rather than on the word alone, and instructs the
+router to ask one clarifying question when the sense is still unresolved, which is better
+than a coin flip on a term this loaded.
+
+**Foundry mangled the first attempt.** The write path HTML-escaped every `->` to `-&gt;`
+and deleted `<product>` outright as if it were an HTML tag, leaving `**"the  client"**`.
+The two changes cancelled out in length, so the prompt was the same byte count and only a
+content diff exposed it. Rewritten without angle brackets. See `README.md` in this folder.
+
+**Verified live** by asking both senses:
+
+| Question | Behaviour |
+|---|---|
+| "How do I see which products a client is licensed for?" | routed to Ops Center; answered from the licensing docs |
+| "What scopes do I need for a client?" | asked "are you asking about an identity client registration, or…" — the clarifying-question fallback, correctly preferring a question over a guess |
+
+Note `Knowledge-OpsCenter/Docusaurus-Terminology.md` already warns "Avoid 'client' in
+technical contexts — 'Identity Client' is a separate technical term." That guidance existed
+in the corpus but had never been given to the router.
+
+### 2026-08-23 (a) — route on topics, not agent names
 
 **Why.** Team transcript `171e8ca5` (2026-08-20) ran six exchanges, five of them about CAPM
 or Admin Center — both squarely Ops Center topics — and **Ops Center was never invoked**.

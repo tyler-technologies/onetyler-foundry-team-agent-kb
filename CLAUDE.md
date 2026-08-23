@@ -512,6 +512,7 @@ Full conventions are in `README.md`. The essentials:
 | Uploaded file shows `application/octet-stream` | Missing `;type=text/markdown` on the `-F` argument |
 | `POST /sync` → 500 | Transient Bedrock job conflict; retry every ~45s |
 | zsh poll loop breaks | Don't name a shell variable `status` — it's a read-only builtin |
+| Prompt text comes back altered after a config PUT | Foundry HTML-escapes `>` and strips `<tag>`-shaped text. Never put `<` or `>` in a prompt; diff live-vs-mirror on **content**, since the length can be unchanged |
 
 ---
 
