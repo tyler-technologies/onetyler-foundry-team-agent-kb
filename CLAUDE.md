@@ -400,6 +400,9 @@ model you must internalize"), so ordinary content updates need no deletion. Only
 with review fields in the frontmatter. Humans review; you act on what they wrote. Full
 workflow and field definitions: `transcripts/README.md`.
 
+Humans review through a local web UI (`python3 scripts/review_server.py`, loopback-only on
+port 7777) or by editing the markdown directly. Either way the output is the same files.
+
 **To find work:**
 
 ```bash
@@ -414,16 +417,24 @@ For each open action:
 
 1. Read the transcript — the `diagnosis` field, and the reviewer's "should have said" text
    in the `<!-- review:N -->` block.
-2. **Respect the diagnosis.** It encodes whether this is a knowledge problem at all:
+2. **Check `fix_target` first.** It states where the reviewer decided the fix belongs:
+   `knowledge-file`, `agent-instructions`, `team-routing`, `sample-prompts`, or `none`. Only
+   `knowledge-file` means you edit a corpus file. For the others, the deliverable is a
+   concrete proposal, not a corpus edit — read the `## Proposed fix` block and either apply
+   it where you can (the team routing table in `README.md`, a `_START_HERE.md` hand-off
+   rule) or surface it to the user for the parts you cannot change from here, such as an
+   agent's system prompt or its sample questions, which live in Foundry rather than in this
+   repo.
+3. **Respect the diagnosis.** It encodes whether this is a knowledge problem at all:
    `search-empty` and `search-irrelevant` are corpus problems; `no-search` and
    `retrieved-ok-answered-badly` are agent-prompt problems, and `routing-only` is a team
    routing-rules problem. Do not edit a knowledge file to paper over a prompt bug — say so
    and leave `kb_action: none`.
-3. Make the edit in the file(s) named by `kb_files`, following the conventions below.
-4. Update that folder's `_START_HERE.md` if you added, renamed, or removed a file.
-5. Set `action_status: applied` in the transcript frontmatter.
-6. Re-run `review_status.py` to refresh `INDEX.md`.
-7. List the files needing re-upload to Foundry, and **ask before pushing** (Hard Rule 5).
+4. Make the edit in the file(s) named by `kb_files`, following the conventions below.
+5. Update that folder's `_START_HERE.md` if you added, renamed, or removed a file.
+6. Set `action_status: applied` in the transcript frontmatter.
+7. Re-run `review_status.py` to refresh `INDEX.md`.
+8. List the files needing re-upload to Foundry, and **ask before pushing** (Hard Rule 5).
 
 If a reviewer set `reassign_to`, the fix is usually in the **team routing table** in
 `README.md`, or in the sibling-agent hand-off guidance inside the relevant

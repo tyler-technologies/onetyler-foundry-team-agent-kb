@@ -20,7 +20,8 @@ TDIR = REPO / "transcripts"
 
 FIELDS = ["conversation_id", "answered_by", "date", "exchanges", "foundry_feedback",
           "review_status", "reviewer", "routing_verdict", "reassign_to",
-          "answer_verdict", "diagnosis", "kb_action", "kb_files", "action_status", "notes"]
+          "answer_verdict", "diagnosis", "fix_target", "kb_action", "kb_files",
+          "action_status", "notes"]
 
 VALID = {
     "review_status":   {"", "pending", "reviewed"},
@@ -29,6 +30,8 @@ VALID = {
     "answer_verdict":  {"", "good", "incomplete", "wrong", "stale", "refused"},
     "diagnosis":       {"", "n-a", "no-search", "search-empty", "search-irrelevant",
                         "retrieved-ok-answered-badly", "routing-only"},
+    "fix_target":      {"", "none", "knowledge-file", "agent-instructions",
+                        "team-routing", "sample-prompts"},
     "kb_action":       {"", "none", "add", "update", "split"},
     "action_status":   {"", "open", "applied", "wontfix"},
 }
@@ -100,7 +103,8 @@ def main():
     for k in sorted(per):
         print(f"  {k:12} {perdone[k]:>3}/{per[k]:<3}")
     for label, key in [("routing verdict", "routing_verdict"), ("answer verdict", "answer_verdict"),
-                       ("diagnosis", "diagnosis"), ("kb action", "kb_action")]:
+                       ("diagnosis", "diagnosis"), ("fix target", "fix_target"),
+                       ("kb action", "kb_action")]:
         c = Counter(d.get(key, "") or "(blank)" for _, d in rows)
         print(f"\n{label}: " + "  ".join(f"{k}={v}" for k, v in sorted(c.items())))
     reassign = [(f, d) for f, d in rows if d.get("reassign_to")]

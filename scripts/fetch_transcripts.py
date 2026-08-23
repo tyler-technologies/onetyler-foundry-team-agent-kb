@@ -101,6 +101,7 @@ routing_verdict:
 reassign_to:
 answer_verdict:
 diagnosis:
+fix_target:
 kb_action:
 kb_files:
 action_status: open
@@ -174,6 +175,10 @@ def render(slug, meta, data):
         L += [f"<!-- review:{i} -->",
               "**Review —** _verdict:_ · _should have said:_", "",
               f"<!-- /review:{i} -->", ""]
+    L += ["---", "", "## Proposed fix", "",
+          "_What should change so this answer is right next time? For an instructions or"
+          " routing fix, say exactly what to add or reword._", "",
+          "<!-- proposed-fix -->", "", "<!-- /proposed-fix -->", ""]
     return "\n".join(L) + "\n"
 
 

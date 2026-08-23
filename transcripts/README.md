@@ -3,21 +3,81 @@
 Preserved conversation history for the OneTyler Cloud Living team agent, and the workflow
 for turning it into knowledge-file improvements.
 
-**[INDEX.md](INDEX.md) is the dashboard** — every transcript, its review status, and any
-open action, in one table. Start there.
+There are two ways to review: a **local web UI** (recommended) or editing the markdown
+files by hand. Both write to the same files, so you can mix freely.
+
+---
+
+## Setup — the review UI
+
+Run this on your own machine. It never leaves your laptop: the server binds to loopback
+only, and the only thing that gets shared is the PR you open at the end.
+
+**Prerequisites:** Python 3.9+ and git. That's all — the server uses the Python standard
+library, so there is nothing to `pip install` and no build step.
+
+```bash
+git clone https://github.com/tyler-technologies/onetyler-foundry-team-agent-kb.git
+cd onetyler-foundry-team-agent-kb
+git switch -c review/<your-initials>-<date>      # never review on main; it's protected
+
+python3 scripts/review_server.py                 # opens http://127.0.0.1:7777
+```
+
+Port already in use? `python3 scripts/review_server.py --port 7778`.
+Don't want the browser auto-opened? add `--no-browser`.
+
+You do **not** need a Foundry API key to review — the transcripts are already in the repo.
+A key is only needed to pull *new* transcripts (`scripts/fetch_transcripts.py`).
+
+### Using it
+
+- The landing page lists all transcripts with their status. Click one.
+- Each exchange shows the question, the answer, and — importantly — **which tools the agent
+  called**. `none — answered without searching` is highlighted, because it usually means the
+  agent answered from model priors rather than the knowledge base.
+- Fill in the dropdowns, write a correction under any bad answer, and write the
+  **Proposed fix** at the bottom.
+- **Mark reviewed & next** saves and moves to the next transcript, so you can work through
+  a batch without going back to the list.
+- Saving rewrites the transcript's markdown file in place and regenerates `INDEX.md`. Your
+  work is a normal git diff — check `git diff` any time.
+- The **Git & PR** tab creates a branch, commits everything under `transcripts/`, pushes,
+  and runs `gh pr create --fill`. If you don't have the `gh` CLI, it still commits and
+  pushes; open the PR in the browser.
 
 ---
 
 ## How to review one transcript (the 60-second version)
 
-1. Pick a `review_status: pending` row from [INDEX.md](INDEX.md) and open the file.
-2. Read the **Q**, the **A**, and the **Tools called** line.
-3. Fill in the review fields in the frontmatter.
-4. Set `review_status: reviewed`.
-5. If the answer was wrong, write what it *should* have said in the exchange's
-   `<!-- review:N -->` block.
+Same job, whether in the UI or a text editor:
 
-That's it. Claude reads these fields to decide what to change in the knowledge files.
+1. Pick a `pending` transcript.
+2. Read the **Q**, the **A**, and the **Tools called** line.
+3. Fill in the review fields.
+4. Set `review_status: reviewed`.
+5. If the answer was wrong, write what it *should* have said, and say what should change in
+   **Proposed fix**.
+
+That's it. Claude reads these fields to decide what to change — in the knowledge files, the
+agent instructions, or the routing rules.
+
+### Reviews with no knowledge-file change are still complete work
+
+This matters: plenty of bad answers are **not** corpus problems. If the agent never
+searched, or retrieved the right material and still answered badly, the fix belongs in the
+agent's instructions — not in a knowledge file. Record that and commit it:
+
+```yaml
+diagnosis: no-search
+fix_target: agent-instructions
+kb_action: none
+kb_files:
+```
+
+...with the specific wording you'd add written in **Proposed fix**. A PR containing only
+verdicts and proposed instruction changes, touching zero knowledge files, is a full
+contribution — it's how the agent prompts and the team routing table get improved.
 
 ---
 
@@ -34,7 +94,8 @@ blank if it doesn't apply.
 | `reassign_to` | `ops-center` · `bp-general` · `sac` · `identity` | Which agent *should* have. Only if `wrong-agent`. |
 | `answer_verdict` | `good` · `incomplete` · `wrong` · `stale` · `refused` | Quality of the answer given. |
 | `diagnosis` | see below | *Why* it went wrong. The most important field. |
-| `kb_action` | `none` · `add` · `update` · `split` | What needs to happen to the corpus. |
+| `fix_target` | `none` · `knowledge-file` · `agent-instructions` · `team-routing` · `sample-prompts` | **Where the fix belongs.** Pick `agent-instructions` or `team-routing` when no knowledge file needs to change. |
+| `kb_action` | `none` · `add` · `update` · `split` | What needs to happen to the corpus. `none` is a valid answer. |
 | `kb_files` | paths | Which files, e.g. `Knowledge-OpsCenter/Misc-Links.md`. |
 | `action_status` | `open` · `applied` · `wontfix` | Claude sets `applied` once the change ships. |
 | `notes` | free text | Anything else. |
@@ -77,6 +138,9 @@ Claude exactly what the corpus is missing.
 ## Commands
 
 ```bash
+python3 scripts/review_server.py             # the review UI on :7777
+python3 scripts/review_server.py --port 7778 --no-browser
+
 python3 scripts/review_status.py             # dashboard + regenerate INDEX.md
 python3 scripts/review_status.py --pending    # just what's left to review
 python3 scripts/review_status.py --actions    # open KB actions
