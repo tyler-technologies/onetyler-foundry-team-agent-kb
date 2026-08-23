@@ -107,6 +107,17 @@ def exchanges_of(body):
     return out
 
 
+def first_question(body, words=14):
+    """Opening words of the first real question — the only reliable way to tell
+    transcripts apart in a list, since filenames are just dates and hashes."""
+    m = re.search(r"\*\*Q:\*\*\n\n((?:> .*\n?)+)", body)
+    if not m:
+        return ""
+    q = re.sub(r"\s+", " ", re.sub(r"^> ?", "", m.group(1), flags=re.M)).strip()
+    w = q.split()
+    return " ".join(w[:words]) + ("…" if len(w) > words else "")
+
+
 def proposed_of(body):
     m = re.search(r"<!-- proposed-fix -->\n(.*?)<!-- /proposed-fix -->", body, re.S)
     return m.group(1).strip() if m else ""
@@ -183,6 +194,8 @@ button:hover{background:#174b98}button.sec{background:#e6e9ee;color:#26303d}butt
 .toast{position:fixed;bottom:18px;right:18px;background:#0f6b34;color:#fff;padding:10px 16px;border-radius:6px;
 opacity:0;transition:.25s;z-index:50}.toast.on{opacity:1}
 .nav{display:flex;justify-content:space-between;margin:16px 0}
+td.qcell{white-space:normal;max-width:430px;min-width:300px}
+.deleg{font-size:11px;color:#7a5cbf;font-weight:600}
 pre.out{background:#10151f;color:#d6dde8;padding:10px;border-radius:6px;font-size:12px;overflow:auto;max-height:240px}
 """
 
@@ -225,9 +238,14 @@ def list_page():
         counts["total"] += 1
         rel = f.relative_to(TDIR).as_posix()
         fb = fm.get("foundry_feedback", "none")
+        deleg = fm.get("delegated_to", "")
+        short = ", ".join(a.replace(" Assistant", "").replace(" Agent", "")
+                          for a in deleg.split(", ") if a) if deleg else ""
         rows.append(
-            f"<tr><td><a href='/t/{html.escape(rel)}'>{html.escape(f.stem)}</a></td>"
-            f"<td>{html.escape(fm.get('answered_by',''))}</td>"
+            f"<tr><td class=qcell title=\"{html.escape(first_question(body, 40))}\">"
+            f"<a href='/t/{html.escape(rel)}'>{html.escape(first_question(body))}</a></td>"
+            f"<td>{html.escape(fm.get('answered_by',''))}"
+            f"{'<div class=deleg>&rarr; '+html.escape(short)+'</div>' if short else ''}</td>"
             f"<td>{html.escape((fm.get('date','') or '')[:10])}</td>"
             f"<td>{html.escape(fm.get('exchanges',''))}</td>"
             f"<td>{'<span class=pill.warn>'+html.escape(fb)+'</span>' if fb not in ('none','') else ''}</td>"
@@ -242,7 +260,7 @@ def list_page():
     bar = (f"<div class=bar><b>{done} / {tot} reviewed</b> ({pct}%) &nbsp;·&nbsp; "
            f"{counts['pending']} pending &nbsp;·&nbsp; "
            f"<a href='/git'>commit &amp; open a PR &rarr;</a></div>")
-    return page("Transcripts", bar + "<table><tr><th>Transcript<th>Agent<th>Date<th>Ex"
+    return page("Transcripts", bar + "<table><tr><th>First question<th>Handled by<th>Date<th>Ex"
                 "<th>Foundry FB<th>Status<th>Routing<th>Answer<th>Diagnosis<th>Fix target</tr>"
                 + "".join(rows) + "</table>")
 
@@ -286,6 +304,10 @@ def detail_page(rel):
                if fm.get("foundry_feedback") not in ("none", "", None) else "")
             + (f" · <i>{html.escape(fm['dropped_sample_prompts'])} canned prompt(s) omitted</i>"
                if fm.get("dropped_sample_prompts", "0") not in ("0", "") else "")
+            + (f"<br><b>Delegated to:</b> {html.escape(fm['delegated_to'])}"
+               + (f" <span class=hint>({html.escape(fm.get('orchestration',''))})</span>"
+                  if fm.get("orchestration") else "")
+               if fm.get("delegated_to") else "")
             + f"<br><small style='color:#6b7280'>{html.escape(rel)} · "
               f"conversation {html.escape(fm.get('conversation_id',''))}</small></div>")
 

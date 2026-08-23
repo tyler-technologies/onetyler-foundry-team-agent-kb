@@ -120,6 +120,36 @@ def api(path):
         return None
 
 
+def team_delegation():
+    """conversationId -> which sub-agents the orchestrator actually invoked.
+
+    Team transcripts carry NO metadataMessages, so the only record of who handled a
+    team conversation is the run spans in /api/team-logs. Span names look like
+    "agent: 'Ops Center'" and "tool: 'searchTenantKnowledge'".
+    """
+    out = {}
+    d = api(f"/api/team-logs?teamId={TEAM_ID}&limit=500") or {}
+    for run in (d.get("logs") or []):
+        cid = run.get("conversationId")
+        if not cid:
+            continue
+        rec = out.setdefault(cid, {"agents": [], "tools": [], "pattern": None, "strategy": None})
+        for sp in (run.get("spans") or []):
+            name = sp.get("name") or ""
+            m = re.search(r"'(.*)'", name)
+            label = m.group(1) if m else name
+            if sp.get("span_type") == "agent" or name.startswith("agent:"):
+                rec["agents"].append(label)
+            elif sp.get("span_type") == "tool" or name.startswith("tool:"):
+                rec["tools"].append(label)
+        rec["pattern"] = rec["pattern"] or run.get("orchestrationPattern")
+        rec["strategy"] = rec["strategy"] or run.get("strategy")
+    for rec in out.values():                       # de-dupe, preserve first-seen order
+        rec["agents"] = list(dict.fromkeys(rec["agents"]))
+        rec["tools"] = list(dict.fromkeys(rec["tools"]))
+    return out
+
+
 def scrub(text):
     t = text or ""
     for pat, repl in REDACTIONS:
@@ -127,7 +157,7 @@ def scrub(text):
     return t
 
 
-def render(slug, meta, data):
+def render(slug, meta, data, deleg=None):
     """Returns the file body, or None if nothing worth reviewing survives filtering."""
     cid = data["conversationId"]
     date = (meta.get("conversationDate") or "")[:19].replace("T", " ") or "unknown"
@@ -150,6 +180,9 @@ def render(slug, meta, data):
          f"dropped_sample_prompts: {dropped}",
          f"foundry_feedback: {', '.join(fb) if fb else 'none'}",
          f"user_comments: {json.dumps(comments) if comments else '[]'}",
+         f"delegated_to: {', '.join(deleg['agents']) if deleg and deleg.get('agents') else ''}",
+         f"orchestration: {(deleg or {}).get('pattern') or ''}"
+         f"{'/' + deleg['strategy'] if deleg and deleg.get('strategy') else ''}",
          "",
          "# ---- review fields: edit these ----",
          REVIEW_TEMPLATE,
@@ -159,6 +192,17 @@ def render(slug, meta, data):
          ""]
     if dropped:
         L += [f"_{dropped} canned starting-prompt exchange(s) omitted._", ""]
+    if slug == "team":
+        ags = (deleg or {}).get("agents") or []
+        tls = (deleg or {}).get("tools") or []
+        L += ["## Delegation", "",
+              "| | |", "|---|---|",
+              f"| **Sub-agent(s) invoked** | {', '.join(ags) if ags else '_no team-log found for this conversation_'} |",
+              f"| **Tools used across the run** | {', '.join(tls) if tls else '_none recorded_'} |",
+              f"| **Orchestration** | {(deleg or {}).get('pattern') or '?'} / {(deleg or {}).get('strategy') or '?'} |",
+              "",
+              "_Source: run spans in `/api/team-logs`. Team transcripts carry no per-exchange"
+              " tool detail, so the above is for the whole conversation, not one exchange._", ""]
 
     for i, e in kept:
         mm = e.get("metadataMessages") or []
@@ -169,7 +213,10 @@ def render(slug, meta, data):
             if e.get("thumbsDownTextFeedback"):
                 L += [f"> **User comment:** {scrub(e['thumbsDownTextFeedback'])}"]
             L += [""]
-        L += [f"**Tools called:** {', '.join(tools) if tools else '_none — answered without searching_'}", ""]
+        if mm:
+            L += [f"**Tools called:** {', '.join(tools) if tools else '_none — answered without searching_'}", ""]
+        else:
+            L += ["**Tools called:** _not recorded for team conversations — see Delegation above_", ""]
         L += ["**Q:**", "", "> " + scrub(e.get("question") or "").replace("\n", "\n> "), ""]
         L += ["**A:**", "", "```markdown", scrub(e.get("response") or ""), "```", ""]
         L += [f"<!-- review:{i} -->",
@@ -219,7 +266,8 @@ def main():
 
     if include_team:
         lst = api(f"/api/transcripts/team_conversation_ids?team_id={TEAM_ID}&startDate={a.start}") or []
-        print(f"team: {len(lst)} conversations")
+        deleg = team_delegation()
+        print(f"team: {len(lst)} conversations ({len(deleg)} with delegation logs)")
         for meta in lst:
             cid = meta["conversationId"]
             d = api(f"/api/transcripts/team/{cid}")
@@ -229,7 +277,7 @@ def main():
             if p.exists():
                 existing += 1
                 continue
-            body = render("team", meta, d[0])
+            body = render("team", meta, d[0], deleg.get(cid))
             if body is None:
                 skipped += 1
                 continue
