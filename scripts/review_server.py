@@ -196,6 +196,13 @@ button:hover{background:#174b98}button.sec{background:#e6e9ee;color:#26303d}butt
 opacity:0;transition:.25s;z-index:50}.toast.on{opacity:1}
 .nav{display:flex;justify-content:space-between;margin:16px 0}
 td.qcell{white-space:normal;max-width:430px;min-width:300px}
+tr.filters th{background:#e9edf2;padding:5px 6px;font-weight:400}
+tr.filters input,tr.filters select{width:100%;padding:4px 6px;font-size:12px;border:1px solid #c3cbd5;border-radius:4px;background:#fff}
+tr.filters small{color:#6b7280;font-weight:400}
+#fbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+#fbar input[type=date]{width:auto;padding:4px 6px;font-size:12px;border:1px solid #c3cbd5;border-radius:4px}
+td.nowrap,th.nowrap{white-space:nowrap}
+tr.row[data-status=excluded] td{opacity:.5}
 .deleg{font-size:11px;color:#7a5cbf;font-weight:600}
 pre.out{background:#10151f;color:#d6dde8;padding:10px;border-radius:6px;font-size:12px;overflow:auto;max-height:240px}
 """
@@ -217,6 +224,36 @@ async function gitDo(action){const branch=(document.getElementById('branch')||{}
 const msg=(document.getElementById('cmsg')||{}).value||'';
 const r=await post('/git',{action,branch,message:msg});
 document.getElementById('gitout').textContent=r.output||'(no output)';toast(r.ok?action+' ok':action+' failed',r.ok)}
+
+const FKEYS=['agent','ex','fb','status','routing','answer','diag','fix'];
+function fstate(){const g=i=>{const e=document.getElementById(i);return e?e.value:''};
+const o={q:g('f_q'),dfrom:g('dfrom'),dto:g('dto')};
+FKEYS.forEach(k=>o[k]=g('f_'+k));return o}
+function applyFilters(){const f=fstate();let n=0;
+document.querySelectorAll('tr.row').forEach(tr=>{let ok=true;
+ if(f.q && !tr.dataset.q.includes(f.q.toLowerCase())) ok=false;
+ FKEYS.forEach(k=>{const want=f[k]; if(!want) return;
+  const have=tr.dataset[k]||'';
+  if(want==='__blank__'){ if(have!=='') ok=false } else if(have!==want) ok=false});
+ const d=tr.dataset.date||'';
+ if(f.dfrom && (!d || d<f.dfrom)) ok=false;
+ if(f.dto && (!d || d>f.dto)) ok=false;
+ tr.style.display = ok?'':'none'; if(ok) n++});
+const sh=document.getElementById('shown'); if(sh) sh.textContent=n;
+try{sessionStorage.setItem('tfilters',JSON.stringify(f))}catch(e){}}
+function clearFilters(){['f_q','dfrom','dto'].forEach(i=>{const e=document.getElementById(i);if(e)e.value=''});
+FKEYS.forEach(k=>{const e=document.getElementById('f_'+k);if(e)e.value=''});
+applyFilters()}
+function initFilters(){let saved=null;
+try{saved=JSON.parse(sessionStorage.getItem('tfilters'))}catch(e){}
+const set=(id,v)=>{const e=document.getElementById(id); if(e&&v) e.value=v};
+if(saved){set('f_q',saved.q);set('dfrom',saved.dfrom);set('dto',saved.dto);
+ FKEYS.forEach(k=>set('f_'+k,saved[k]));}
+else{set('f_status','pending');}   // default view: only what still needs reviewing
+['f_q','dfrom','dto'].concat(FKEYS.map(k=>'f_'+k)).forEach(id=>{
+ const e=document.getElementById(id); if(!e)return;
+ e.addEventListener((e.tagName==='SELECT'||e.type==='date')?'change':'input',applyFilters)});
+applyFilters()}
 """
 
 
@@ -229,7 +266,7 @@ def page(title, inner):
 
 
 def list_page():
-    rows, counts = [], Counter()
+    recs, counts = [], Counter()
     for f in tfiles():
         fm, body = parse(f)
         if fm is None:
@@ -237,33 +274,90 @@ def list_page():
         st = fm.get("review_status", "pending") or "pending"
         counts[st] += 1
         counts["total"] += 1
-        rel = f.relative_to(TDIR).as_posix()
-        fb = fm.get("foundry_feedback", "none")
         deleg = fm.get("delegated_to", "")
-        short = ", ".join(a.replace(" Assistant", "").replace(" Agent", "")
-                          for a in deleg.split(", ") if a) if deleg else ""
+        recs.append({
+            "rel": f.relative_to(TDIR).as_posix(),
+            "q": first_question(body), "qfull": first_question(body, 40),
+            "agent": fm.get("answered_by", ""),
+            "deleg": ", ".join(a.replace(" Assistant", "").replace(" Agent", "")
+                               for a in deleg.split(", ") if a),
+            "date": (fm.get("date", "") or "")[:10],
+            "ex": fm.get("exchanges", ""),
+            "fb": fm.get("foundry_feedback", "none"),
+            "status": st,
+            "routing": fm.get("routing_verdict", ""),
+            "reassign": fm.get("reassign_to", ""),
+            "answer": fm.get("answer_verdict", ""),
+            "diag": fm.get("diagnosis", ""),
+            "fix": fm.get("fix_target", ""),
+            "reviewer": fm.get("reviewer", ""),
+        })
+
+    # newest first — reviewers work the recent tail
+    recs.sort(key=lambda r: (r["date"], r["rel"]), reverse=True)
+
+    def opts(key, blank="any"):
+        vals = sorted({r[key] for r in recs if r[key]})
+        return (f"<option value=''>{blank}</option>"
+                + "".join(f"<option>{html.escape(v)}</option>" for v in vals)
+                + ("<option value='__blank__'>(blank)</option>" if any(not r[key] for r in recs) else ""))
+
+    rows = []
+    for r in recs:
         rows.append(
-            f"<tr><td class=qcell title=\"{html.escape(first_question(body, 40))}\">"
-            f"<a href='/t/{html.escape(rel)}'>{html.escape(first_question(body))}</a></td>"
-            f"<td>{html.escape(fm.get('answered_by',''))}"
-            f"{'<div class=deleg>&rarr; '+html.escape(short)+'</div>' if short else ''}</td>"
-            f"<td>{html.escape((fm.get('date','') or '')[:10])}</td>"
-            f"<td>{html.escape(fm.get('exchanges',''))}</td>"
-            f"<td>{'<span class=pill.warn>'+html.escape(fb)+'</span>' if fb not in ('none','') else ''}</td>"
-            f"<td><span class='pill {st}'>{html.escape(st)}</span></td>"
-            f"<td>{html.escape(fm.get('routing_verdict',''))}"
-            f"{'&rarr;'+html.escape(fm['reassign_to']) if fm.get('reassign_to') else ''}</td>"
-            f"<td>{html.escape(fm.get('answer_verdict',''))}</td>"
-            f"<td>{html.escape(fm.get('diagnosis',''))}</td>"
-            f"<td>{html.escape(fm.get('fix_target',''))}</td></tr>")
-    done, tot = counts["reviewed"], counts["total"]
-    pct = (100 * done // tot) if tot else 0
-    bar = (f"<div class=bar><b>{done} / {tot} reviewed</b> ({pct}%) &nbsp;·&nbsp; "
-           f"{counts['pending']} pending &nbsp;·&nbsp; "
-           f"<a href='/git'>commit &amp; open a PR &rarr;</a></div>")
-    return page("Transcripts", bar + "<table><tr><th>First question<th>Handled by<th>Date<th>Ex"
-                "<th>Foundry FB<th>Status<th>Routing<th>Answer<th>Diagnosis<th>Fix target</tr>"
-                + "".join(rows) + "</table>")
+            "<tr class=row"
+            f" data-q=\"{html.escape((r['q'] + ' ' + r['rel']).lower())}\""
+            f" data-agent=\"{html.escape(r['agent'])}\" data-date=\"{html.escape(r['date'])}\""
+            f" data-ex=\"{html.escape(r['ex'])}\" data-fb=\"{html.escape(r['fb'])}\""
+            f" data-status=\"{html.escape(r['status'])}\" data-routing=\"{html.escape(r['routing'])}\""
+            f" data-answer=\"{html.escape(r['answer'])}\" data-diag=\"{html.escape(r['diag'])}\""
+            f" data-fix=\"{html.escape(r['fix'])}\" data-reviewer=\"{html.escape(r['reviewer'])}\">"
+            f"<td class=qcell title=\"{html.escape(r['qfull'])}\">"
+            f"<a href='/t/{html.escape(r['rel'])}'>{html.escape(r['q'])}</a></td>"
+            f"<td>{html.escape(r['agent'])}"
+            f"{'<div class=deleg>&rarr; '+html.escape(r['deleg'])+'</div>' if r['deleg'] else ''}</td>"
+            f"<td class=nowrap>{html.escape(r['date'])}</td>"
+            f"<td>{html.escape(r['ex'])}</td>"
+            f"<td>{'<span class=\'pill warn\'>'+html.escape(r['fb'])+'</span>' if r['fb'] not in ('none','') else ''}</td>"
+            f"<td><span class='pill {r['status']}'>{html.escape(r['status'])}</span></td>"
+            f"<td>{html.escape(r['routing'])}"
+            f"{'&rarr;'+html.escape(r['reassign']) if r['reassign'] else ''}</td>"
+            f"<td>{html.escape(r['answer'])}</td>"
+            f"<td>{html.escape(r['diag'])}</td>"
+            f"<td>{html.escape(r['fix'])}</td></tr>")
+
+    tot = counts["total"]
+    excl = counts["excluded"]
+    done = counts["reviewed"]
+    scope = tot - excl
+    pct = (100 * done // scope) if scope else 0
+    bar = (f"<div class=bar><b>{done} / {scope} in-scope reviewed</b> ({pct}%)"
+           f" &nbsp;·&nbsp; {counts['pending']} pending"
+           f" &nbsp;·&nbsp; {excl} excluded (pre-go-live)"
+           f" &nbsp;·&nbsp; {tot} total"
+           f" &nbsp;·&nbsp; <a href='/git'>commit &amp; open a PR &rarr;</a></div>"
+           "<div class=bar id=fbar>Showing <b id=shown>0</b> of "
+           f"<b>{tot}</b> &nbsp;·&nbsp; date "
+           "<input type=date id=dfrom> to <input type=date id=dto>"
+           " &nbsp;<button class=sec onclick='clearFilters()'>Clear all</button></div>")
+
+    filt = ("<tr class=filters>"
+            "<th><input id=f_q placeholder='search question / filename'></th>"
+            f"<th><select id=f_agent>{opts('agent')}</select></th>"
+            "<th class=nowrap><small>use date range above</small></th>"
+            f"<th><select id=f_ex>{opts('ex')}</select></th>"
+            f"<th><select id=f_fb>{opts('fb')}</select></th>"
+            f"<th><select id=f_status>{opts('status')}</select></th>"
+            f"<th><select id=f_routing>{opts('routing')}</select></th>"
+            f"<th><select id=f_answer>{opts('answer')}</select></th>"
+            f"<th><select id=f_diag>{opts('diag')}</select></th>"
+            f"<th><select id=f_fix>{opts('fix')}</select></th></tr>")
+
+    return page("Transcripts", bar
+                + "<table id=tbl><tr><th>First question<th>Handled by<th>Date<th>Ex"
+                  "<th>Foundry FB<th>Status<th>Routing<th>Answer<th>Diagnosis<th>Fix target</tr>"
+                + filt + "".join(rows) + "</table>"
+                + "<script>initFilters()</script>")
 
 
 def field(k, val):
