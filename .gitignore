@@ -16,6 +16,11 @@ raw_transcripts*.json
 foundry_*.json
 /tmp/
 
+# Python build artifacts — a compiled .pyc got committed once because importing
+# fetch_transcripts.py to unit-test its redaction regex generates one.
+__pycache__/
+*.pyc
+
 # OS / editor
 .DS_Store
 .vscode/
