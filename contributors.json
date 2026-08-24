@@ -1,7 +1,7 @@
 {
   "_comment": [
     "Authorized transcript reviewers. The `reviewer` field on every transcript must be",
-    "one of the `github` values below — the review UI offers only these as choices, and",
+    "one of the `github` values below \u2014 the review UI offers only these as choices, and",
     "scripts/review_status.py --check fails the build on anything else.",
     "",
     "To add someone: append an entry and open a PR. Use their GitHub username as `github`",
@@ -9,7 +9,9 @@
     "by github username.",
     "",
     "This list is repo-local and provisional until the GitHub repo exists and the",
-    "onetyler-tcp-pm-admins / global-fte teams are attached; at that point it should be",
+    "onetyler-tcp-pm-admins team is attached; reconcile it against the repo's actual",
+    "collaborators then. Access is deliberately narrow - the admin team plus named",
+    "individuals. Never widen it without asking the repo owner.",
     "reconciled against actual repo collaborators."
   ],
   "contributors": [

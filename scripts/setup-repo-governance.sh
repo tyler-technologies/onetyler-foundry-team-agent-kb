@@ -50,11 +50,15 @@ if [[ "${OWNER_TYPE}" == "Organization" ]]; then
   echo "==> Granting '${ADMIN_TEAM}' = admin"
   gh api -X PUT "orgs/${OWNER}/teams/${ADMIN_TEAM}/repos/${SLUG}" -f permission=admin
   echo "    done"
-  # Deliberately NO org-wide team grant. The reference repo hands `global-fte` push
-  # access, which is 2,677 people; this repo's contributors are the named entries in
-  # contributors.json. The repo is public, so anyone else can fork and open a PR - they
-  # simply cannot push a branch into the repo. Add reviewers as direct collaborators or
-  # to ${ADMIN_TEAM} as they join.
+  # Deliberately NO org-wide team grant, and do not add one without asking the repo owner.
+  # The reference repo (tcp-oc-reports-tools) grants `global-fte` push access, and that was
+  # copied here in error. Two reasons it is wrong:
+  #   1. Scope. This repo's contributors are the named entries in contributors.json. Its
+  #      owner does not work across the rest of Tyler engineering.
+  #   2. It would not work as written anyway. Since SecureGuard, access is divisionally
+  #      protected, so an org-wide team grant does not confer what its member count suggests.
+  # The repo is public, so anyone else can fork and open a PR - they simply cannot push a
+  # branch into the repo. Add reviewers as direct collaborators or to ${ADMIN_TEAM}.
   echo "==> No org-wide grant by design (see comment above)"
 else
   echo "==> SKIPPING team grants: '${OWNER}' is a user account, not an org."

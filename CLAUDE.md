@@ -39,7 +39,16 @@ depth, but never assume they are present.)
 5. **A Foundry write is a production change.** Collections and configs back live agents.
    Confirm with the user before uploading, deleting, syncing, or changing any config. Never
    do it as a side effect of another task.
-6. **ALWAYS back up before changing anything in Foundry, and commit the backup.** Backups
+6. **NEVER broaden access without asking.** Grant only the named admin team
+   (`onetyler-tcp-pm-admins`) and the named individuals in `contributors.json`. Do **not**
+   infer an access model by copying it from a reference repo or a sibling project — derive it
+   from the actual contributor list. Anything wider than the repo owner and his own team needs
+   explicit confirmation first. This repo's owner does not work across the rest of Tyler
+   engineering; the scope is divisional. Since **SecureGuard**, org-wide cross-divisional
+   access is not possible anyway — everything is divisionally protected — so an org-wide grant
+   is both unwanted and ineffective. A public repo needs no grant for outside contribution:
+   people fork and open a PR.
+7. **ALWAYS back up before changing anything in Foundry, and commit the backup.** Backups
    live in the repo forever — `team-config/backups/<object>-backup-<YYYYMMDD-HHMMSS>.json`,
    never in a scratch dir, never deleted. Fetch the current object, scan it for credentials,
    commit the backup, and only then write. This applies to every config object that exists
