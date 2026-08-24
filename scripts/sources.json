@@ -47,6 +47,35 @@
       "last_verified": "2026-08-23",
       "precedence": "Sole authority for feature requests and enhancement ideas.",
       "notes": "Separate portal from 3168. Single form group/3385/create/4367; requests are visible on a voting board for 60 days after completion. The deprecated 4137 redirects here."
+    },
+    {
+      "id": "status-page-and-sla-blueprint",
+      "kind": "local-source-awaiting-content",
+      "url": "https://docs.tylerdev.io/status-page-and-sla",
+      "source_path": "/Users/vijay.venkataraman@tylertech.com/Library/CloudStorage/OneDrive-TylerTechnologies,Inc/Repo/claude/blueprint/corpdev-new-blueprint/docs/status-page-and-sla",
+      "title": "Blueprint - Status Page and SLA (upstream still stubs)",
+      "target_corpus": "Knowledge-StatusPageAndSLA",
+      "files": [],
+      "interval_days": 14,
+      "last_verified": "2026-08-23",
+      "readiness": {
+        "status": "not-ready",
+        "checked_on": "2026-08-23",
+        "observed": {
+          "markdown_files": 7,
+          "substantive_lines": 0,
+          "stub_files": 7
+        },
+        "stub_markers": [
+          "This is a stub",
+          "content coming soon",
+          "UNDER CONSTRUCTION",
+          "WORK IN PROGRESS"
+        ],
+        "ready_when": "no file contains a stub marker AND substantive_lines >= 150",
+        "min_substantive_lines": 150
+      },
+      "notes": "All 7 upstream pages are literal stubs as of 2026-08-23 (63 lines total). Nothing to distil. scripts/check_freshness.py scans source_path and reports READY when the thresholds in `readiness` are met; only then create the agent and collection. Until then these questions are served by Knowledge-BP-General/Docusaurus-StatusPageAndSLA.md, which is currently richer than the upstream it describes. source_path is machine-specific: the check reports 'not available here' rather than failing on other machines."
     }
   ],
   "upload_targets": {

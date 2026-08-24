@@ -1,11 +1,11 @@
-# FAQ — SLAs
+# FAQ — Status Page & SLA
 
 Source: **authored in this repo — no upstream document.** Files derived from an upstream
 source are re-derived when that source changes, which would silently delete anything added to
-them by hand. This file is the **home of record** for SLAs answers that exist nowhere else.
+them by hand. This file is the **home of record** for Status Page & SLA answers that exist nowhere else.
 
-Domain: Tyler service level agreements — availability commitments, how uptime is measured and reported, exclusions, and remedies.
-Audience: Tyler product managers, contract and sales support staff, and operational staff answering customer availability questions.
+Domain: Status Pages and SLAs — service-status communication and service level agreements.
+Audience: Tyler operations, support, product and communications staff.
 
 **Companion:** `_START_HERE.md` for routing across this corpus. For "which ticket do I file",
 use `Knowledge-Shared/Conf-OneTylerTickets.md`.
@@ -48,11 +48,12 @@ only makes sense after reading the one above it will retrieve badly.
 
 _No entries yet._
 
-This file is deliberately empty of content. It exists so the next SLAs answer with no
+This file is deliberately empty of content. It exists so the next Status Page & SLA answer with no
 upstream source has an obvious home, instead of being wedged into a derived file where the
 next reconciliation would delete it.
 
-Good first candidates, once someone confirms them: the standard availability
+Good first candidates, once someone confirms them: which status page serves which audience
+and its URL, who is authorised to post an incident update, the standard availability
 commitment by tier, and whether service credits are automatic or claimed.
 
 ⚠ **Care required in this domain.** An SLA answer can be read as a contractual statement. If

@@ -542,8 +542,16 @@ domain's questions are still answered from wherever that content lives today (us
 corpus* section — the order matters, because moving content out of a deployed collection
 before the new one exists deletes it from a live agent.
 
-Currently scaffolded, awaiting agents: `Knowledge-StatusPages/`, `Knowledge-SLAs/`.
+Currently scaffolded, awaiting an agent: **`Knowledge-StatusPageAndSLA/`** — Status Pages and
+SLAs share one corpus and will share one agent. As of 2026-08-23 the upstream Blueprint
+section is seven stub pages, so there is nothing to distil.
 `Knowledge-AlignedReleases/` graduated on 2026-08-23 — it has an agent and a collection.
+
+**Readiness is checked, not guessed.** `python3 scripts/check_freshness.py` scans registered
+upstream sources and reports `⏳ not ready` or `✅ READY` against thresholds in
+`scripts/sources.json` (no stub markers left, and enough substantive lines). Only build the
+corpus and agent when it says READY. A source path that doesn't exist on your machine reports
+"not available here" rather than failing.
 
 ---
 
