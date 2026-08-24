@@ -30,23 +30,26 @@ Don't want the browser auto-opened? add `--no-browser`.
 You do **not** need a Foundry API key to review — the transcripts are already in the repo.
 A key is only needed to pull *new* transcripts (`scripts/fetch_transcripts.py`).
 
-### Add yourself as a contributor first
+### Getting yourself into the reviewer list
 
-The `reviewer` field is restricted to people listed in
-[`contributors.json`](../contributors.json), so a review always attributes to the same
-GitHub identity that authors the PR. If you aren't in the list yet, add yourself:
+The `reviewer` field is restricted to people in
+[`contributors.json`](../contributors.json), so a review always attributes to the same GitHub
+identity that authors the PR.
 
-```json
-{
-  "github": "your-github-username",
-  "name": "Your Name",
-  "role": "reviewer"
-}
+**That file is generated, not hand-edited.** It is rebuilt from GitHub team membership:
+
+```bash
+python3 scripts/sync_contributors.py          # rebuild from the teams
+python3 scripts/sync_contributors.py --check  # exit 1 if it has drifted
 ```
 
-Keep the list sorted by username, and include the change in your review PR — it's a
-one-line addition and doesn't need a separate one. Until you're listed, the reviewer
-dropdown won't offer your name and you won't be able to mark anything reviewed.
+So to get yourself listed, ask to be added to the **`onetyler-tcp-pm-contributors`** team —
+that is also what gives you write access to the repo. Then re-run the sync and commit the
+result. Adding an entry by hand won't survive the next sync and wouldn't grant you repo
+access anyway.
+
+Until you're listed, the reviewer dropdown won't offer your name and you can't mark anything
+reviewed.
 
 ### Using it
 

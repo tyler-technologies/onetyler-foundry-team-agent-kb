@@ -460,8 +460,14 @@ and re-review explicitly if you still disagree.
 **Only act on files with `review_status: reviewed`.** A `pending` file has not been looked
 at by a human; do not infer corpus changes from it unprompted.
 
-The `reviewer` field is constrained to the `github` values in `contributors.json`. Never
-invent a reviewer name, and never set `review_status: reviewed` yourself — that field
+The `reviewer` field is constrained to the `github` values in `contributors.json`, which is
+a **generated file** — `python3 scripts/sync_contributors.py` rebuilds it from the
+`onetyler-tcp-pm-admins` and `onetyler-tcp-pm-contributors` GitHub teams. Never hand-edit it:
+an entry added by hand is overwritten on the next sync and confers no repo access anyway. To
+add a reviewer, add them to the contributors team, re-run the sync, and commit.
+`--check` exits 1 when the file has drifted from team membership.
+
+Never invent a reviewer name, and never set `review_status: reviewed` yourself — that field
 records a human's judgement. `python3 scripts/review_status.py --check` enforces both
 (unknown reviewer, or reviewed-with-no-reviewer, exits 1); run it before committing review
 changes.

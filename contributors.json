@@ -1,30 +1,28 @@
 {
   "_comment": [
-    "Authorized transcript reviewers. The `reviewer` field on every transcript must be",
-    "one of the `github` values below \u2014 the review UI offers only these as choices, and",
-    "scripts/review_status.py --check fails the build on anything else.",
+    "GENERATED FILE - do not hand-edit. Regenerate with:",
+    "    python3 scripts/sync_contributors.py",
     "",
-    "To add someone: append an entry and open a PR. Use their GitHub username as `github`",
-    "so a review attributes to the same identity that authors the PR. Keep the list sorted",
-    "by github username.",
+    "Authorized transcript reviewers, derived from GitHub team membership. The `reviewer`",
+    "field on every transcript must be one of the `github` values below - the review UI",
+    "offers only these, and scripts/review_status.py --check fails on anything else.",
     "",
-    "This list is repo-local and provisional until the GitHub repo exists and the",
-    "onetyler-tcp-pm-admins team is attached; reconcile it against the repo's actual",
-    "collaborators then. Access is deliberately narrow - the admin team plus named",
-    "individuals. Never widen it without asking the repo owner.",
+    "Source of truth is the teams, not this file:",
+    "    onetyler-tcp-pm-admins        -> admin on the repo; role 'maintainer'.",
+    "                                     NOTE: admins bypass the PR review gate.",
+    "    onetyler-tcp-pm-contributors  -> write on the repo; role 'reviewer'.",
+    "                                     Their PRs require a code-owner approval.",
     "",
-    "Two separate things, and a reviewer needs BOTH:",
-    "  1. GitHub team membership - onetyler-tcp-pm-contributors (write) - lets them push a",
-    "     branch and open a PR. Their PRs require a code-owner approval.",
-    "  2. An entry here - lets their name be recorded in a transcript's `reviewer` field.",
-    "Being on the team without an entry here means the review UI will not offer their name;",
-    "an entry here without team membership means they must contribute from a fork."
+    "To add a reviewer: add them to onetyler-tcp-pm-contributors, then re-run the sync and",
+    "commit the result. Do not add an entry by hand - it would be overwritten, and it would",
+    "not give them repo access anyway."
   ],
   "contributors": [
     {
       "github": "vijay-tylertech",
       "name": "Vijay Venkataraman",
-      "role": "maintainer"
+      "role": "maintainer",
+      "team": "onetyler-tcp-pm-admins"
     }
   ]
 }
