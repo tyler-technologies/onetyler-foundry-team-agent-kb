@@ -51,7 +51,7 @@ depth, but never assume they are present.)
 
 ## What this repo is
 
-Knowledge corpora for the **OneTyler Cloud Living** Foundry Team agent and its four
+Knowledge corpora for the **OneTyler Cloud Living** Foundry Team agent and its five
 sub-agents. Each `Knowledge-<Domain>/` folder is a deployment surface: its files are what
 one agent retrieves from its tenant knowledge-base collection.
 
@@ -71,6 +71,7 @@ Verified live 2026-08-21. Everything lives in tenant **Tyler Technologies**, pro
 | Ops Center | `5b3efdff-921a-4131-be81-b7a4be427d9b` | `OT-OpsCenter` | `Knowledge-OpsCenter/` | ✅ yes |
 | General Blueprint Docs Agent | `bd1c5d91-8234-486e-9f5a-2f1b7a947426` | `OT-BPD` | `Knowledge-BP-General/` | ✅ yes |
 | Support Access Center | `55444576-1fa3-4d12-a738-6ba83b17e6a7` | `OT-SAC` | `Knowledge-SupportAccessCenter/` | ✅ yes |
+| Aligned Releases | `b0544224-b120-469a-8f39-c4a7b14c17c0` | `OT-AlignedReleases` | `Knowledge-AlignedReleases/` | ✅ yes |
 | Tyler Identity Assistant | `3f5e586f-0d0f-4638-9839-bebe45a6cb47` | `TCP-KB-Identity` | `Knowledge-TylerIdentity/` | ❌ **not yet — Hard Rule 1.** Git commits are fine and required |
 
 Team **OneTyler Cloud Living**: `e92bd437-cb84-4e18-88e6-757370b39c90`
@@ -541,8 +542,8 @@ domain's questions are still answered from wherever that content lives today (us
 corpus* section — the order matters, because moving content out of a deployed collection
 before the new one exists deletes it from a live agent.
 
-Currently scaffolded, awaiting agents: `Knowledge-AlignedReleases/`, `Knowledge-StatusPages/`,
-`Knowledge-SLAs/`.
+Currently scaffolded, awaiting agents: `Knowledge-StatusPages/`, `Knowledge-SLAs/`.
+`Knowledge-AlignedReleases/` graduated on 2026-08-23 — it has an agent and a collection.
 
 ---
 

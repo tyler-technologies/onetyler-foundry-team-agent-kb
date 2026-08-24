@@ -1,16 +1,21 @@
 # Aligned Releases — Key Concepts, Integration Guide, and API Reference
 
 Source: Tyler Blueprint Docusaurus — https://docs.tylerdev.io/aligned-releases
-Domain: Blueprint General — Tyler Cloud Platform / Blueprint docs not served by a specialized Foundry agent
-Audience: Tyler product-team engineers and platform integrators building against the Aligned Releases system
+(re-derived from the Blueprint repo at `docs/aligned-releases`, 2026-08-23)
+Domain: Aligned Releases
+Audience: Tyler product-team engineers and platform integrators building against the Aligned Releases system, plus product and release managers who need to understand the model.
+
+> ⚠️ Blueprint marks the Overview and the Integration Checklist as **UNDER CONSTRUCTION**.
+> Treat the concepts and API as current; flag the checklist as incomplete rather than
+> inventing steps.
 
 **Companion documents:**
 - `_START_HERE.md` — corpus routing guide
-- `Docusaurus-PlatformOverview.md` — TCP platform overview and service landscape
-- `Docusaurus-CloudPlatformAPI.md` — authentication and Platform Service API general reference
-- `Docusaurus-ProductSystemReg.md` — product and workspace registration (productRegistrationId, workspaceKey)
-- `Docusaurus-ServiceArchitecture.md` — event-driven service architecture that AR uses for state propagation
-- `Docusaurus-StatusPageAndSLA.md` — SLA tracking and status-page integration (sibling platform service)
+- `FAQ-AlignedReleases.md` — answers with no upstream source
+- `Knowledge-Shared/Conf-OneTylerTickets.md` — the authoritative ticket catalog, including the Identity Client request used to get API credentials
+- `Knowledge-BP-General/Docusaurus-CloudPlatformAPI.md` — Platform Service API general reference
+- `Knowledge-BP-General/Docusaurus-ProductSystemReg.md` — product and workspace registration (`productRegistrationId`, `workspaceKey`)
+- `Knowledge-BP-General/Docusaurus-ServiceArchitecture.md` — the event-driven architecture AR uses to propagate state
 
 ---
 
@@ -104,6 +109,84 @@ Planned → Private Preview → Public Preview → General Availability (GA)
 | Maintenance Windows | Consistent windows for product maintenance (platform-level and product-level). |
 
 ---
+
+---
+
+## Requesting API Access (credentials)
+
+Aligned Releases authenticates with **OAuth 2.0 client credentials** against **Tyler Identity
+Gateway**. You need an Identity Client, requested through a ticket.
+
+**Ticket:** *Identity Client* —
+https://help.center.tylertech.com/servicedesk/customer/portal/3168/group/3329/create/4153
+(opening that link pre-fills the first two fields)
+
+| Field | Value |
+|---|---|
+| Contact us about | Tyler Identity Cloud |
+| Request type | Identity Client |
+| Identity Client | New Client |
+| Identity Provider | TID-W Gateway |
+| Org Key | `none` |
+| Client Type | **CCF / API (uses secret)** |
+| Identity Client Name | `<product>-aligned-releases-api` |
+| Scope | `tyler-cloud-platform-api-access` |
+| Notes | State that this is for Aligned Releases API integration, **list the product(s)** the client is for, and list the permissions below |
+
+**The product association is required.** Aligned Releases permissions are product-scoped in
+the underlying authorization service, so a client without it cannot act on your features.
+
+**Permissions to request** — combine as `<permission>:<resource>`, e.g. `read:feature`,
+`assign:cohort`. Ask for a narrower set if your integration only reads.
+
+| Resource | Permissions | Covers |
+|---|---|---|
+| `cohort` | `assign`, `read` | Reading and assigning workspace cohort membership |
+| `feature` | `changeactivation`, `changestage`, `create`, `delete`, `linktorelease`, `read`, `updatemetadata` | The whole feature lifecycle |
+| `organization` | `read`, `search` | Looking up target organizations |
+| `product` | `read` | Reading the product a feature or module belongs to |
+| `productmodule` | `create`, `read`, `update` | Managing your product's module catalog |
+| `release` | `read` | Finding the release to work with |
+| `releasecohort` | `read` | Querying a release's cohorts |
+| `workspace` | `read`, `search` | Looking up target workspaces |
+
+**One client per environment.** Identity clients are not shared across environments — file a
+separate ticket per environment and pair each `client_id`/`client_secret` with the matching
+`baseURL`. Start in **TCPCI (dev)** and move forward.
+
+| Environment | baseURL | Auth authority |
+|---|---|---|
+| TCPCI (dev) | `https://api.tcpci.com/portal/platformservice/` | `https://idgw.tcpci.com/tg` |
+| TCPQA (mirrors prod) | `https://api.tcpqa.com/portal/platformservice/` | `https://idgw.tcpqa.com/tg` |
+| TCPPROD (production) | `https://api.tylerportico.com/portal/platformservice/` | `https://idgw.tcpprod.com/tg` |
+
+**C# SDK:** `Tyler.AlignedReleases.Sdk` on Tyler's Artifactory — handles token acquisition and
+refresh. Source: https://github.com/tyler-technologies/Tyler.AlignedReleases.Sdk
+Scope is always `tyler-cloud-platform-api-access`; do not change it.
+
+### Feature lifecycle scenarios (worked examples from Blueprint)
+
+These illustrate that the lifecycle is not strictly linear — a feature can enter preview
+before it has a release, and can be pulled back out of one.
+
+1. **Straight to GA.** Team builds a feature, decides it will be ready for Q1, adds it to the
+   `2026.1` release before the communication cutoff, and it activates by cohort on the GA date.
+2. **Private preview first.** Team activates it for a handful of clients during QA. Preview
+   goes well, they add it to Q1, and on the GA date it enables for every client who does not
+   already have it from preview.
+3. **Private then public preview.** Early feedback is good, so they widen to Public Preview
+   for all clients who want it, then add it to Q1 and enable the rest by cohort at GA.
+4. **Pulled back out of a release.** Same as 3 until cohort 1, when a significant bug appears
+   for clients with an unusual configuration. The team **removes the feature from the release
+   and returns it to Preview**: it stays enabled for existing preview clients, is disabled for
+   the affected ones, and moves to the Q2 release. Fixed between releases and enabled for
+   everyone in Q2.
+5. **Missed the communication cutoff.** Feature is QA-ready before the Q1 activation date but
+   too late for client communication. Team puts it in Public Preview for fast feedback, assigns
+   it to Q2, and enables it for all clients in Q2.
+
+The recurring point: **code can ship any time; impactful features are *activated* by cohort
+during a GA window.** Deployment and activation are separate.
 
 ## Integration Guide
 
@@ -386,6 +469,24 @@ await alignedReleasesSdk.MarkProductReleasedByReleaseCohort(
 
 ---
 
+---
+
+## ⚠️ You do NOT set a feature to General Availability yourself
+
+This is the rule integrators get wrong most often. There is a `GeneralAvailability` state and
+a `PUT /api/v1/feature/{id}/state/{state}` endpoint, so it looks settable. It is not yours to
+set.
+
+**Every feature assigned to a release is promoted to GA in bulk** by the Aligned Releases
+scheduled job, when that release's **cohort 1 distribution window opens**. The way you take a
+feature GA is to **assign it to a release** (`PUT /api/v1/feature/{id}/release/{releaseId}`),
+which enrols it in that promotion.
+
+Use `state/{state}` only for `Planned`, `Private` and `Public`.
+
+Likewise, **releases and release cohorts are created by the internal OneTyler team**, not by
+product-team integrators. Integrators *query* for the release and cohort they are targeting.
+
 ## API Reference
 
 Live specification: https://docs.tylerdev.io/aligned-releases/api-reference/specification
@@ -517,6 +618,20 @@ Live specification: https://docs.tylerdev.io/aligned-releases/api-reference/spec
 ---
 
 ## Notes for the Chatbot
+
+- **Never tell someone to set a feature to `GeneralAvailability`.** Assigning it to a release
+  is what takes it GA — see the warning section above. This is the most likely wrong answer in
+  this domain.
+- **Releases and cohorts are created by the internal OneTyler team.** A product-team
+  integrator queries for them; they do not create them.
+- **Cohorts apply to GA only.** Preview participation is managed in divisional tooling; AR
+  tracks preview status for visibility.
+- **Feature ≠ Feature Flag.** A Feature is the client-facing unit with a lifecycle stage; a
+  Feature Flag is the divisional technical control that gates activation, 1:many with a
+  Feature. Flags express targeting/rollout, not lifecycle.
+- **One Identity Client per environment**, and the client must be associated with the product.
+- Blueprint flags the Overview and Integration Checklist as under construction — say so rather
+  than filling gaps.
 
 1. **Section is under construction.** The official Blueprint docs for Aligned Releases are marked "under construction / work in progress." The content in this file is drawn from all available source material as of the knowledge cutoff; direct users to the live docs or Teams channel for the latest updates.
 2. **Cohort ≠ Feature Flag.** A cohort is a scheduling concept in AR (which week clients receive GA). A Feature Flag is the technical gating mechanism owned by the product team. AR records the desired state; product teams' flag tooling implements the actual activation.

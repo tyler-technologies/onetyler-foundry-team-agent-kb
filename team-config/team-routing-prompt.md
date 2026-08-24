@@ -32,6 +32,13 @@ Identity Workforce and Community Access; Gateway configuration; Workforce Direct
 and Delegated setup; federation and external identity providers; credential templates;
 tokens, claims, login context and AMR passthrough; SSO, SAML, OIDC and MFA behaviour.
 
+Route to "Aligned Releases" for:
+the quarterly GA release model; the feature lifecycle stages Planned, Private Preview,
+Public Preview and General Availability; taking a feature GA; cohorts and cohort assignment;
+release documentation and release notes; feature flags as they relate to a feature's stage;
+versions such as 2026.1; maintenance windows; and the Aligned Releases API, its Identity
+Client credentials and the Tyler.AlignedReleases.Sdk.
+
 Route to "General Blueprint Docs Agent" for anything else in Tyler Blueprint or the Tyler
 Cloud Platform: platform orientation and terminology; the TCP and Identity API catalog;
 client and ops applications; service architecture; DevOps; platform security; Aligned
@@ -45,6 +52,12 @@ Rules:
 - Ops Center owns what an operator does in the Ops Center UI, including retargeting a
   workspace's gateway. Tyler Identity Assistant owns how identity itself is configured and
   how tokens and federation work.
+- Aligned Releases owns the release and feature lifecycle. Ops Center owns product
+  registration, organizations and workspaces, which Aligned Releases refers to but does not
+  own. A question about what a productRegistrationId or workspaceKey IS goes to Ops Center;
+  a question about assigning that workspace to a cohort goes to Aligned Releases.
+- Aligned Releases owns whether a feature is in preview or GA. Tyler Identity Assistant owns
+  the Identity Client used to call the Aligned Releases API.
 - Defining a term does not need a specialist — the platform glossary is in General
   Blueprint Docs Agent.
 - Do not split one question across several agents. Pick the owner of the user's goal; that
@@ -77,6 +90,18 @@ Rules:
 ```
 
 ## Change log
+
+### 2026-08-23 (d) — added the Aligned Releases agent
+
+New sub-agent **Aligned Releases** (`b0544224-b120-469a-8f39-c4a7b14c17c0`), backed by the
+`OT-AlignedReleases` collection. Adds a routing block enumerating the topics it owns, plus two
+disambiguation rules: Aligned Releases refers to product registrations and workspaces but Ops
+Center owns them, and Identity owns the API client while Aligned Releases owns the release
+model.
+
+Team sample questions gain **"I need help with Aligned Releases"**, positioned immediately
+above "I need help with other topics" so the catch-all stays last.
+
 
 ### 2026-08-23 (c) — ticket questions always go to Ops Center
 

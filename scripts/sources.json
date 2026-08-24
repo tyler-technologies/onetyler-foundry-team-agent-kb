@@ -53,7 +53,8 @@
     "Knowledge-Shared/Conf-OneTylerTickets.md": [
       "OT-OpsCenter",
       "OT-BPD",
-      "OT-SAC"
+      "OT-SAC",
+      "OT-AlignedReleases"
     ],
     "_note": "TCP-KB-Identity is deliberately excluded - Hard Rule 1. A change to a shared file must be uploaded to EVERY listed collection or the copies drift."
   }

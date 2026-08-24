@@ -34,6 +34,9 @@ portal and the deprecated forms. **Never construct a ticket URL.**
 
 ## File catalog at a glance
 
+_Aligned Releases content moved to `Knowledge-AlignedReleases/` on 2026-08-23 when that corpus got its own agent. Route those questions there._
+
+
 11 files in this folder (plus this one). One-liner per file — read the full file for substance.
 
 | File | One-liner — what's in it |
@@ -47,7 +50,6 @@ portal and the deprecated forms. **Never construct a ticket URL.**
 | `Docusaurus-DevOps.md` | The **OneTyler DevOps/platform-engineering reference** (largest file): Datadog, Harness (incl. governance standard + FME), JSM/on-call, CI (GitHub/Artifactory), DB migration, Terraform/IaC + Workspace Manager, TCP AWS infrastructure (VPC, EKS/Karpenter, CI/CD), Disaster Recovery (guides + regional-failover runbooks), and operational runbooks (P1 incident, AWS SSO, K8s upgrade, PagerDuty, dev-tool provisioning). Internal-only. |
 | `Docusaurus-Security.md` | **Platform-security engineering**: RDS IAM authentication, Akeyless secrets-management design, vulnerability scanning (AquaSec + admission control), and WAF rules (ITAR GeoIP block list). |
 | `Docusaurus-ProductSystemReg.md` | **Product & System Registration**: what a registered product is, the 4 application types, PM prep guidelines, the `tcp-product-catalog` GitOps registration workflow, URL-mapping secret setup, verifying registration in Ops Center, the Cemetery Manager worked example, FAQs, and customer onboarding concepts. (Several source pages are stubs — flagged in-file.) |
-| `Docusaurus-AlignedReleases.md` | **Aligned Releases**: key concepts (feature lifecycle, cohorts), the integration guide (auth, releases/cohorts/features, GA trigger, end-to-end workflow), the API reference, and an integration checklist. |
 | `Docusaurus-StatusPageAndSLA.md` | **Status Page & SLA tracking** — concepts, guides, and checklists. NOTE: the source pages are largely "content coming soon" stubs; the file is honest about that and tells the chatbot not to fabricate API details. |
 
 ---

@@ -1,6 +1,6 @@
 # onetyler-foundry-team-agent-kb
 
-Knowledge corpora for the **OneTyler Cloud Living** Foundry Team agent and its four
+Knowledge corpora for the **OneTyler Cloud Living** Foundry Team agent and its five
 sub-agents. Each `Knowledge-<Domain>/` folder is a **deployment surface**: its files are
 what the corresponding Foundry agent retrieves from its tenant knowledge-base
 collection. Adding, removing, or renaming a file changes what that agent knows.
@@ -20,6 +20,7 @@ Foundry team: **OneTyler Cloud Living** — Amazon Bedrock, Claude 4.5 Sonnet, t
 | **Ops Center** | `Knowledge-OpsCenter/` | this repo |
 | **Support Access Center** | `Knowledge-SupportAccessCenter/` | this repo |
 | **General Blueprint Docs Agent** | `Knowledge-BP-General/` | this repo |
+| **Aligned Releases** | `Knowledge-AlignedReleases/` | this repo |
 | **Tyler Identity Assistant** | `Knowledge-TylerIdentity/` | in this repo; its **Foundry** collection is maintained separately |
 
 > ⚠️ **`Knowledge-TylerIdentity/` is version-controlled here like every other corpus** —
@@ -47,7 +48,8 @@ Route on the **user's intent**, not on incidental keyword matches. A question th
 | **Ops Center** | Org/workspace lifecycle, product licensing & activation, org import/create, CRM customer identifiers, Ops Center permissions & telemetry, environments & allow-listing, TCP webhooks, WM→WD migration | "Ops Center", org key, workspace, licensing, availability, product registration, CRM identifier, allow-list |
 | **Support Access Center** | Time-bound Tyler-staff access to customer installations, SAC groups, access request/approval/extension/revocation, SAC product integration (Security API + revoked webhook), access history & auditing | "SAC", "Support Access Center", support request, access approval, extend access, Support Council |
 | **Tyler Identity Assistant** | Identity Workforce/Community, Gateway, Workforce Direct/Managed/Delegated configuration, federation, credential templates, login & token flows | "Identity", "Gateway", Workforce Direct/Managed/Delegated, federation, IdP, OIDC, SSO |
-| **General Blueprint Docs Agent** | Everything else in Tyler Blueprint / TCP: platform orientation & glossary, client & ops applications, TCP/TID API catalog, service architecture, DevOps, platform security, Aligned Releases, Status Page & SLA | "Blueprint", `docs.tylerdev.io`, glossary/terminology, Admin Center, architecture, SLA |
+| **Aligned Releases** | Quarterly GA release model, feature lifecycle (Planned/Private Preview/Public Preview/GA), taking a feature GA, cohorts and cohort assignment, release documentation and notes, versions like 2026.1, maintenance windows, the Aligned Releases API and SDK | "aligned release", "cohort", "feature flag", "GA", "preview", "2026.1", release notes |
+| **General Blueprint Docs Agent** | Everything else in Tyler Blueprint / TCP: platform orientation & glossary, client & ops applications, TCP/TID API catalog, service architecture, DevOps, platform security, Status Page & SLA | "Blueprint", `docs.tylerdev.io`, glossary/terminology, Admin Center, architecture, SLA |
 
 ### Routing rules
 
@@ -65,10 +67,13 @@ Route on the **user's intent**, not on incidental keyword matches. A question th
 3. **Ops Center vs SAC.** Both touch customer access. Ops Center = provisioning and
    lifecycle of orgs/workspaces/products. SAC = time-bound *staff* access into an
    already-provisioned customer installation.
-4. **Ops Center vs Identity.** Ops Center covers what an operator *does in the Ops Center
+4. **Aligned Releases vs Ops Center.** Aligned Releases refers to `productRegistrationId`
+   and `workspaceKey` constantly but does not own them. "What is a product registration" →
+   Ops Center. "Assign this workspace to cohort 3" → Aligned Releases.
+5. **Ops Center vs Identity.** Ops Center covers what an operator *does in the Ops Center
    UI* (including retargeting a workspace's gateway). Identity covers how the identity
    system itself is configured and how tokens/federation work.
-5. **Don't split one question across two agents.** Pick the owner of the user's actual
+6. **Don't split one question across two agents.** Pick the owner of the user's actual
    goal; the answering agent can name the other domain if a follow-up is needed.
 
 ---
