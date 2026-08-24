@@ -38,7 +38,18 @@ REDACTIONS = [
     # Known live credential the agents have been seen handing out verbatim.
     (re.compile(r"W#lcome123\$"), "[REDACTED-CREDENTIAL]"),
     # Any password/secret/token assignment with a real-looking value.
-    (re.compile(r"(?i)\b(password|passwd|secret|api[_ -]?key)\b(\s*[:=]\s*)`?[^\s`\"'<>{}]{6,}`?"),
+    #
+    # The leading (?:\w*[_-])? matters: `\bsecret\b` can NEVER match inside `client_secret`,
+    # because the underscore is a word character so there is no boundary before "secret".
+    # A real `client_secret=...` therefore slipped straight through. Caught 2026-08-24 by the
+    # pre-publish scan, before the first push to a public repo.
+    #
+    # The trailing `&` in the exclusion set stops a match running past the end of one
+    # query-string parameter into the next.
+    # The whole key name is captured, prefix included, so `client_secret=` stays
+    # `client_secret=[REDACTED-CREDENTIAL]` rather than collapsing to `secret=`.
+    (re.compile(r"(?i)\b((?:\w*[_-])?(?:password|passwd|secret|api[_ -]?key))\b"
+                r"(\s*[:=]\s*)`?[^\s`\"'<>{}&]{6,}`?"),
      r"\1\2[REDACTED-CREDENTIAL]"),
     # Real JWTs (a long body after the header). Short doc placeholders are left alone.
     (re.compile(r"\beyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}[.A-Za-z0-9_-]*"), "[REDACTED-TOKEN]"),

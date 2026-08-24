@@ -489,11 +489,16 @@ Before production deployment, you must complete operational testing with the `ty
 
 **Primary Test User:**
 - **Username**: `amelia.brady@tylertownwa.org`
-- **Password**: `W#lcome123$`
+- **Password**: see the source Confluence page — deliberately not stored here
 
 **Additional Test User (no mailbox):**
 - **Username**: `joel.enlow@tylertownwa.org`
-- **Password**: `W#lcome123$`
+- **Password**: same as above
+
+> 🔑 **The shared password is NOT in this repo.** Retrieve it from the *Test credentials*
+> section of *Tyler Cloud Platform (TCP) | Gateway Operational Testing* —
+> https://tylertech.atlassian.net/wiki/spaces/TTI/pages/386600150 (Tyler SSO required).
+> Do not copy it into tickets, chat, code, or any document. This repo is public.
 
 **Important**: Use non-Tyler Tech email accounts for testing, as special functionality is enabled for `@tylertech.com` email addresses.
 
