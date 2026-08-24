@@ -11,7 +11,14 @@
     "This list is repo-local and provisional until the GitHub repo exists and the",
     "onetyler-tcp-pm-admins team is attached; reconcile it against the repo's actual",
     "collaborators then. Access is deliberately narrow - the admin team plus named",
-    "individuals. Never widen it without asking the repo owner."
+    "individuals. Never widen it without asking the repo owner.",
+    "",
+    "Two separate things, and a reviewer needs BOTH:",
+    "  1. GitHub team membership - onetyler-tcp-pm-contributors (write) - lets them push a",
+    "     branch and open a PR. Their PRs require a code-owner approval.",
+    "  2. An entry here - lets their name be recorded in a transcript's `reviewer` field.",
+    "Being on the team without an entry here means the review UI will not offer their name;",
+    "an entry here without team membership means they must contribute from a fork."
   ],
   "contributors": [
     {

@@ -7,6 +7,12 @@
 # @vijay-tylertech would be permanently blocked on his own changes if administrators were
 # also forced through the gate. Branch protection therefore leaves "Do not allow bypassing"
 # OFF, so repo admins can merge their own work while everyone else waits for review.
+# The practical effect, given branch protection exempts admins:
+#   @tyler-technologies/onetyler-tcp-pm-admins       admin  -> can merge without review
+#   @tyler-technologies/onetyler-tcp-pm-contributors write  -> PRs need approval below
+# So put reviewers on the CONTRIBUTORS team. Putting someone on the admins team removes the
+# review requirement from them, which is the opposite of the intent.
+#
 # Loosen this to a team (e.g. @tyler-technologies/onetyler-tcp-pm-admins) once the team is
 # comfortable with the process.
 

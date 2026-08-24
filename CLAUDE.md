@@ -39,8 +39,16 @@ depth, but never assume they are present.)
 5. **A Foundry write is a production change.** Collections and configs back live agents.
    Confirm with the user before uploading, deleting, syncing, or changing any config. Never
    do it as a side effect of another task.
-6. **NEVER broaden access without asking.** Grant only the named admin team
-   (`onetyler-tcp-pm-admins`) and the named individuals in `contributors.json`. Do **not**
+6. **NEVER broaden access without asking.** The approved grants are exactly two teams:
+   `onetyler-tcp-pm-admins` (**admin**) and `onetyler-tcp-pm-contributors` (**write**), plus
+   named individuals from `contributors.json`.
+
+   **The admin/write split is load-bearing, not cosmetic.** Branch protection exempts
+   administrators — it has to, because a PR author cannot approve their own PR and the sole
+   code owner would otherwise be permanently blocked on his own changes. So **admin =
+   bypasses review; write = subject to review**. Anyone whose PRs should be approved must be
+   on the *contributors* team. Adding a reviewer to the admins team silently removes the gate
+   from them. Do **not**
    infer an access model by copying it from a reference repo or a sibling project — derive it
    from the actual contributor list. Anything wider than the repo owner and his own team needs
    explicit confirmation first. This repo's owner does not work across the rest of Tyler

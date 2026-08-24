@@ -17,7 +17,13 @@
 #   * Status checks from .github/workflows/validate.yml are required, so a PR that
 #     collides with someone else's review cannot merge.
 #   * Force pushes and branch deletion on main are blocked.
-#   * Access is deliberately narrow: only ${ADMIN_TEAM}. No org-wide team grant.
+#   * Access is deliberately narrow: ${ADMIN_TEAM} (admin) and ${CONTRIB_TEAM} (write).
+#     No org-wide team grant - see the comment at the grant step.
+#
+# Why contributors get WRITE and not ADMIN: protection exempts administrators, because a
+# PR author cannot approve their own PR and the sole code owner would otherwise be blocked
+# on his own changes. So admin = bypasses review, write = subject to review. Anyone whose
+# PRs should be approved must be on the contributors team, not the admins team.
 #
 # The pairing that actually prevents overwrites is `strict: true` on the status check plus
 # scripts/validate_reviews.py. `strict` forces a PR to be up to date with main before it can
@@ -33,6 +39,7 @@ set -euo pipefail
 
 SLUG="${1:-tyler-technologies/onetyler-foundry-team-agent-kb}"
 ADMIN_TEAM="onetyler-tcp-pm-admins"
+CONTRIB_TEAM="onetyler-tcp-pm-contributors"   # write access; NOT admins, so the PR gate applies
 BRANCH="main"
 OWNER="${SLUG%%/*}"
 
@@ -50,6 +57,18 @@ if [[ "${OWNER_TYPE}" == "Organization" ]]; then
   echo "==> Granting '${ADMIN_TEAM}' = admin"
   gh api -X PUT "orgs/${OWNER}/teams/${ADMIN_TEAM}/repos/${SLUG}" -f permission=admin
   echo "    done"
+
+  # Contributors get write, not admin. That distinction is the whole point: branch
+  # protection exempts admins (see below), so anyone who should have their PRs reviewed
+  # must NOT be an admin. Tolerates the team not existing yet.
+  echo "==> Granting '${CONTRIB_TEAM}' = push (write)"
+  if gh api "orgs/${OWNER}/teams/${CONTRIB_TEAM}" >/dev/null 2>&1; then
+    gh api -X PUT "orgs/${OWNER}/teams/${CONTRIB_TEAM}/repos/${SLUG}" -f permission=push
+    echo "    done"
+  else
+    echo "    SKIPPED - team '${CONTRIB_TEAM}' does not exist yet. Re-run this script once"
+    echo "    it has been created; the grant is idempotent."
+  fi
   # Deliberately NO org-wide team grant, and do not add one without asking the repo owner.
   # The reference repo (tcp-oc-reports-tools) grants `global-fte` push access, and that was
   # copied here in error. Two reasons it is wrong:
