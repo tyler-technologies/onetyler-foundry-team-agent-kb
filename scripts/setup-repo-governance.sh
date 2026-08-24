@@ -17,6 +17,7 @@
 #   * Status checks from .github/workflows/validate.yml are required, so a PR that
 #     collides with someone else's review cannot merge.
 #   * Force pushes and branch deletion on main are blocked.
+#   * Access is deliberately narrow: only ${ADMIN_TEAM}. No org-wide team grant.
 #
 # The pairing that actually prevents overwrites is `strict: true` on the status check plus
 # scripts/validate_reviews.py. `strict` forces a PR to be up to date with main before it can
@@ -32,7 +33,6 @@ set -euo pipefail
 
 SLUG="${1:-tyler-technologies/onetyler-foundry-team-agent-kb}"
 ADMIN_TEAM="onetyler-tcp-pm-admins"
-PUSH_TEAM="global-fte"
 BRANCH="main"
 OWNER="${SLUG%%/*}"
 
@@ -49,9 +49,13 @@ echo "    owner: ${OWNER} (${OWNER_TYPE})"
 if [[ "${OWNER_TYPE}" == "Organization" ]]; then
   echo "==> Granting '${ADMIN_TEAM}' = admin"
   gh api -X PUT "orgs/${OWNER}/teams/${ADMIN_TEAM}/repos/${SLUG}" -f permission=admin
-  echo "==> Granting '${PUSH_TEAM}' = push"
-  gh api -X PUT "orgs/${OWNER}/teams/${PUSH_TEAM}/repos/${SLUG}" -f permission=push
   echo "    done"
+  # Deliberately NO org-wide team grant. The reference repo hands `global-fte` push
+  # access, which is 2,677 people; this repo's contributors are the named entries in
+  # contributors.json. The repo is public, so anyone else can fork and open a PR - they
+  # simply cannot push a branch into the repo. Add reviewers as direct collaborators or
+  # to ${ADMIN_TEAM} as they join.
+  echo "==> No org-wide grant by design (see comment above)"
 else
   echo "==> SKIPPING team grants: '${OWNER}' is a user account, not an org."
 fi
