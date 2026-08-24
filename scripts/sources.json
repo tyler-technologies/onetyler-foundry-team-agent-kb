@@ -83,8 +83,9 @@
       "OT-OpsCenter",
       "OT-BPD",
       "OT-SAC",
-      "OT-AlignedReleases"
+      "OT-AlignedReleases",
+      "TCP-KB-Identity"
     ],
-    "_note": "TCP-KB-Identity is deliberately excluded - Hard Rule 1. A change to a shared file must be uploaded to EVERY listed collection or the copies drift."
+    "_note": "A change to a shared file must be uploaded to EVERY listed collection or the copies drift. All five are writable as of 2026-08-24."
   }
 }

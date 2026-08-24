@@ -11,20 +11,11 @@ depth, but never assume they are present.)
 
 ## 🚫 HARD RULES — read these first
 
-1. **`Knowledge-TylerIdentity/` — commit to git YES, upload to Foundry NO.** These are two
-   separate things and only the second is restricted:
-
-   | Action | Allowed? |
-   |---|---|
-   | Author, edit and **commit** files in `Knowledge-TylerIdentity/` | ✅ **Yes — treat it like any other corpus.** It must be pushed to the GitHub repo along with everything else |
-   | Upload / delete / sync against the **`TCP-KB-Identity` Foundry collection** | ❌ **No** — until the repo owner (Vijay Venkataraman) says otherwise |
-   | Pull *from* `TCP-KB-Identity` (download, re-pull a snapshot) | ✅ Yes |
-
-   The reason is narrow: that Foundry collection is maintained by another owner and its
-   on-disk structure differs from this repo's, so a switchover needs their agreement. It is
-   expected to be resolved soon. Nothing about that restricts version control — never
-   gitignore this folder, never skip it in a commit, and never describe it as "read-only".
-   The other three collections may be uploaded to normally.
+1. **Every corpus in this repo is the source of truth for its Foundry collection.** All five
+   agents' knowledge now flows from here — including Tyler Identity, which was cut over on
+   2026-08-24. Edit here, then upload. Never edit a collection's content in the Foundry UI:
+   that creates drift the repo cannot see, and the next upload from here silently reverts it.
+   Check for drift before assuming you are in sync.
 2. **Never commit credentials.** No API keys, tokens, or passwords in any file, including
    knowledge files. `.gitignore` blocks the obvious names but is not a substitute for
    checking. The Foundry API key lives only in the environment.
@@ -89,7 +80,9 @@ Verified live 2026-08-21. Everything lives in tenant **Tyler Technologies**, pro
 | General Blueprint Docs Agent | `bd1c5d91-8234-486e-9f5a-2f1b7a947426` | `OT-BPD` | `Knowledge-BP-General/` | ✅ yes |
 | Support Access Center | `55444576-1fa3-4d12-a738-6ba83b17e6a7` | `OT-SAC` | `Knowledge-SupportAccessCenter/` | ✅ yes |
 | Aligned Releases | `b0544224-b120-469a-8f39-c4a7b14c17c0` | `OT-AlignedReleases` | `Knowledge-AlignedReleases/` | ✅ yes |
-| Tyler Identity Assistant | `3f5e586f-0d0f-4638-9839-bebe45a6cb47` | `TCP-KB-Identity` | `Knowledge-TylerIdentity/` | ❌ **not yet — Hard Rule 1.** Git commits are fine and required |
+
+All five collections are writable from this repo.
+| Tyler Identity Assistant | `3f5e586f-0d0f-4638-9839-bebe45a6cb47` | `TCP-KB-Identity` | `Knowledge-TylerIdentity/` | ✅ yes (since 2026-08-24) |
 
 Team **OneTyler Cloud Living**: `e92bd437-cb84-4e18-88e6-757370b39c90`
 
@@ -425,9 +418,9 @@ file in the collection** rather than renaming the existing one. To rename proper
 3. Sync once.
 4. Verify the collection has exactly one copy.
 
-This currently applies to `Knowledge-TylerIdentity/Docusaurus-Identity.md`, which was
-renamed locally from `tyler-identity-knowledge-base.md` — the name still present in
-`TCP-KB-Identity`. **Do not reconcile that one**; see Hard Rule 1.
+This was applied to `Knowledge-TylerIdentity/Docusaurus-Identity.md` on 2026-08-24: uploaded
+under the new name, `tyler-identity-knowledge-base.md` deleted from `TCP-KB-Identity`, count
+verified. That collection is now fully in sync with this repo.
 
 Note the asymmetry: re-uploading the *same* name is a clean in-place replace (see "The
 model you must internalize"), so ordinary content updates need no deletion. Only renames do.
@@ -586,8 +579,8 @@ direct (non-team) conversation there is nobody to hand off to, and the failure m
 invented ticket URL.
 
 `scripts/sources.json` → `upload_targets` is the authoritative list. Today:
-`Knowledge-Shared/Conf-OneTylerTickets.md` → `OT-OpsCenter`, `OT-BPD`, `OT-SAC`.
-**`TCP-KB-Identity` is excluded** — Hard Rule 1.
+`Knowledge-Shared/Conf-OneTylerTickets.md` → `OT-OpsCenter`, `OT-BPD`, `OT-SAC`,
+`OT-AlignedReleases`, `TCP-KB-Identity` — **all five**.
 
 A change to a shared file that is not uploaded to *every* target leaves the copies drifting.
 Check all of them with the drift script before assuming you are done.

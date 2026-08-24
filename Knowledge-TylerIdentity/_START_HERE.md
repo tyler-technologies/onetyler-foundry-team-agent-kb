@@ -8,12 +8,11 @@ Domain: Tyler Identity — Identity Workforce (enterprise/staff SSO via the Gate
 Access (citizen/public identity), federation, tokens and claims, credential templates,
 client operations, identity events.
 
-> ⚠️ **This corpus is version-controlled here but is NOT yet deployed to Foundry.** Its files
-> are committed and pushed like any other corpus; they are **not** uploaded to the
-> `TCP-KB-Identity` collection, which is maintained by another owner whose on-disk structure
-> differs. See Hard Rule 1 in `CLAUDE.md`. The live Identity agent therefore retrieves only
-> `tyler-identity-knowledge-base.md` — the older single file in that collection — not
-> `FAQ-Identity.md` or `Conf-IdentityTickets.md`.
+> ✅ **This corpus is deployed.** Cut over on **2026-08-24**: the `TCP-KB-Identity` collection
+> now holds `Docusaurus-Identity.md`, this file, `Conf-IdentityTickets.md`, `FAQ-Identity.md`
+> and the shared ticket catalog, and the old single-file `tyler-identity-knowledge-base.md` has
+> been removed. **This repo is the source of truth** — edit here and re-upload; never edit the
+> collection in the Foundry UI, or the next upload will silently revert it.
 
 ---
 
@@ -23,6 +22,7 @@ client operations, identity events.
 |---|---|
 | `Docusaurus-Identity.md` | **The substance.** A single ~2,950-line reference distilled from Tyler Blueprint `docs/identity/` (current docs only; Legacy excluded), covering both identity solutions end to end across 39 top-level sections. Because it is one large file, the *section map* below matters more than the file name — use it to aim your answer. |
 | `Conf-IdentityTickets.md` | Identity-specific **ticket reference**: which CorpDev form to file for federation, auth issues, SKU change, Okta access, identity clients, custom IdP vetting — with each form's own instructions. A derived extract; the full cross-domain catalog is `Knowledge-Shared/Conf-OneTylerTickets.md`. |
+| _(also in the collection)_ `Knowledge-Shared/Conf-OneTylerTickets.md` | The authoritative cross-domain **ticket catalog**. Uploaded to every collection, so this agent can answer ticket questions directly instead of handing off. |
 | `FAQ-Identity.md` | **Authored answers with no upstream source** — verbal SME guidance, observed behaviour, corrections upstream owners have not yet made. Currently: how to disambiguate "client", and the fact that ticket `4149` is *Identity SKU Change*, not the SAC-enable form the Confluence page claims. |
 
 ---

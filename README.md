@@ -21,17 +21,12 @@ Foundry team: **OneTyler Cloud Living** — Amazon Bedrock, Claude 4.5 Sonnet, t
 | **Support Access Center** | `Knowledge-SupportAccessCenter/` | this repo |
 | **General Blueprint Docs Agent** | `Knowledge-BP-General/` | this repo |
 | **Aligned Releases** | `Knowledge-AlignedReleases/` | this repo |
-| **Tyler Identity Assistant** | `Knowledge-TylerIdentity/` | in this repo; its **Foundry** collection is maintained separately |
+| **Tyler Identity Assistant** | `Knowledge-TylerIdentity/` | this repo |
 
-> ⚠️ **`Knowledge-TylerIdentity/` is version-controlled here like every other corpus** —
-> author it, commit it, push it. The *only* restriction is that its files must **not be
-> uploaded to the `TCP-KB-Identity` Foundry collection** yet: that collection is maintained
-> by another owner whose on-disk structure differs, so the switchover needs their agreement.
-> Expected to be resolved soon. See Hard Rule 1 in `CLAUDE.md`.
->
-> `Docusaurus-Identity.md` is a point-in-time pull from that collection (2026-08-21) and will
-> drift as its owner updates it — re-pull before trusting it. `FAQ-Identity.md` and
-> `Conf-IdentityTickets.md` were authored here.
+> Tyler Identity was cut over to this repo on **2026-08-24**: its collection now holds
+> `Docusaurus-Identity.md`, `_START_HERE.md`, `Conf-IdentityTickets.md`, `FAQ-Identity.md`
+> and the shared ticket catalog. `Docusaurus-Identity.md` still reflects a Blueprint pull of
+> 2026-05-20 — re-derive it when Blueprint moves.
 
 In addition, **`Knowledge-Shared/`** holds content every agent needs and is uploaded to all
 writable collections — currently the OneTyler ticket catalog. See its `_START_HERE.md`.
