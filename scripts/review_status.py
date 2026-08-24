@@ -46,6 +46,19 @@ VALID = {
 }
 
 
+def norm_paths(v):
+    """Strip a leading repo-name segment if a reviewer pasted a path from higher up.
+    'onetyler-foundry-team-agent-kb/Knowledge-X/f.md' -> 'Knowledge-X/f.md'"""
+    out = []
+    for part in (v or "").split(","):
+        t = part.strip()
+        if t.startswith(REPO.name + "/"):
+            t = t[len(REPO.name) + 1:]
+        if t:
+            out.append(t)
+    return ", ".join(out)
+
+
 def parse(p):
     txt = p.read_text(encoding="utf-8")
     m = re.match(r"^---\n(.*?)\n---\n", txt, re.S)
@@ -105,9 +118,24 @@ def main():
                 print(f.relative_to(REPO))
         return
     if a.actions:
+        # Only REVIEWED items are actionable. A pending transcript with fields filled in is
+        # work in progress - acting on it would pre-empt a human who has not finished, and
+        # CLAUDE.md forbids it. Those are listed separately so they are not invisible.
+        ready, inflight = [], []
         for f, d in rows:
-            if d.get("kb_action", "") in {"add", "update", "split"} and d.get("action_status") == "open":
-                print(f"{f.relative_to(REPO)}  {d.get('kb_action')}  {d.get('kb_files','')}")
+            if d.get("kb_action", "") not in {"add", "update", "split"}:
+                continue
+            if d.get("action_status") != "open":
+                continue
+            (ready if d.get("review_status") == "reviewed" else inflight).append((f, d))
+        for f, d in ready:
+            print(f"{f.relative_to(REPO)}  {d.get('kb_action')}  {norm_paths(d.get('kb_files',''))}")
+        if inflight:
+            print(f"\n-- not actionable yet: {len(inflight)} transcript(s) have an open action "
+                  f"but review_status is not 'reviewed' --", file=sys.stderr)
+            for f, d in inflight:
+                print(f"   {f.relative_to(REPO)}  ({d.get('review_status')}, "
+                      f"reviewer={d.get('reviewer') or 'unset'})", file=sys.stderr)
         return
 
     # dashboard
