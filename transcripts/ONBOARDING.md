@@ -134,7 +134,9 @@ it *should* have said, in your own words. That's what Claude turns into content.
 
 ## Your first three: the Identity transcripts
 
-Three are waiting, all Identity, all `pending`:
+Three are assigned to you, all Identity, all `pending`. Other pending transcripts may show
+up in the list — new ones arrive whenever someone uses an agent — but **start with these
+three**; the rest will be assigned separately.
 
 | Transcript | Exchanges | Opens with |
 |---|---|---|
@@ -143,6 +145,9 @@ Three are waiting, all Identity, all `pending`:
 | `identity/2026-08-21--6d1eb508` | **7** | "We are trying to understand the capabilities of **TI…**" |
 
 Do the two short ones first to get the rhythm, then the 7-exchange one.
+
+To see just yours: filter the list by **Handled by = identity** and sort is already newest
+first. Yours are the three dated 2026-08-20 and 2026-08-21.
 
 Worth knowing before you start: the first two open with the same sentence, and the third is a
 long capability question — it reads like one person's evaluation session split across

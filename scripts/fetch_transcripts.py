@@ -88,12 +88,32 @@ SAMPLE_PROMPTS = {
 }
 
 
+def live_sample_prompts():
+    """Fetch the sample-question chips from Foundry rather than trusting the list below.
+
+    The hardcoded set went stale the moment a new agent was added: the Aligned Releases
+    agent and its team prompt were created on 2026-08-23 and the list was not updated, so
+    five chip-click conversations came through as if they were real questions. Reading the
+    live config makes that impossible. Falls back to SAMPLE_PROMPTS if Foundry is
+    unreachable, so an offline fetch still filters the known ones.
+    """
+    out = set()
+    team = api(f"/api/teams/{TEAM_ID}") or {}
+    team = team.get("team", team)
+    for src in (team.get("chatExperience") or {}, (team.get("orchestrator_config") or {}).get("chatExperience") or {}):
+        out.update(src.get("sampleQuestions") or [])
+    for aid in AGENTS.values():
+        a = api(f"/api/configurable-agents/{aid}") or {}
+        out.update((a.get("chatExperience") or {}).get("sampleQuestions") or [])
+    return {q for q in out if isinstance(q, str) and q.strip()}
+
+
 def norm(s):
     """Loose match so punctuation/casing/whitespace drift doesn't defeat the filter."""
     return re.sub(r"[\s]+", " ", (s or "").strip().lower()).rstrip("?.!, ")
 
 
-SAMPLE_NORM = {norm(p) for p in SAMPLE_PROMPTS}
+SAMPLE_NORM = {norm(p) for p in SAMPLE_PROMPTS}   # replaced with the live set in main()
 
 
 def keep_exchange(e):
@@ -249,6 +269,18 @@ def main():
 
     if not KEY:
         sys.exit("FOUNDRY_API_KEY is not set. Source your env file first.")
+
+    # Prefer the live chips over the hardcoded list — see live_sample_prompts().
+    global SAMPLE_NORM
+    live = live_sample_prompts()
+    if live:
+        extra = {norm(q) for q in live} - SAMPLE_NORM
+        SAMPLE_NORM = SAMPLE_NORM | {norm(q) for q in live}
+        print(f"sample-prompt filter: {len(SAMPLE_NORM)} chips "
+              f"({len(live)} read live, {len(extra)} not in the hardcoded list)")
+    else:
+        print("sample-prompt filter: could not read live chips, using the hardcoded list only",
+              file=sys.stderr)
 
     targets = {a.agent: AGENTS[a.agent]} if a.agent in AGENTS else ({} if a.agent == "team" else dict(AGENTS))
     include_team = a.agent in (None, "team")
