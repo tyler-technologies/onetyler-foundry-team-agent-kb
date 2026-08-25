@@ -10,11 +10,20 @@ first reviewer's verdict, and neither of them ever finds out.
 This check makes that collision loud. For every transcript the PR touches it compares the
 review state on the base branch with the state in the PR:
 
-  base pending  -> PR reviewed, round 1     first review           OK
-  base reviewed -> PR pushed,   same round  processing completed   OK
-  base reviewed -> PR reviewed, round n+1   deliberate re-review    OK
-  base reviewed -> PR reviewed, same round  COLLISION               FAIL
-  base excluded -> PR reviewed, same round  COLLISION               FAIL
+  base pending   -> PR reviewed,  round 1     first review           OK
+  base pending   -> PR suggested, round 1     first suggestion       OK
+  base suggested -> PR reviewed,  same round  owner accepted it      OK
+  base reviewed  -> PR pushed,    same round  processing completed   OK
+  base reviewed  -> PR reviewed,  round n+1   deliberate re-review    OK
+  base reviewed  -> PR reviewed,  same round  COLLISION               FAIL
+  base excluded  -> PR reviewed,  same round  COLLISION               FAIL
+  base suggested -> PR suggested, same round  COLLISION               FAIL
+
+`suggested` is protected for the same reason the finished states are. A suggestion is real
+work — a colleague's correction and proposed fix, handed to the area owner — and it is NOT
+covered by the reviewer/verdict states. When it was left out of this check, a suggestion that
+had merged to the base branch read as never-looked-at, so the next person to review that
+transcript from a stale base overwrote it and CI called it a clean first review.
 
 A collision means someone else's review of that transcript reached the base branch while
 this one was in flight. The fix is not to force it through: update from the base branch,
@@ -36,6 +45,9 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 TDIR = "transcripts/"
 DONE = {"reviewed", "pushed", "excluded"}
+# States that represent work somebody has actually done, and which a later PR must therefore
+# not silently replace. `suggested` is not a verdict, but it is not nothing either.
+PROTECTED = DONE | {"suggested"}
 
 
 def git(*args):
@@ -59,6 +71,18 @@ def fm_of(text):
 def at_rev(rev, path):
     rc, out = git("show", f"{rev}:{path}")
     return out if rc == 0 else None
+
+
+_MB = {}
+
+
+def merge_base(base):
+    """The commit this branch was cut from — i.e. the newest state of `base` the author
+    demonstrably had. Anything that landed on `base` after this, they never saw."""
+    if base not in _MB:
+        rc, out = git("merge-base", base, "HEAD")
+        _MB[base] = out.strip() if rc == 0 and out.strip() else None
+    return _MB[base]
 
 
 def main():
@@ -96,40 +120,72 @@ def main():
         h_status = head.get("review_status", "pending") or "pending"
         h_round = int(head.get("review_round") or 1)
 
+        # Who this PR credits for the state it is claiming. `suggested` is attributed to
+        # suggested_by, everything else to reviewer.
+        def actor(fm, status):
+            return fm.get("suggested_by") if status == "suggested" else fm.get("reviewer")
+
+        h_actor = actor(head, h_status)
+        need = "suggested_by" if h_status == "suggested" else "reviewer"
+
         base_txt = at_rev(a.base, path)
         if base_txt is None:                             # brand-new transcript file
-            if h_status in DONE and not head.get("reviewer"):
-                problems.append((path, f"{h_status} but no reviewer set"))
+            if h_status in PROTECTED and not h_actor:
+                problems.append((path, f"{h_status} but no {need} set"))
             continue
 
         base = fm_of(base_txt)
         b_status = base.get("review_status", "pending") or "pending"
         b_round = int(base.get("review_round") or 1)
 
-        if h_status not in DONE:
-            continue                                     # not claiming a review
+        if h_status not in PROTECTED:
+            continue                                     # not claiming any state
 
-        if not head.get("reviewer"):
-            problems.append((path, f"{h_status} but no reviewer set"))
+        if not h_actor:
+            problems.append((path, f"{h_status} but no {need} set"))
             continue
 
-        if b_status not in DONE:
-            firsts.append((path, head.get("reviewer"), h_status))
+        if b_status not in PROTECTED:
+            firsts.append((path, h_actor, h_status))
             continue
 
-        # base already reviewed — only a declared re-review is allowed
-        # reviewed -> pushed at the same round is the normal close-out, not a collision
+        # base already carries work — only a declared advance or re-review is allowed.
+        # reviewed -> pushed at the same round is the normal close-out, not a collision.
         if b_status == "reviewed" and h_status == "pushed" and h_round == b_round:
-            firsts.append((path, head.get("reviewer"), "pushed (close-out)"))
+            firsts.append((path, h_actor, "pushed (close-out)"))
+        # suggested -> a real verdict at the same round is EITHER the handoff completing (the
+        # owner accepted or overrode the suggestion) OR the exact clobber this script exists
+        # to catch. The frontmatter is identical in both cases; what separates them is whether
+        # the reviewer had actually seen the suggestion. So ask git: was it already present in
+        # the commit the PR branched from? If yes they superseded it deliberately. If it
+        # reached the base branch only after they branched, they never saw it.
+        elif b_status == "suggested" and h_status in DONE and h_round == b_round:
+            mb_txt = at_rev(merge_base(a.base), path) if merge_base(a.base) else None
+            if mb_txt is not None and (fm_of(mb_txt).get("review_status") or "") == "suggested":
+                firsts.append((path, h_actor,
+                               f"{h_status} (accepted {base.get('suggested_by','?')}'s "
+                               f"suggestion)"))
+            else:
+                problems.append((path, (
+                    f"COLLISION — {base.get('suggested_by','?')} suggested changes to this on "
+                    f"{a.base} AFTER this branch was cut, so this PR was written without seeing "
+                    f"them and merging it would discard them. Pull {a.base}, read the "
+                    f"suggestion and the proposed fix, then re-record your verdict on top.")))
         elif h_round > b_round:
-            rerevs.append((path, head.get("reviewer"), b_round, h_round))
+            rerevs.append((path, h_actor, b_round, h_round))
         else:
+            if b_status == h_status == "suggested":
+                kind = "Two independent suggestions on the same transcript"
+            elif h_status == "suggested":
+                kind = (f"This PR suggests changes to something already {b_status}. "
+                        f"Re-opening a decided transcript is a re-review")
+            else:
+                kind = "Two first reviews of the same transcript"
             problems.append((path, (
-                f"COLLISION — already {b_status} by {base.get('reviewer','?')} "
+                f"COLLISION — already {b_status} by {actor(base, b_status) or '?'} "
                 f"on {a.base} (round {b_round}); this PR sets {h_status} by "
-                f"{head.get('reviewer','?')} at round {h_round}. Two first reviews of the "
-                f"same transcript. Pull {a.base}, read their verdict, and if you still "
-                f"disagree use Re-review to raise the round.")))
+                f"{h_actor} at round {h_round}. {kind}. Pull {a.base}, read what they "
+                f"concluded, and if you still disagree use Re-review to raise the round.")))
 
     for p, r, s in firsts:
         print(f"  ok       first review   {p}  ({s} by {r})")

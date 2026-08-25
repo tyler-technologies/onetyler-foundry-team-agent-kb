@@ -78,7 +78,8 @@ python3 scripts/review_server.py
 
 Opens http://127.0.0.1:7777 — a local page, loopback only, nothing leaves your machine.
 
-The list defaults to **pending**, newest first. Click one.
+The list defaults to **open** — pending plus anything suggested to you — newest first. Click
+one.
 
 ### What to look at, in order
 
@@ -121,14 +122,34 @@ Then `fix_target` says where the fix goes: `knowledge-file`, `agent-instructions
 it *should* have said, in your own words. That's what Claude turns into content. A vague
 "this is wrong" produces a vague fix.
 
+### When the call isn't yours to make — "Suggest & next"
+
+You'll hit transcripts where you can see something's off but you're not the person who should
+decide: a corpus you don't own, a product area someone else runs. Don't skip it and don't
+guess.
+
+Fill everything in exactly as you would for a real review, set **`awaiting`** to whoever owns
+that area, and click **Suggest & next** instead of Mark reviewed. That records it as a
+suggestion under your name — `suggested_by: you`, `reviewer` deliberately left blank, because
+nobody has made the call yet. Commit and PR it the normal way from the **Git & PR** tab.
+
+The owner sees it on their next pull, with a banner saying it's your suggestion and not a
+verdict. They accept it by marking it reviewed under their own name, or override it. Either
+way your reasoning stays in git history. Claude will not act on a suggestion — only a human
+moving it to `reviewed` releases it.
+
+To see suggestions waiting on you: `python3 scripts/review_status.py --suggestions --for
+<your-username>`.
+
 ### Two things people get wrong at first
 
 - **`kb_files` must be a file that's actually deployed.** `Knowledge-Shared/_START_HERE.md`
   looks like a knowledge file but is repo-only documentation, in no collection — a fix there
   reaches no agent. If you're unsure, name the corpus and say so in `notes`; Claude will place
   it and tell you where it went.
-- **Save without marking is a real state.** Use it for anything you want to come back to. It
-  stays `pending` and nobody will act on it, which is the point.
+- **Save without marking is a real state.** Use it for anything *you* want to come back to.
+  It stays `pending` and nobody will act on it, which is the point. That's different from
+  **Suggest** below — a save is a note to yourself, a suggestion is a handoff to someone else.
 
 ---
 
@@ -187,11 +208,14 @@ of that part.
 ## The lifecycle, so the dashboard makes sense
 
 ```
-pending  ──►  reviewed  ──►  pushed
-   │             │              │
-   │             │              └── re-review returns it to reviewed at a higher round
-   │             └── your verdict is in; this is Claude's queue
-   └── not reviewed yet (including saved-but-unmarked)
+pending  ──►  suggested  ──►  reviewed  ──►  pushed
+   │              │              │              │
+   │              │              │              └── re-review returns it to reviewed
+   │              │              │                  at a higher round
+   │              │              └── a verdict is in; this is Claude's queue
+   │              └── your worked-up opinion, waiting on the area owner.
+   │                  Optional — skip it for areas you own.
+   └── nobody has looked at it (including saved-but-unmarked)
 
 excluded ─── not real feedback at all: pre-go-live internal testing
 ```
@@ -210,6 +234,7 @@ python3 scripts/review_server.py           # the UI on :7777
 python3 scripts/review_status.py           # lifecycle dashboard
 python3 scripts/review_status.py --pending  # what's left
 python3 scripts/review_status.py --check    # validate frontmatter (what CI runs)
+python3 scripts/review_status.py --suggestions --for me   # handoffs waiting on me
 python3 scripts/validate_reviews.py         # check for review collisions
 python3 scripts/sync_contributors.py        # refresh the reviewer list from GitHub teams
 ```

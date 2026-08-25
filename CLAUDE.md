@@ -436,11 +436,20 @@ workflow and field definitions: `transcripts/README.md`.
 Humans review through a local web UI (`python3 scripts/review_server.py`, loopback-only on
 port 7777) or by editing the markdown directly. Either way the output is the same files.
 
-**The lifecycle is `pending → reviewed → pushed`** (plus `excluded` for pre-go-live testing).
-`reviewed` is your inbox. `pushed` means processed *and* live in Foundry — it is a claim about
-Foundry, not the repo, so only set it after the upload is verified. Close out with
-`python3 scripts/mark_pushed.py`, which refuses to close a transcript whose `kb_action` is
-still unresolved.
+**The lifecycle is `pending → suggested → reviewed → pushed`** (plus `excluded` for
+pre-go-live testing). `reviewed` is your inbox. `pushed` means processed *and* live in
+Foundry — it is a claim about Foundry, not the repo, so only set it after the upload is
+verified. Close out with `python3 scripts/mark_pushed.py`, which refuses to close a transcript
+whose `kb_action` is still unresolved.
+
+**`suggested` is not your inbox.** It is a reviewer's worked-up opinion on an area they do not
+own, handed to the owner named in `awaiting`, with `suggested_by` recording who wrote it and
+`reviewer` deliberately blank. The fields look exactly like a finished verdict, which is the
+trap: acting on one applies a change nobody approved and takes the decision away from the
+person the state exists to reserve it for. `--actions` lists these separately as "not
+actionable yet" and `mark_pushed.py` refuses them; do not work around either. If a suggestion
+looks obviously right and is blocking, say so and ask the owner to accept it — never accept it
+on their behalf, and never put a human's name in `reviewer` yourself.
 
 **Your half of the process is steps (e)–(g):** process the reviewed ones, update knowledge
 files if needed, open a **PR** (do not push content changes straight to `main` — the admin
@@ -462,9 +471,11 @@ lowering the round or reverting the other person's verdict — pull the base bra
 and re-review explicitly if you still disagree.
 
 **Only act on files with `review_status: reviewed`.** A `pending` file has not been looked
-at by a human; do not infer corpus changes from it unprompted.
+at by a human, and a `suggested` one has been looked at by someone who explicitly declined to
+decide; do not infer corpus changes from either unprompted.
 
-The `reviewer` field is constrained to the `github` values in `contributors.json`, which is
+The `reviewer`, `suggested_by`, and `awaiting` fields are all constrained to the `github`
+values in `contributors.json`, which is
 a **generated file** — `python3 scripts/sync_contributors.py` rebuilds it from the
 `onetyler-tcp-pm-admins` and `onetyler-tcp-pm-contributors` GitHub teams. Never hand-edit it:
 an entry added by hand is overwritten on the next sync and confers no repo access anyway. To
