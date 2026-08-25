@@ -28,6 +28,21 @@ REPO = Path(__file__).resolve().parent.parent
 TDIR = REPO / "transcripts"
 
 
+def is_transcript(p):
+    """A transcript is identified by CONTENT, not by filename.
+
+    This used to be a blocklist of ("INDEX.md", "README.md"), which broke the moment
+    ONBOARDING.md was added to the folder: it was treated as a transcript, had no
+    frontmatter, and failed CI. Any doc added here would have done the same. A transcript
+    is a markdown file whose frontmatter carries a conversation_id; everything else in the
+    folder is documentation and is skipped.
+    """
+    try:
+        head = p.read_text(encoding="utf-8", errors="replace")[:1500]
+    except OSError:
+        return False
+    return head.startswith("---") and "conversation_id:" in head
+
 def setfield(text, key, value):
     pat = re.compile(rf"^{re.escape(key)}:.*$", re.M)
     return pat.sub(f"{key}: {value}", text, count=1) if pat.search(text) else text
@@ -47,8 +62,7 @@ def main():
     a = ap.parse_args()
 
     if a.all:
-        targets = [f for f in sorted(TDIR.rglob("*.md"))
-                   if f.name not in ("INDEX.md", "README.md")]
+        targets = [f for f in sorted(TDIR.rglob("*.md")) if is_transcript(f)]
     elif a.paths:
         targets = [Path(p) if Path(p).is_absolute() else REPO / p for p in a.paths]
     else:
