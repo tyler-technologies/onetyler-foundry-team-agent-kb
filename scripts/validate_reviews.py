@@ -73,8 +73,16 @@ def main():
         return 0
 
     rc, out = git("diff", "--name-only", f"{a.base}...HEAD", "--", TDIR)
-    changed = [l for l in out.splitlines()
-               if l.endswith(".md") and not l.endswith(("INDEX.md", "README.md"))]
+    # Identify transcripts by content, not filename — a doc added to this folder must not
+    # be mistaken for one. Files deleted in the PR no longer exist, so fall back to the
+    # path shape for those.
+    def looks_like_transcript(rel):
+        f = REPO / rel
+        if f.is_file():
+            head = f.read_text(encoding="utf-8", errors="replace")[:1500]
+            return head.startswith("---") and "conversation_id:" in head
+        return "/" in rel[len(TDIR):] or rel.count("/") >= 2
+    changed = [l for l in out.splitlines() if l.endswith(".md") and looks_like_transcript(l)]
     if not changed:
         print("no transcript changes in this PR")
         return 0

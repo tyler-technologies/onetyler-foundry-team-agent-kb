@@ -59,6 +59,21 @@ def norm_paths(v):
     return ", ".join(out)
 
 
+def is_transcript(p):
+    """A transcript is identified by CONTENT, not by filename.
+
+    This used to be a blocklist of ("INDEX.md", "README.md"), which broke the moment
+    ONBOARDING.md was added to the folder: it was treated as a transcript, had no
+    frontmatter, and failed CI. Any doc added here would have done the same. A transcript
+    is a markdown file whose frontmatter carries a conversation_id; everything else in the
+    folder is documentation and is skipped.
+    """
+    try:
+        head = p.read_text(encoding="utf-8", errors="replace")[:1500]
+    except OSError:
+        return False
+    return head.startswith("---") and "conversation_id:" in head
+
 def parse(p):
     txt = p.read_text(encoding="utf-8")
     m = re.match(r"^---\n(.*?)\n---\n", txt, re.S)
@@ -83,7 +98,7 @@ def main():
     a = ap.parse_args()
 
     files = sorted(TDIR.rglob("*.md"))
-    files = [f for f in files if f.name not in ("INDEX.md", "README.md")]
+    files = [f for f in files if is_transcript(f)]
     if not files:
         sys.exit("No transcripts found. Run: python3 scripts/fetch_transcripts.py")
 
