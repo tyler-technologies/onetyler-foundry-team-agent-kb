@@ -57,7 +57,7 @@ NO_CHANGE_DEFAULTS = {
 }
 
 CHOICES = {
-    "review_status":   ["pending", "reviewed", "excluded"],
+    "review_status":   ["pending", "reviewed", "pushed", "excluded"],
     "routing_verdict": ["", "correct", "wrong-agent", "ambiguous"],
     "reassign_to":     ["", "ops-center", "bp-general", "sac", "identity", "team"],
     "answer_verdict":  ["", "good", "incomplete", "wrong", "stale", "refused"],
@@ -80,6 +80,8 @@ HELP = {
     "kb_files":        "Comma-separated paths, e.g. Knowledge-OpsCenter/Misc-Links.md",
     "action_status":   "'none-needed' when nothing must change. Claude sets 'applied' once a change ships.",
     "review_round":    "1 for a first review. Use the Re-review button to start round 2+.",
+    "review_status":   "pending -> reviewed (you) -> pushed (set by Claude once any change is "
+                       "live in Foundry). 'excluded' = not real feedback.",
     "notes":           "One line. Long-form goes in Proposed fix below.",
 }
 
@@ -191,6 +193,7 @@ th{background:#f0f2f5;font-weight:600}tr:hover td{background:#fafbfc}
 .pill{display:inline-block;padding:1px 8px;border-radius:10px;font-size:11px;font-weight:600}
 .pending{background:#fff3d6;color:#8a5a00}.reviewed{background:#dcf5e4;color:#0f6b34}
 .excluded{background:#e8e9ec;color:#5b6470}
+.pushed{background:#dde8f7;color:#1c4f8f}
 .bad{background:#fde4e4;color:#a11}.warn{background:#ffeccc;color:#8a4b00}
 .card{background:#fff;border:1px solid #dfe3e8;border-radius:8px;padding:16px;margin-bottom:14px}
 .q{background:#eef4ff;border-left:3px solid #2b6cb0;padding:10px 12px;border-radius:4px;white-space:pre-wrap}

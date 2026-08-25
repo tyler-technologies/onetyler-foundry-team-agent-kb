@@ -11,6 +11,7 @@ This check makes that collision loud. For every transcript the PR touches it com
 review state on the base branch with the state in the PR:
 
   base pending  -> PR reviewed, round 1     first review           OK
+  base reviewed -> PR pushed,   same round  processing completed   OK
   base reviewed -> PR reviewed, round n+1   deliberate re-review    OK
   base reviewed -> PR reviewed, same round  COLLISION               FAIL
   base excluded -> PR reviewed, same round  COLLISION               FAIL
@@ -34,7 +35,7 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
 TDIR = "transcripts/"
-DONE = {"reviewed", "excluded"}
+DONE = {"reviewed", "pushed", "excluded"}
 
 
 def git(*args):
@@ -109,7 +110,10 @@ def main():
             continue
 
         # base already reviewed — only a declared re-review is allowed
-        if h_round > b_round:
+        # reviewed -> pushed at the same round is the normal close-out, not a collision
+        if b_status == "reviewed" and h_status == "pushed" and h_round == b_round:
+            firsts.append((path, head.get("reviewer"), "pushed (close-out)"))
+        elif h_round > b_round:
             rerevs.append((path, head.get("reviewer"), b_round, h_round))
         else:
             problems.append((path, (
