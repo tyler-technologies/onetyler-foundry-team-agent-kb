@@ -51,15 +51,41 @@ Keep entries self-contained — retrievers chunk independently of headings.
 
 ## Entries
 
-_No entries yet._
+### Q: Where do I post a product registration question?
 
-This file is deliberately empty of content. It exists so that the next answer with no
-upstream source has an obvious home, instead of being wedged into a `Docusaurus-` file where
-the next re-derivation would silently delete it.
+**A:** **Two different Teams channels, split by whether the question is functional or
+technical.** Sending a technical problem to the functional channel is the common mistake.
 
-A good first candidate, since it comes up repeatedly in transcripts: a plain-language answer
-to "what can you help me with / what agents are available", phrased in terms of the tasks a
-user wants to do rather than the names of the four agents.
+**Functional questions** — what registration is, whether you need it, how the model works,
+approvals and policy. For example *"I want to register a new product"*, *"Why should I
+register my product?"*, *"Do I need a second registration for this module?"*
+→ **Product Registration Community**:
+<https://teams.microsoft.com/l/channel/19%3AoVLpzEarOxFx-RwQc70RhkOA0xXbUS6R52LrTWKhIMQ1%40thread.tacv2/Product%20Registration%20Community?groupId=d9db441d-35fa-433c-8fe0-ff7fe5825d3c&tenantId=7cc5f0f9-ee5b-4106-a62d-1b9f7be46118&ngc=true&allowXTenantAccess=true>
+
+**Technical questions** — something is broken, out of sync, not deploying, or behaving
+unexpectedly. For example *"Our registration details are out of sync with the repo"*, a
+pipeline that will not deploy a catalog change, Ops Center showing different JSON from the
+YAML in `tcp-product-catalog`.
+→ **Cloud Platform Community**:
+<https://teams.microsoft.com/l/channel/19%3A1e6bcc02bd3242a193bf9171a51a0395%40thread.tacv2/Cloud%20Platform%20Community?groupId=d9db441d-35fa-433c-8fe0-ff7fe5825d3c&tenantId=7cc5f0f9-ee5b-4106-a62d-1b9f7be46118>
+
+**This corrects an over-generalization in this corpus.**
+`Docusaurus-ProductSystemReg.md` names the Product Registration Community channel as "the
+correct escalation path for complex registration questions" without qualification, so a
+technical problem gets routed there. Use the split above instead. Answering the substance of
+the question first is still right — for a sync problem, `tcp-product-catalog` is the
+authoritative source and the YAML in `master` should match the JSON in Ops Center Registration
+Details — but the escalation pointer should be the Cloud Platform Community channel.
+
+- **Source:** Vijay Venkataraman, reviewing transcript `team/2026-08-24--6d720e8a`, where
+  "our tdsm registration details are out of sync with the repo" — a technical question — was
+  answered correctly on substance but pointed at the functional channel.
+- **Added:** 2026-08-25 by vijay-tylertech
+- **Confidence:** confirmed by owner
+- **Promote when:** Blueprint's product-registration pages state which channel serves which
+  kind of question. At that point this entry should be replaced by the re-derived
+  `Docusaurus-ProductSystemReg.md` content, and note 8 in that file's *Notes for the chatbot*
+  corrected at the same time.
 
 ---
 
@@ -68,5 +94,9 @@ user wants to do rather than the names of the four agents.
 - Entries here have **no upstream document**. State them plainly, but if challenged, say the
   answer comes from internal Tyler subject-matter guidance rather than published docs.
 - An entry marked **provisional** has not been confirmed by an owner. Hedge accordingly.
-- While this file has no entries, it carries no answers — do not treat its presence as
-  evidence that a question has been considered. Fall back to the `Docusaurus-` files.
+- This file is **thin, not authoritative on everything**. Its presence is not evidence that a
+  question has been considered — if there is no entry for it here, fall back to the
+  `Docusaurus-` files.
+- Where an entry says it **corrects** a `Docusaurus-` file in this folder, the entry wins.
+  That is the one case where this file overrides a derived source, and the entry states it
+  explicitly under *Source*.
