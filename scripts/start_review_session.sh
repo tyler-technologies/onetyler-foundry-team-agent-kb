@@ -48,6 +48,18 @@ else
 fi
 
 echo
+echo "==> checking the reviewer list is current"
+# Uses YOUR gh credentials — there is deliberately no shared PAT for this. Needs read:org;
+# if it is missing, run:  gh auth refresh -s read:org
+if python3 scripts/sync_contributors.py --check >/dev/null 2>&1; then
+  echo "    contributors.json matches team membership"
+else
+  echo "    contributors.json may have drifted from GitHub team membership."
+  echo "    Run:  python3 scripts/sync_contributors.py   then commit the result."
+  echo "    (If that errors, your gh token may lack read:org: gh auth refresh -s read:org)"
+fi
+
+echo
 echo "==> what needs reviewing"
 python3 scripts/review_status.py | sed -n '1,4p'
 echo
