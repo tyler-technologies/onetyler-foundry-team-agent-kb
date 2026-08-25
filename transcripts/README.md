@@ -8,6 +8,66 @@ files by hand. Both write to the same files, so you can mix freely.
 
 ---
 
+## The process, end to end
+
+Seven steps. The order matters — (a) before (b) is what stops two reviewers colliding, and
+(g) after (f) is what stops a transcript being marked `pushed` before the change is actually
+live.
+
+| # | Step | Who | How |
+|---|---|---|---|
+| a | Pull the latest `main` | you | `./scripts/start_review_session.sh` |
+| b | Pull unreviewed from the repo + fresh transcripts from Foundry | you | same script — it fetches, then lists what's pending |
+| c | Review | you / the team | `python3 scripts/review_server.py` → http://127.0.0.1:7777 |
+| d | Tell Claude to process the reviewed ones | you | just say so |
+| e | Process, and update knowledge files if needed | Claude | `review_status.py --actions`, then the edits |
+| f | Push the changes to the repo as a PR | Claude | branch → commit → PR → your approval |
+| g | Push to Foundry as needed, then close the transcripts out | Claude | upload + verify, then `mark_pushed.py` |
+
+### Why (a) comes first
+
+Two reviewers who each start from a stale `main` can both first-review the same transcript.
+Both diffs apply cleanly, git reports no conflict, and whoever merges second silently
+overwrites the other. `scripts/validate_reviews.py` catches it in CI, but syncing first
+avoids the wasted work entirely.
+
+### Why (g) comes after (f)
+
+`pushed` is a claim about **Foundry**, not about the repo. A transcript is only closed out
+once the change it caused is actually live and verified — so the upload happens first and
+`mark_pushed.py` last. `mark_pushed.py` refuses to close out a transcript whose `kb_action`
+is unresolved, so an open action cannot be quietly buried.
+
+---
+
+## The transcript lifecycle
+
+```
+pending  ──►  reviewed  ──►  pushed
+   │             │              │
+   │             │              └── re-review raises review_round and returns it to reviewed
+   │             └── your verdict is recorded; this is Claude's inbox
+   └── not yet reviewed. Saving without marking leaves it here on purpose —
+       use that for anything you want to come back to.
+
+excluded ─── out of scope entirely (pre-go-live testing). Not part of the flow.
+```
+
+| State | Means | Set by |
+|---|---|---|
+| `pending` | Not reviewed yet. May hold partially-filled fields — that's a deliberate "come back to it". | default |
+| `reviewed` | A human verdict is recorded. **This is the queue Claude works from.** | you |
+| `pushed` | Processed, and any resulting change is live in Foundry. Terminal. | Claude, at step (g) |
+| `excluded` | Not real feedback — pre-go-live testing. | you |
+
+A no-change review still ends at `pushed`: nothing needed deploying, so it's closed out.
+`action_status` records which happened — `applied` for a real change, `none-needed` when
+there was nothing to do.
+
+---
+
+---
+
 ## Setup — the review UI
 
 Run this on your own machine. It never leaves your laptop: the server binds to loopback
@@ -113,7 +173,7 @@ blank if it doesn't apply.
 | Field | Values | What it means |
 |---|---|---|
 | `review_round` | integer, default `1` | Which round of review this is. The **Re-review** button raises it. Required to re-review something already reviewed on `main` — see *Why the checks exist*. |
-| `review_status` | `pending` · `reviewed` · `excluded` | Set `reviewed` when you're done. Use `excluded` for a transcript that is not real feedback at all (see below) — it leaves the queue without counting as review work. |
+| `review_status` | `pending` · `reviewed` · `pushed` · `excluded` | Set `reviewed` when you're done. Use `excluded` for a transcript that is not real feedback at all (see below) — it leaves the queue without counting as review work. |
 | `reviewer` | a `github` value from [`contributors.json`](../contributors.json) | Who reviewed it. **Not free text** — the UI offers only registered contributors, and `--check` fails on anything else. Required to mark a transcript `reviewed`. |
 | `routing_verdict` | `correct` · `wrong-agent` · `ambiguous` | Did the *right* sub-agent handle this? |
 | `reassign_to` | `ops-center` · `bp-general` · `sac` · `identity` | Which agent *should* have. Only if `wrong-agent`. |

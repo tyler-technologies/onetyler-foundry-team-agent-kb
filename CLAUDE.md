@@ -436,6 +436,17 @@ workflow and field definitions: `transcripts/README.md`.
 Humans review through a local web UI (`python3 scripts/review_server.py`, loopback-only on
 port 7777) or by editing the markdown directly. Either way the output is the same files.
 
+**The lifecycle is `pending → reviewed → pushed`** (plus `excluded` for pre-go-live testing).
+`reviewed` is your inbox. `pushed` means processed *and* live in Foundry — it is a claim about
+Foundry, not the repo, so only set it after the upload is verified. Close out with
+`python3 scripts/mark_pushed.py`, which refuses to close a transcript whose `kb_action` is
+still unresolved.
+
+**Your half of the process is steps (e)–(g):** process the reviewed ones, update knowledge
+files if needed, open a **PR** (do not push content changes straight to `main` — the admin
+exemption exists so the owner isn't blocked, not so you can skip review), then upload to
+Foundry and mark the transcripts `pushed`. Full seven-step process: `transcripts/README.md`.
+
 **To find work:**
 
 ```bash
