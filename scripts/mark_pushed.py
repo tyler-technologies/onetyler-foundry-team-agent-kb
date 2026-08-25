@@ -75,7 +75,14 @@ def main():
         t = f.read_text(encoding="utf-8")
         st = fm_get(t, "review_status")
         if st != "reviewed":
-            skipped.append((f, f"review_status={st or 'unset'} (only 'reviewed' is closed out)"))
+            why = (f"review_status={st or 'unset'} (only 'reviewed' is closed out)")
+            if st == "suggested":
+                # Closing out a suggestion would deploy an un-approved verdict and strip the
+                # area owner of the decision the state exists to reserve for them.
+                why = (f"still a suggestion from {fm_get(t, 'suggested_by') or '?'} awaiting "
+                       f"{fm_get(t, 'awaiting') or 'an owner'} — it must be accepted "
+                       f"(marked reviewed) by a human before it can be closed out")
+            skipped.append((f, why))
             continue
         if not fm_get(t, "reviewer"):
             skipped.append((f, "no reviewer set")); continue

@@ -43,19 +43,26 @@ is unresolved, so an open action cannot be quietly buried.
 ## The transcript lifecycle
 
 ```
-pending  ──►  reviewed  ──►  pushed
-   │             │              │
-   │             │              └── re-review raises review_round and returns it to reviewed
-   │             └── your verdict is recorded; this is Claude's inbox
-   └── not yet reviewed. Saving without marking leaves it here on purpose —
-       use that for anything you want to come back to.
+pending  ──►  suggested  ──►  reviewed  ──►  pushed
+   │              │              │              │
+   │              │              │              └── re-review raises review_round
+   │              │              │                  and returns it to reviewed
+   │              │              └── a verdict is recorded; this is Claude's inbox
+   │              └── someone worked it up but is NOT the one deciding.
+   │                  Waiting on the area owner named in `awaiting`.
+   └── nobody has looked at it. Saving without marking leaves it here on purpose —
+       use that for anything YOU want to come back to.
 
 excluded ─── out of scope entirely (pre-go-live testing). Not part of the flow.
 ```
 
+`suggested` is optional. A reviewer who owns the area goes straight from `pending` to
+`reviewed`.
+
 | State | Means | Set by |
 |---|---|---|
-| `pending` | Not reviewed yet. May hold partially-filled fields — that's a deliberate "come back to it". | default |
+| `pending` | Nobody has looked at it. May hold partially-filled fields — a deliberate "come back to it", **for yourself**. | default |
+| `suggested` | A worked-up correction and proposed fix, explicitly **not** a verdict, handed to the area owner. Claude will not act on it. | whoever hits **Suggest** |
 | `reviewed` | A human verdict is recorded. **This is the queue Claude works from.** | you |
 | `pushed` | Processed, and any resulting change is live in Foundry. Terminal. | Claude, at step (g) |
 | `excluded` | Not real feedback — pre-go-live testing. | you |
@@ -63,6 +70,37 @@ excluded ─── out of scope entirely (pre-go-live testing). Not part of the 
 A no-change review still ends at `pushed`: nothing needed deploying, so it's closed out.
 `action_status` records which happened — `applied` for a real change, `none-needed` when
 there was nothing to do.
+
+### `suggested` — reviewing an area you don't own
+
+Use it when you can see what went wrong but the call isn't yours to make: an Ops Center
+question you have opinions about, an Identity answer that looks thin, anything where the
+person who owns that corpus should sign off.
+
+Fill in the fields and the correction exactly as you would for a real review, then hit
+**Suggest & next** instead of **Mark reviewed & next**. Commit and open a PR the usual way
+(the **Git & PR** tab). It merges like any other review contribution — CI does not require a
+verdict — and the owner picks it up on their next pull.
+
+Three things make it a real handoff rather than a note in a field:
+
+- **It carries a name.** `suggested_by` is required, and `reviewer` is deliberately left
+  blank — that field means *who made the call*, and nobody has. `awaiting` names the owner
+  you're handing it to. All three must be registered contributors.
+- **Claude will not act on it.** `--actions` lists it as "not actionable yet" and
+  `mark_pushed.py` refuses to close it. Only a human moving it to `reviewed` releases it.
+- **It cannot be silently overwritten.** See *Why the checks exist* below.
+
+To find suggestions waiting on you:
+
+```bash
+python3 scripts/review_status.py --suggestions --for <your-github-username>
+```
+
+Accepting one is just reviewing it: open it, change anything you disagree with, put **your**
+name in `reviewer`, and mark it reviewed. Disagree entirely? Overwrite the fields and mark it
+reviewed anyway — your verdict wins, and the suggestion stays in git history. To hand it on
+to someone else instead, change `awaiting` and hit **Suggest** again.
 
 ---
 
@@ -121,6 +159,11 @@ reviewed.
   **Proposed fix** at the bottom.
 - **Mark reviewed & next** saves and moves to the next transcript, so you can work through
   a batch without going back to the list.
+- **Suggest & next** does the same but records it as a suggestion for the area owner rather
+  than as your verdict — use it for areas you don't own. It puts your name in `suggested_by`
+  and clears `reviewer`. Set `awaiting` first if you know whose call it is.
+- The list defaults to showing **open (pending + suggested)**, so suggestions handed to you
+  appear without changing any filter. A suggested row shows `who → whom` under its status.
 - Saving rewrites the transcript's markdown file in place and regenerates `INDEX.md`. Your
   work is a normal git diff — check `git diff` any time.
 - The **Git & PR** tab creates a branch, commits everything under `transcripts/`, pushes,
@@ -173,8 +216,10 @@ blank if it doesn't apply.
 | Field | Values | What it means |
 |---|---|---|
 | `review_round` | integer, default `1` | Which round of review this is. The **Re-review** button raises it. Required to re-review something already reviewed on `main` — see *Why the checks exist*. |
-| `review_status` | `pending` · `reviewed` · `pushed` · `excluded` | Set `reviewed` when you're done. Use `excluded` for a transcript that is not real feedback at all (see below) — it leaves the queue without counting as review work. |
-| `reviewer` | a `github` value from [`contributors.json`](../contributors.json) | Who reviewed it. **Not free text** — the UI offers only registered contributors, and `--check` fails on anything else. Required to mark a transcript `reviewed`. |
+| `review_status` | `pending` · `suggested` · `reviewed` · `pushed` · `excluded` | Set `reviewed` when you're done. Use `suggested` to hand a worked-up opinion to the area owner without claiming the verdict (see above). Use `excluded` for a transcript that is not real feedback at all (see below) — it leaves the queue without counting as review work. |
+| `reviewer` | a `github` value from [`contributors.json`](../contributors.json) | Who **made the call**. **Not free text** — the UI offers only registered contributors, and `--check` fails on anything else. Required to mark a transcript `reviewed`. Stays blank on a `suggested` transcript, because nobody has decided yet. |
+| `suggested_by` | a `github` value from `contributors.json` | Who drafted a suggestion they are not claiming as a verdict. **Required** when `review_status: suggested`; `--check` fails without it. Set for you by the **Suggest** button. |
+| `awaiting` | a `github` value from `contributors.json` | The area owner a suggestion is handed to. Optional — blank means "anyone can pick this up" — but naming someone is what makes `--suggestions --for <user>` useful. |
 | `routing_verdict` | `correct` · `wrong-agent` · `ambiguous` | Did the *right* sub-agent handle this? |
 | `reassign_to` | `ops-center` · `bp-general` · `sac` · `identity` | Which agent *should* have. Only if `wrong-agent`. |
 | `answer_verdict` | `good` · `incomplete` · `wrong` · `stale` · `refused` | Quality of the answer given. |
@@ -242,6 +287,8 @@ python3 scripts/review_status.py             # dashboard + regenerate INDEX.md
 python3 scripts/review_status.py --pending    # just what's left to review
 python3 scripts/review_status.py --actions    # open KB actions
 python3 scripts/review_status.py --check      # validate frontmatter (exit 1 on error)
+python3 scripts/review_status.py --suggestions            # handoffs awaiting a decision
+python3 scripts/review_status.py --suggestions --for me   # ...just the ones aimed at me
 python3 scripts/validate_reviews.py           # check for review collisions vs origin/main
 
 python3 scripts/fetch_transcripts.py          # pull new conversations
@@ -269,9 +316,21 @@ Three things work together:
    | On `main` | In your PR | Verdict |
    |---|---|---|
    | `pending` | `reviewed`, round 1 | ✅ first review |
+   | `pending` | `suggested`, round 1 | ✅ first suggestion |
+   | `suggested` | `reviewed`, same round, **branched after the suggestion landed** | ✅ owner accepted it |
+   | `suggested` | `reviewed`, same round, **branched before it landed** | ❌ **collision** — you never saw it |
+   | `suggested` | `suggested`, same round | ❌ **collision** — two independent suggestions |
    | `reviewed` | `reviewed`, round **n+1** | ✅ deliberate re-review |
    | `reviewed` | `reviewed`, same round | ❌ **collision** |
+   | `reviewed` | `suggested`, same round | ❌ re-opening a decided transcript is a re-review |
    | anything | `reviewed`, no `reviewer` | ❌ un-attributable |
+   | anything | `suggested`, no `suggested_by` | ❌ un-attributable |
+
+   The two `suggested → reviewed` rows look identical in the frontmatter — the difference is
+   whether you actually saw the suggestion. The check resolves it with `git merge-base`: if
+   the suggestion was already present in the commit your branch was cut from, you superseded
+   it deliberately; if it reached the base branch afterwards, your PR was written without it
+   and merging would discard it.
 
 2. **"Require branches to be up to date before merging"** is on. This is the part that makes
    it airtight: a PR cannot merge against a stale `main`, so the check always re-runs against
@@ -293,6 +352,11 @@ convention is deliberately light:
   transcript is its own file.
 - **Pick yourself in `reviewer`** so credit and questions have an owner. Add yourself to
   `contributors.json` if you aren't there yet.
+- **Reviewing outside your area? Suggest, don't decide.** Fill it in and hit **Suggest**
+  with `awaiting` set to whoever owns that corpus. It commits and PRs like any other review,
+  and they get the final say. This is the intended way to contribute an opinion on a slice
+  you haven't claimed — you don't have to stay out of it, and you don't have to pretend to
+  authority you don't have.
 - **The PR submitter** runs `review_status.py` before committing so `INDEX.md` reflects
   reality, and titles the PR with what was covered, e.g.
   `Review: identity transcripts 2026-06`.

@@ -40,9 +40,15 @@ def contributors():
 # Ordered so rewritten frontmatter keeps a stable, diff-friendly shape.
 SOURCE_KEYS = ["conversation_id", "answered_by", "date", "exchanges",
                "dropped_sample_prompts", "foundry_feedback", "user_comments"]
-REVIEW_KEYS = ["review_status", "reviewer", "review_round", "routing_verdict",
-               "reassign_to", "answer_verdict", "diagnosis", "fix_target", "kb_action",
-               "kb_files", "action_status", "notes"]
+REVIEW_KEYS = ["review_status", "reviewer", "suggested_by", "awaiting", "review_round",
+               "routing_verdict", "reassign_to", "answer_verdict", "diagnosis", "fix_target",
+               "kb_action", "kb_files", "action_status", "notes"]
+
+# Fields constrained to a contributors.json `github` value. `reviewer` records who made the
+# call; `suggested_by` records who drafted a suggestion they are NOT claiming as a verdict;
+# `awaiting` names the area owner it is being handed to. All three must be real people, or
+# the handoff has nobody to chase.
+PEOPLE_KEYS = ("reviewer", "suggested_by", "awaiting")
 
 # Most transcripts need no corpus change. Pre-selecting the "nothing wrong" answer means
 # "Mark reviewed & next" on an untouched form records a deliberate no-change review rather
@@ -57,7 +63,7 @@ NO_CHANGE_DEFAULTS = {
 }
 
 CHOICES = {
-    "review_status":   ["pending", "reviewed", "pushed", "excluded"],
+    "review_status":   ["pending", "suggested", "reviewed", "pushed", "excluded"],
     "routing_verdict": ["", "correct", "wrong-agent", "ambiguous"],
     "reassign_to":     ["", "ops-center", "bp-general", "sac", "identity", "team"],
     "answer_verdict":  ["", "good", "incomplete", "wrong", "stale", "refused"],
@@ -69,7 +75,9 @@ CHOICES = {
     "action_status":   ["", "none-needed", "open", "applied", "wontfix"],
 }
 HELP = {
-    "reviewer":        "Your GitHub username. Add yourself to contributors.json first.",
+    "reviewer":        "Who made the call. Set when you mark this reviewed — not when you suggest.",
+    "suggested_by":    "Who drafted this suggestion without claiming the verdict. Set by 'Suggest'.",
+    "awaiting":        "The area owner this is handed to. They accept it by marking it reviewed.",
     "routing_verdict": "Did the right sub-agent handle this?",
     "reassign_to":     "Which agent should have. Only if wrong-agent.",
     "answer_verdict":  "Quality of the answer that was given.",
@@ -80,8 +88,9 @@ HELP = {
     "kb_files":        "Comma-separated paths, e.g. Knowledge-OpsCenter/Misc-Links.md",
     "action_status":   "'none-needed' when nothing must change. Claude sets 'applied' once a change ships.",
     "review_round":    "1 for a first review. Use the Re-review button to start round 2+.",
-    "review_status":   "pending -> reviewed (you) -> pushed (set by Claude once any change is "
-                       "live in Foundry). 'excluded' = not real feedback.",
+    "review_status":   "pending -> suggested (optional handoff) -> reviewed (you) -> pushed "
+                       "(set by Claude once any change is live in Foundry). 'excluded' = not "
+                       "real feedback.",
     "notes":           "One line. Long-form goes in Proposed fix below.",
 }
 
@@ -210,6 +219,7 @@ th{background:#f0f2f5;font-weight:600}tr:hover td{background:#fafbfc}
 .pending{background:#fff3d6;color:#8a5a00}.reviewed{background:#dcf5e4;color:#0f6b34}
 .excluded{background:#e8e9ec;color:#5b6470}
 .pushed{background:#dde8f7;color:#1c4f8f}
+.suggested{background:#ede4fb;color:#5b3ba8}
 .bad{background:#fde4e4;color:#a11}.warn{background:#ffeccc;color:#8a4b00}
 .card{background:#fff;border:1px solid #dfe3e8;border-radius:8px;padding:16px;margin-bottom:14px}
 .q{background:#eef4ff;border-left:3px solid #2b6cb0;padding:10px 12px;border-radius:4px;white-space:pre-wrap}
@@ -254,6 +264,19 @@ const r=await post('/save',{path,fields,exchanges:ex,proposed});
 if(r.ok){toast('Saved to '+r.path);if(then)location.href=then}else toast(r.error||'Save failed',false)}
 async function markAndNext(path,next){document.querySelector('[data-fm=review_status]').value='reviewed';
 await saveDoc(path,next)}
+// Suggest = "I worked this up but I am not the one who decides." The actor picker is the
+// `reviewer` select, so move that name into suggested_by and BLANK reviewer: `reviewer`
+// means "who made the call", and mark_pushed/validate_reviews both rely on that. The owner
+// puts their own name in reviewer when they accept.
+async function suggestAndNext(path,next){const rv=document.querySelector('[data-fm=reviewer]');
+const sb=document.querySelector('[data-fm=suggested_by]');
+const who=(sb.value||rv.value||'').trim();
+if(!who){toast('Pick your name first',false);return}
+// saveDoc remembers the actor from the `reviewer` select, which we are about to blank.
+try{localStorage.setItem('lastReviewer',who)}catch(e){}
+sb.value=who; rv.value='';
+document.querySelector('[data-fm=review_status]').value='suggested';
+await saveDoc(path,next)}
 async function reReview(path){const r=document.querySelector('[data-fm=review_round]');
 r.value=String((parseInt(r.value||'1',10)||1)+1);
 document.querySelector('[data-fm=review_status]').value='reviewed';
@@ -272,7 +295,10 @@ document.querySelectorAll('tr.row').forEach(tr=>{let ok=true;
  if(f.q && !tr.dataset.q.includes(f.q.toLowerCase())) ok=false;
  FKEYS.forEach(k=>{const want=f[k]; if(!want) return;
   const have=tr.dataset[k]||'';
-  if(want==='__blank__'){ if(have!=='') ok=false } else if(have!==want) ok=false});
+  // __open__ spans both not-yet-closed states. The default used to be status=pending, which
+  // hid every suggestion handed to you — the one view an area owner most needs to see.
+  if(want==='__open__'){ if(have!=='pending'&&have!=='suggested') ok=false }
+  else if(want==='__blank__'){ if(have!=='') ok=false } else if(have!==want) ok=false});
  const d=tr.dataset.date||'';
  if(f.dfrom && (!d || d<f.dfrom)) ok=false;
  if(f.dto && (!d || d>f.dto)) ok=false;
@@ -287,7 +313,7 @@ try{saved=JSON.parse(sessionStorage.getItem('tfilters'))}catch(e){}
 const set=(id,v)=>{const e=document.getElementById(id); if(e&&v) e.value=v};
 if(saved){set('f_q',saved.q);set('dfrom',saved.dfrom);set('dto',saved.dto);
  FKEYS.forEach(k=>set('f_'+k,saved[k]));}
-else{set('f_status','pending');}   // default view: only what still needs reviewing
+else{set('f_status','__open__');}  // default view: everything still open (pending + suggested)
 ['f_q','dfrom','dto'].concat(FKEYS.map(k=>'f_'+k)).forEach(id=>{
  const e=document.getElementById(id); if(!e)return;
  e.addEventListener((e.tagName==='SELECT'||e.type==='date')?'change':'input',applyFilters)});
@@ -340,6 +366,8 @@ def list_page():
             "diag": fm.get("diagnosis", ""),
             "fix": fm.get("fix_target", ""),
             "reviewer": fm.get("reviewer", ""),
+            "suggested_by": fm.get("suggested_by", ""),
+            "awaiting": fm.get("awaiting", ""),
         })
 
     # newest first — reviewers work the recent tail
@@ -368,7 +396,8 @@ def list_page():
             f"<td class=nowrap>{html.escape(r['date'])}</td>"
             f"<td>{html.escape(r['ex'])}</td>"
             f"<td>{'<span class=\'pill warn\'>'+html.escape(r['fb'])+'</span>' if r['fb'] not in ('none','') else ''}</td>"
-            f"<td><span class='pill {r['status']}'>{html.escape(r['status'])}</span></td>"
+            f"<td><span class='pill {r['status']}'>{html.escape(r['status'])}</span>"
+            f"{'<div class=deleg>'+html.escape(r['suggested_by'])+' &rarr; '+html.escape(r['awaiting'] or 'anyone')+'</div>' if r['status']=='suggested' else ''}</td>"
             f"<td>{html.escape(r['routing'])}"
             f"{'&rarr;'+html.escape(r['reassign']) if r['reassign'] else ''}</td>"
             f"<td>{html.escape(r['answer'])}</td>"
@@ -382,7 +411,9 @@ def list_page():
     pct = (100 * done // scope) if scope else 0
     bar = (f"<div class=bar><b>{done} / {scope} in-scope reviewed</b> ({pct}%)"
            f" &nbsp;·&nbsp; {counts['pending']} pending"
-           f" &nbsp;·&nbsp; {excl} excluded (pre-go-live)"
+           + (f" &nbsp;·&nbsp; <span class='pill suggested'>{counts['suggested']} suggested"
+              f"</span>" if counts["suggested"] else "")
+           + f" &nbsp;·&nbsp; {excl} excluded (pre-go-live)"
            f" &nbsp;·&nbsp; {tot} total"
            f" &nbsp;·&nbsp; <a href='/git'>commit &amp; open a PR &rarr;</a></div>"
            "<div class=bar id=fbar>Showing <b id=shown>0</b> of "
@@ -396,7 +427,8 @@ def list_page():
             "<th class=nowrap><small>use date range above</small></th>"
             f"<th><select id=f_ex>{opts('ex')}</select></th>"
             f"<th><select id=f_fb>{opts('fb')}</select></th>"
-            f"<th><select id=f_status>{opts('status')}</select></th>"
+            f"<th><select id=f_status><option value='__open__'>open (pending+suggested)"
+            f"</option>{opts('status')}</select></th>"
             f"<th><select id=f_routing>{opts('routing')}</select></th>"
             f"<th><select id=f_answer>{opts('answer')}</select></th>"
             f"<th><select id=f_diag>{opts('diag')}</select></th>"
@@ -411,17 +443,17 @@ def list_page():
 def field(k, val):
     hint = f"<span class=hint> — {html.escape(HELP[k])}</span>" if k in HELP else ""
     lab = f"<label>{k.replace('_',' ')}{hint}</label>"
-    if k == "reviewer":
+    if k in PEOPLE_KEYS:
         people = contributors()
         if not people:
-            return (f"<div>{lab}<input data-fm=reviewer value=\"{html.escape(val)}\" "
+            return (f"<div>{lab}<input data-fm={k} value=\"{html.escape(val)}\" "
                     f"placeholder='contributors.json is empty or unreadable'></div>")
         opts = "".join(f"<option{' selected' if o == val else ''}>{html.escape(o)}</option>"
                        for o in [""] + people)
         stale = ("<div class=hint style='color:#a11'>current value "
                  f"'{html.escape(val)}' is not in contributors.json</div>"
                  if val and val not in people else "")
-        return f"<div>{lab}<select data-fm=reviewer>{opts}</select>{stale}</div>"
+        return f"<div>{lab}<select data-fm={k}>{opts}</select>{stale}</div>"
     if k in CHOICES:
         opts = "".join(f"<option{' selected' if o == val else ''}>{html.escape(o)}</option>"
                        for o in CHOICES[k])
@@ -466,16 +498,29 @@ def detail_page(rel):
         if not prefill.get("review_round"):
             prefill["review_round"] = "1"
 
-    banner = ("<div class=bar style='background:#eef7ee;border-color:#c6e3c6'>"
-              "Pre-filled as <b>no changes needed</b> — routing correct, answer good, "
-              "nothing to fix. Just pick your name and hit "
-              "<b>Mark reviewed &amp; next</b>. Change any field if that is not true."
-              "</div>" if is_new else
-              f"<div class=bar style='background:#fff6e5;border-color:#e8d3a8'>"
-              f"Already <b>{html.escape(fm.get('review_status',''))}</b> by "
-              f"<b>{html.escape(fm.get('reviewer','?'))}</b> (round "
-              f"{html.escape(fm.get('review_round','1'))}). Saving edits keeps the same round; "
-              f"use <b>Re-review</b> to start a new one.</div>")
+    if is_new:
+        banner = ("<div class=bar style='background:#eef7ee;border-color:#c6e3c6'>"
+                  "Pre-filled as <b>no changes needed</b> — routing correct, answer good, "
+                  "nothing to fix. Just pick your name and hit "
+                  "<b>Mark reviewed &amp; next</b>. Change any field if that is not true."
+                  "</div>")
+    elif (fm.get("review_status") or "") == "suggested":
+        # Nothing here is a verdict yet. Say so loudly, or the owner reads a filled-in form
+        # as settled and rubber-stamps someone else's guess.
+        banner = ("<div class=bar style='background:#f3ecfd;border-color:#cdb8f0'>"
+                  f"<b>Suggestion from {html.escape(fm.get('suggested_by','?'))}</b>"
+                  + (f", handed to <b>{html.escape(fm['awaiting'])}</b>"
+                     if fm.get("awaiting") else " — no owner named")
+                  + ". <b>Not a verdict.</b> Nothing has been accepted and Claude will not act "
+                    "on it. Read the correction and the proposed fix, change what you disagree "
+                    "with, then <b>Mark reviewed</b> to accept it under your own name — or "
+                    "<b>Suggest</b> again to hand it on.</div>")
+    else:
+        banner = (f"<div class=bar style='background:#fff6e5;border-color:#e8d3a8'>"
+                  f"Already <b>{html.escape(fm.get('review_status',''))}</b> by "
+                  f"<b>{html.escape(fm.get('reviewer','?'))}</b> (round "
+                  f"{html.escape(fm.get('review_round','1'))}). Saving edits keeps the same round; "
+                  f"use <b>Re-review</b> to start a new one.</div>")
 
     parts = [head, banner, "<div class=card><div class=grid>"
              + "".join(field(k, prefill.get(k, "")) for k in REVIEW_KEYS) + "</div></div>"]
@@ -502,6 +547,9 @@ def detail_page(rel):
         f"<div class=nav><div>{f'<a href=\"{prev_}\"><button class=sec>&larr; Previous</button></a>' if prev_ else ''}</div>"
         f"<div style='display:flex;gap:8px'>"
         f"<button class=sec onclick=\"saveDoc('{html.escape(rel)}')\">Save</button>"
+        f"<button class=sec onclick=\"suggestAndNext('{html.escape(rel)}','{next_}')\" "
+        f"title='Record this as a suggestion for the area owner, not as your verdict'>"
+        f"Suggest &amp; next &rarr;</button>"
         f"<button class=sec onclick=\"reReview('{html.escape(rel)}')\">Re-review</button>"
         f"<button onclick=\"markAndNext('{html.escape(rel)}','{next_}')\">Mark reviewed &amp; next &rarr;</button>"
         f"</div></div>")
@@ -528,7 +576,9 @@ def git_page():
             + "</pre></div>"
             "<div class=card><small>Reviews are committed even when no knowledge file changes — "
             "a verdict of <code>fix_target: agent-instructions</code> with no <code>kb_files</code> "
-            "is a complete, mergeable contribution.</small></div>")
+            "is a complete, mergeable contribution. The same applies to a "
+            "<code>review_status: suggested</code> handoff: commit and PR it so the area owner "
+            "picks it up on their next pull.</small></div>")
     return page("Git & PR", body)
 
 
@@ -571,12 +621,23 @@ class H(BaseHTTPRequestHandler):
                 if not str(p).startswith(str(TDIR.resolve())) or not p.is_file():
                     raise ValueError("bad path")
                 fields = data.get("fields", {})
-                rv = (fields.get("reviewer") or "").strip()
                 allowed = contributors()
-                if rv and rv not in allowed:
-                    raise ValueError(f"'{rv}' is not in contributors.json — add them there first")
-                if (fields.get("review_status") or "").strip() in ("reviewed", "excluded") and not rv:
+                for k in PEOPLE_KEYS:
+                    v = (fields.get(k) or "").strip()
+                    if v and v not in allowed:
+                        raise ValueError(f"{k} '{v}' is not in contributors.json — "
+                                         f"add them to the GitHub team and re-run "
+                                         f"sync_contributors.py")
+                rv = (fields.get("reviewer") or "").strip()
+                st = (fields.get("review_status") or "").strip()
+                if st in ("reviewed", "excluded") and not rv:
                     raise ValueError("pick a reviewer before marking this reviewed or excluded")
+                # A suggestion with nobody's name on it is the whole problem this state exists
+                # to solve: the owner inherits a verdict-shaped edit and cannot ask who wrote
+                # it or why. Refuse it here rather than letting CI catch it after a push.
+                if st == "suggested" and not (fields.get("suggested_by") or "").strip():
+                    raise ValueError("a suggestion needs suggested_by — pick your name, then "
+                                     "use Suggest (it fills this in for you)")
                 save(p, fields, data.get("exchanges", {}),
                      data.get("proposed", ""))
                 refresh_index()

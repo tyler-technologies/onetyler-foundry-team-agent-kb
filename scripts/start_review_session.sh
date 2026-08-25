@@ -61,13 +61,34 @@ fi
 
 echo
 echo "==> what needs reviewing"
-python3 scripts/review_status.py | sed -n '1,4p'
+python3 scripts/review_status.py | sed -n '1,5p'
 echo
+
+# Suggestions handed to YOU. Surfaced here because this is the moment it is actionable — a
+# suggestion sitting in the queue is waiting on a specific person, and folding it into the
+# pending count would hide exactly that. Uses your own gh identity; degrades to nothing if
+# gh is unavailable.
+ME=$(gh api user --jq .login 2>/dev/null || true)
+if [ -n "$ME" ]; then
+  MINE=$(python3 scripts/review_status.py --suggestions --for "$ME" 2>/dev/null \
+         | grep -v '^no suggestions waiting' || true)
+  if [ -n "$MINE" ]; then
+    echo "==> suggestions waiting on you ($ME)"
+    echo "$MINE" | sed 's/^/    /'
+    echo
+    echo "    These are colleagues' worked-up opinions, not verdicts. Open one, change what"
+    echo "    you disagree with, put YOUR name in reviewer, and mark it reviewed to accept."
+    echo
+  fi
+fi
+
 PENDING=$(python3 scripts/review_status.py --pending | wc -l | tr -d ' ')
 if [ "$PENDING" = "0" ]; then
-  echo "    nothing pending — you are clear."
+  echo "    nothing open — you are clear."
 else
-  echo "    ${PENDING} pending. Open the UI:"
+  # Counts everything not closed out, so suggestions are included here as well as listed
+  # above. That is deliberate: a suggestion still needs a human decision.
+  echo "    ${PENDING} open (pending + suggested). Open the UI:"
   echo "      python3 scripts/review_server.py"
   echo
   echo "    A clean transcript is one click: the form opens pre-filled as 'no changes"

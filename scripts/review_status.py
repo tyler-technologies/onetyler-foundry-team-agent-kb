@@ -10,6 +10,8 @@ Usage:
     python3 scripts/review_status.py --pending    # list unreviewed files only
     python3 scripts/review_status.py --actions    # list open KB actions only
     python3 scripts/review_status.py --check      # exit 1 on malformed frontmatter (CI)
+    python3 scripts/review_status.py --suggestions             # handoffs awaiting a decision
+    python3 scripts/review_status.py --suggestions --for me    # ...just the ones aimed at me
 """
 import argparse, json, re, sys
 from collections import Counter
@@ -28,12 +30,19 @@ def contributors():
         return set()
 
 FIELDS = ["conversation_id", "answered_by", "date", "exchanges", "foundry_feedback",
-          "review_status", "reviewer", "routing_verdict", "reassign_to",
-          "answer_verdict", "diagnosis", "fix_target", "kb_action", "kb_files",
+          "review_status", "reviewer", "suggested_by", "awaiting", "routing_verdict",
+          "reassign_to", "answer_verdict", "diagnosis", "fix_target", "kb_action", "kb_files",
           "action_status", "notes", "review_round"]
 
+# Fields that must name a real contributor. See review_server.PEOPLE_KEYS.
+PEOPLE_KEYS = ("reviewer", "suggested_by", "awaiting")
+
+# Not closed out. `suggested` is open work with a name on it, not a verdict.
+OPEN = ("pending", "suggested")
+DONE = ("reviewed", "pushed", "excluded")
+
 VALID = {
-    "review_status":   {"", "pending", "reviewed", "pushed", "excluded"},
+    "review_status":   {"", "pending", "suggested", "reviewed", "pushed", "excluded"},
     "routing_verdict": {"", "correct", "wrong-agent", "ambiguous"},
     "reassign_to":     {"", "ops-center", "bp-general", "sac", "identity", "team"},
     "answer_verdict":  {"", "good", "incomplete", "wrong", "stale", "refused"},
@@ -95,6 +104,10 @@ def main():
     ap.add_argument("--pending", action="store_true")
     ap.add_argument("--actions", action="store_true")
     ap.add_argument("--check", action="store_true")
+    ap.add_argument("--suggestions", action="store_true",
+                    help="list suggestions awaiting a human decision")
+    ap.add_argument("--for", dest="for_", metavar="USER",
+                    help="with --suggestions: only those handed to USER (or to nobody)")
     a = ap.parse_args()
 
     files = sorted(TDIR.rglob("*.md"))
@@ -115,11 +128,17 @@ def main():
         for k, allowed in VALID.items():
             if d.get(k, "") not in allowed:
                 bad.append((f, f"{k}={d.get(k)!r} not in {sorted(allowed - {''})}"))
+        for k in PEOPLE_KEYS:
+            v = d.get(k, "")
+            if v and people and v not in people:
+                bad.append((f, f"{k}={v!r} is not in contributors.json"))
         rv = d.get("reviewer", "")
-        if rv and rv not in people:
-            bad.append((f, f"reviewer={rv!r} is not in contributors.json"))
-        if d.get("review_status") in ("reviewed", "pushed", "excluded") and not rv:
+        if d.get("review_status") in DONE and not rv:
             bad.append((f, f"review_status={d.get('review_status')} but no reviewer set"))
+        # An unattributed suggestion is the failure this state exists to prevent: the owner
+        # inherits verdict-shaped fields with nobody to ask what they meant.
+        if d.get("review_status") == "suggested" and not d.get("suggested_by"):
+            bad.append((f, "review_status=suggested but no suggested_by set"))
         rows.append((f, d))
 
     if a.check:
@@ -129,8 +148,20 @@ def main():
 
     if a.pending:
         for f, d in rows:
-            if d.get("review_status", "pending") not in ("reviewed", "pushed", "excluded"):
+            if d.get("review_status", "pending") not in DONE:
                 print(f.relative_to(REPO))
+        return
+    if a.suggestions:
+        # What an area owner runs to find work handed to them. `awaiting` unset means the
+        # suggester named no owner, so it is everyone's to pick up — always show those.
+        hits = [(f, d) for f, d in rows if d.get("review_status") == "suggested"
+                and (not a.for_ or d.get("awaiting", "") in ("", a.for_))]
+        for f, d in hits:
+            print(f"{f.relative_to(REPO)}  from {d.get('suggested_by','?')}"
+                  f"  -> {d.get('awaiting') or 'anyone'}"
+                  f"  [{d.get('answered_by','?')}]  {d.get('notes','')[:70]}")
+        if not hits:
+            print("no suggestions waiting" + (f" for {a.for_}" if a.for_ else ""))
         return
     if a.actions:
         # Only REVIEWED items are actionable. A pending transcript with fields filled in is
@@ -149,21 +180,34 @@ def main():
             print(f"\n-- not actionable yet: {len(inflight)} transcript(s) have an open action "
                   f"but review_status is not 'reviewed' --", file=sys.stderr)
             for f, d in inflight:
-                print(f"   {f.relative_to(REPO)}  ({d.get('review_status')}, "
-                      f"reviewer={d.get('reviewer') or 'unset'})", file=sys.stderr)
+                who = (f"suggested_by={d.get('suggested_by') or 'unset'}, "
+                       f"awaiting={d.get('awaiting') or 'anyone'}"
+                       if d.get("review_status") == "suggested"
+                       else f"reviewer={d.get('reviewer') or 'unset'}")
+                print(f"   {f.relative_to(REPO)}  ({d.get('review_status')}, {who})",
+                      file=sys.stderr)
         return
 
     # dashboard
     tot = len(rows)
     st = lambda v: sum(1 for _, d in rows if d.get("review_status") == v)
     excl, pend, rev, push = st("excluded"), st("pending"), st("reviewed"), st("pushed")
+    sugg = st("suggested")
     inscope = tot - excl
     closed = push
     print(f"Transcripts: {tot}   (excluded {excl}, in scope {inscope})")
-    print(f"  lifecycle:  pending {pend}  ->  reviewed {rev}  ->  pushed {push}"
-          f"   ({100*closed//inscope if inscope else 0}% closed out)")
+    print(f"  lifecycle:  pending {pend}  ->  suggested {sugg}  ->  reviewed {rev}"
+          f"  ->  pushed {push}   ({100*closed//inscope if inscope else 0}% closed out)")
     if rev:
         print(f"  ** {rev} reviewed and awaiting processing - run --actions **")
+    if sugg:
+        # Name the owners, because the whole point of the state is that it is waiting on a
+        # specific person. A bare count reads as progress rather than as a queue.
+        wait = Counter(d.get("awaiting") or "anyone" for _, d in rows
+                       if d.get("review_status") == "suggested")
+        print(f"  ** {sugg} suggestion(s) awaiting a decision: "
+              + ", ".join(f"{k} ({v})" for k, v in sorted(wait.items()))
+              + " - run --suggestions **")
     print()
     print("by agent (reviewed or pushed / total):")
     per = Counter(d.get("answered_by", "?") for _, d in rows)
@@ -192,7 +236,8 @@ def main():
     # INDEX.md
     L = ["# Transcript review index", "",
          f"_Generated by `scripts/review_status.py`. {tot} transcripts: "
-         f"{pend} pending, {rev} reviewed, {push} pushed, {excl} excluded._", "",
+         f"{pend} pending, {sugg} suggested, {rev} reviewed, {push} pushed, "
+         f"{excl} excluded._", "",
          "| Transcript | Agent | Date | Ex | Foundry FB | Status | Routing | Answer | Diagnosis | KB action |",
          "|---|---|---|---|---|---|---|---|---|---|"]
     for f, d in rows:
@@ -200,7 +245,9 @@ def main():
         L.append("| [{}]({}) | {} | {} | {} | {} | {} | {} | {} | {} | {} |".format(
             f.stem, rel, d.get("answered_by", ""), (d.get("date", "") or "")[:10],
             d.get("exchanges", ""), d.get("foundry_feedback", ""),
-            d.get("review_status", ""),
+            (d.get("review_status", "")
+             + (f" ({d.get('suggested_by','?')}→{d.get('awaiting') or 'anyone'})"
+                if d.get("review_status") == "suggested" else "")),
             d.get("routing_verdict", "") + ("→" + d["reassign_to"] if d.get("reassign_to") else ""),
             d.get("answer_verdict", ""), d.get("diagnosis", ""),
             (d.get("kb_action", "") or "") + (f" ({d.get('action_status')})" if d.get("kb_action") in {"add","update","split"} else "")))
