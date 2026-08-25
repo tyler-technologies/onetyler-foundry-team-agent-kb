@@ -42,7 +42,7 @@ _Aligned Releases content moved to `Knowledge-AlignedReleases/` on 2026-08-23 wh
 
 | File | One-liner — what's in it |
 |---|---|
-| `FAQ-BPGeneral.md` | **Authored answers with no upstream source.** Empty of entries today — it exists so the next unsourced answer has a home instead of being wedged into a `Docusaurus-` file, where re-derivation would delete it. |
+| `FAQ-BPGeneral.md` | **Authored answers with no upstream source.** Currently one entry: which Teams channel a product registration question goes to — functional to Product Registration Community, technical to Cloud Platform Community. That entry **corrects** `Docusaurus-ProductSystemReg.md`, which points everything at the functional channel. |
 | `Docusaurus-PlatformOverview.md` | **Orientation + canonical glossary + specialized-agent routing.** Cloud Living / Tyler 2030, what TCP is, platform applications, Client vs Ops app types, getting support (service desk + Teams channels), and the full Blueprint **terminology glossary**. The agent's grounding file — read it early. |
 | `Docusaurus-ClientApps.md` | The **client-application reference**: Admin Center (sign-in, roles, ACLs, Identity Workforce config in the AC UI, users/bulk import, page-by-page feature reference, Tyler-internal integration + sandbox tenants), App Directory, CAPM, Community Launcher, Community Profile, Workforce Profile, and Community Services Directory (CSD admin/config/public directory). |
 | `Docusaurus-OpsApps.md` | The **Tyler-staff Ops app family** *excluding* Ops Center & SAC: app taxonomy (client vs ops), **Audit Center**, **Authorization Config**. (Audit Center / Authorization Config source pages are stubs — file says so; don't fabricate.) Hands off to the Ops Center & SAC agents. |
@@ -87,6 +87,17 @@ When the user asks about… reach for these first (after checking the specialize
 ### "How do I register a product / what app types exist / Product vs SKU / customer onboarding & provisioning?"
 - `Docusaurus-ProductSystemReg.md`.
 - For product registration *in the Ops Center UI specifically* → **Ops Center agent**.
+
+### "Who do I ask about product registration / where do I post this / my registration is out of sync / broken?"
+- `FAQ-BPGeneral.md` → *Where do I post a product registration question?* — **read this before
+  quoting an escalation channel.** Functional questions go to Product Registration Community;
+  technical ones (out of sync, not deploying, wrong JSON in Ops Center) go to **Cloud Platform
+  Community**.
+- This **overrides** `Docusaurus-ProductSystemReg.md`, whose *Notes for the chatbot* item 8
+  points all "complex registration questions" at the functional channel.
+- Answer the substance too, don't just hand over a channel: for a sync problem,
+  `tcp-product-catalog` is authoritative and its `master` YAML should match the Ops Center
+  Registration Details JSON — that part is in `Docusaurus-ProductSystemReg.md`.
 
 ### "What is Aligned Releases / how do I integrate with it / cohorts / GA trigger?"
 - `Docusaurus-AlignedReleases.md`.
