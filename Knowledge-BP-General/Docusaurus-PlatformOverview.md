@@ -37,19 +37,20 @@ Audience: Tyler product teams, platform/operations engineers, and anyone orienti
 
 ## Specialized Foundry agents — when to hand off
 
-> **This is the most important routing decision for this agent.** Tyler runs **three specialized Foundry agents** in addition to this general Blueprint agent. When a user's question is squarely about one of these three domains, **recommend the dedicated agent** (and give the live Blueprint URL for that domain) instead of answering from this general corpus — the specialized agents carry far deeper, curated content for their area.
+> **This is the most important routing decision for this agent.** Tyler runs **four specialized Foundry agents** in addition to this general Blueprint agent. When a user's question is squarely about one of these four domains, **recommend the dedicated agent** (and give the live Blueprint URL for that domain) instead of answering from this general corpus — the specialized agents carry far deeper, curated content for their area.
 
-**Question: "What specialized agents are available?"** → There are **three** specialized Foundry agents:
+**Question: "What specialized agents are available?"** → There are **four** specialized Foundry agents:
 
 | Specialized agent | Use it when the question is about… (trigger keywords) | Where to point the user (Blueprint URL) |
 |---|---|---|
 | **Ops Center** | "**Ops Center**", organization/workspace lifecycle in Ops Center, product licensing & activation in Ops Center, org import/create wizards, identity tiers as shown in Ops Center, CRM customer identifiers, Ops Center permissions/telemetry | https://docs.tylerdev.io/app-guides/ops/ops-center/overview/ |
 | **Support Access Center (SAC)** | "**Support Access Center**", "**SAC**", time-bound Tyler-staff access to customer installations, SAC groups, support access requests/approvals/extensions, the support-access-revoked flow | https://docs.tylerdev.io/ops/support-access-center/ |
-| **Identity** (managed separately) | "**Identity**", "**Identity Workforce**", "**Identity Community**", "**Gateway**" / Workforce Direct / Managed / Delegated, federation setup, credential templates, login/token flows, the TID services | https://docs.tylerdev.io/identity |
+| **Identity** | "**Identity**", "**Identity Workforce**", "**Identity Community**", "**Gateway**" / Workforce Direct / Managed / Delegated, federation setup, credential templates, login/token flows, the TID services | https://docs.tylerdev.io/identity |
+| **Aligned Releases** | quarterly GA releases, the feature lifecycle (Planned / Private Preview / Public Preview / GA), taking a feature GA, cohorts and cohort assignment, release documentation and release notes, versions such as 2026.1, maintenance windows, the Aligned Releases API and SDK | https://docs.tylerdev.io/aligned-releases |
 
 **Everything else about the Tyler Cloud Platform / Blueprint is covered here in BP-General** — the client and ops applications, the TCP/TID API catalog, service architecture (Authorization, Search, Webhooks, Eventing, CSD), DevOps (Datadog, Harness, Terraform, AWS infra, DR, runbooks), platform security, product/system registration, Aligned Releases, and Status Page & SLA.
 
-**How to phrase a hand-off:** Briefly answer any general-context part of the question, then say something like: *"For detailed [Ops Center / Support Access Center / Identity] guidance, there's a dedicated Foundry agent — see [URL]."* It is fine to define a term (e.g., what "Workforce Direct" means — it's in the glossary below) without handing off; hand off when the user needs **workflows, configuration, or deep how-to** in one of the three specialized domains.
+**How to phrase a hand-off:** Briefly answer any general-context part of the question, then say something like: *"For detailed [Ops Center / Support Access Center / Identity / Aligned Releases] guidance, there's a dedicated Foundry agent — see [URL]."* It is fine to define a term (e.g., what "Workforce Direct" means — it's in the glossary below) without handing off; hand off when the user needs **workflows, configuration, or deep how-to** in one of the four specialized domains.
 
 ---
 
@@ -151,7 +152,7 @@ For deep Identity questions, also point the user to the **Identity specialized a
 
 ## Canonical glossary
 
-**Source:** *Get Started > Terminology* — https://docs.tylerdev.io/get-started/terminology/terminology. This is the **authoritative Blueprint glossary** for the BP-General agent. Use it to resolve any Tyler term or abbreviation. (Defining a term here does **not** require a hand-off; hand off only for deep workflows in the three specialized domains.)
+**Source:** *Get Started > Terminology* — https://docs.tylerdev.io/get-started/terminology/terminology. This is the **authoritative Blueprint glossary** for the BP-General agent. Use it to resolve any Tyler term or abbreviation. (Defining a term here does **not** require a hand-off; hand off only for deep workflows in the four specialized domains.)
 
 **Admin Center** — OneTyler-managed tool for centralized administrative experiences used by customer IT or solution administrators.
 
