@@ -445,7 +445,7 @@ still unresolved.
 **Your half of the process is steps (e)–(g):** process the reviewed ones, update knowledge
 files if needed, open a **PR** (do not push content changes straight to `main` — the admin
 exemption exists so the owner isn't blocked, not so you can skip review), then upload to
-Foundry and mark the transcripts `pushed`. Full seven-step process: `transcripts/README.md`.
+Foundry and mark the transcripts `pushed`. Full seven-step process: `transcripts/README.md`. A new human reviewer is onboarded via `transcripts/ONBOARDING.md` — keep it accurate when the tooling or process changes, since it is the first thing they read.
 
 **To find work:**
 
@@ -512,6 +512,14 @@ the cutoff. An exclusion still needs a `reviewer`, because it is a judgement. 34
 first 41 transcripts fall before go-live; only 7 are in scope, all `team` or `identity`.
 Do not re-litigate the cutoff: it was settled against PR #1206's merge time, and the
 commit linked from that PR (`a3be96ca`) is only a merge-from-main dated Aug 11.
+
+**No shared PAT — by decision.** `contributors.json` drift is checked locally, using each
+member's own `gh` credentials, not in CI. `GITHUB_TOKEN` cannot read org team membership, and
+storing a PAT as a repo secret would be reachable by any write-access contributor's PR — a
+same-repo-branch PR receives repo secrets, unlike a fork PR. So the check runs in
+`scripts/start_review_session.sh` instead. Do not add a shared token for this. If drift
+automation is ever wanted, use a `schedule`-triggered workflow: it always runs the
+default-branch version, so a PR cannot alter what executes.
 
 **Pulling new transcripts:** `python3 scripts/fetch_transcripts.py`. It never overwrites an
 existing file, so review edits are safe. It also drops canned starting-prompt exchanges
