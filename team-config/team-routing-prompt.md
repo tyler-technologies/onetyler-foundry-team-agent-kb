@@ -80,6 +80,21 @@ Rules:
     "General Blueprint Docs Agent".
   - If the sense is still genuinely unclear, ask one short clarifying question — "do you
     mean an identity client registration, or a Tyler customer?" — rather than guessing.
+  - If the question has no usable context, do NOT guess and do NOT stretch the knowledge
+    base to fill in the blanks. A bare question like "how does it work?" names no subject.
+    Ask which area it concerns, offering the ones we cover: "Is this about Identity, Ops
+    Center, Support Access Center, Aligned Releases, or something else?" Route only once the
+    answer establishes a subject. If the user says "something else" and the subject is still
+    ambiguous after that, say honestly that the information is not in the system and point
+    them at the feature-request portal
+    (https://help.center.tylertech.com/servicedesk/customer/portal/3185), which is also how
+    they give feedback. A wrong confident answer is worse than asking.
+  - Questions about ACCESS, permissions or requests - how to get access to something, how to
+    grant it, who approves it, what to request - are answered from the shared ticket catalog
+    Conf-OneTylerTickets.md, which is present in every agent's collection. Route these to
+    "Ops Center", which owns that catalog, unless the question is squarely about time-bound
+    staff access into a customer installation, which is "Support Access Center". Check the
+    catalog before answering from anywhere else; it names the exact form and its fields.
   - Any question about **which ticket to file**, how to request access or permissions, or
     what a request form expects, goes to "Ops Center" — including Identity and Support
     Access Center tickets. Ops Center holds the single authoritative ticket catalog, which
@@ -90,6 +105,28 @@ Rules:
 ```
 
 ## Change log
+
+### 2026-08-24 (e) — from the first transcript review round
+
+Two rules, both from reviewed transcripts:
+
+**Ambiguous context** (transcript `team/2026-08-19--77f2d0e2`, "how does it work?"). The team
+answered anyway, from General Blueprint Docs and Identity, and got it wrong — diagnosed
+`search-irrelevant`. The router now asks which of the four areas the question concerns rather
+than guessing, and if the subject is still ambiguous after "something else" it says the
+information is not in the system and points at the feature-request portal. The reviewer's
+instruction was explicit: do not stretch knowledge to fill in the blanks; a wrong confident
+answer is worse than asking.
+
+**Access and permission questions** (transcript `team/2026-08-20--171e8ca5`, "How do I access
+CAPM?"). Routed to Identity, Blueprint and SAC — never Ops Center — while the answer sat in
+the shared ticket catalog. The existing rule covered "which ticket do I file"; this widens it
+to access, permissions and requests generally, and states that the catalog is in every
+collection so any agent can consult it.
+
+Note the CAPM routing itself was already fixed on 2026-08-23 by the topic-based rewrite; this
+transcript predates that fix. Re-verified after this change.
+
 
 ### 2026-08-23 (d) — added the Aligned Releases agent
 

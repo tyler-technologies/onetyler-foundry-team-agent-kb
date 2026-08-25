@@ -1,6 +1,6 @@
 # START HERE — Routing Guide for the Blueprint General Knowledge Corpus
 
-This file is **the chatbot's first read** for the BP-General domain. It is a **routing guide**, not a tutorial. Its job is to help the chatbot (1) decide whether the question belongs to one of the **three specialized Foundry agents** and hand off, and (2) otherwise pick the right BP-General file before answering. The actual answers live in the other files.
+This file is **the chatbot's first read** for the BP-General domain. It is a **routing guide**, not a tutorial. Its job is to help the chatbot (1) decide whether the question belongs to one of the **four specialized Foundry agents** and hand off, and (2) otherwise pick the right BP-General file before answering. The actual answers live in the other files.
 
 **Domain:** Blueprint General — the rest of the **Tyler Blueprint** documentation (`docs.tylerdev.io`) and **Tyler Cloud Platform (TCP)** content that is **not** owned by a specialized agent. Covers platform orientation/glossary, client & ops applications, the TCP/TID API catalog, service architecture, DevOps, platform security, product/system registration, Aligned Releases, and Status Page & SLA.
 
@@ -8,17 +8,18 @@ This file is **the chatbot's first read** for the BP-General domain. It is a **r
 
 ## ⚠️ First: should this go to a specialized agent?
 
-Tyler runs **three specialized Foundry agents** alongside this general one. **If the question is squarely about one of these, recommend that agent and give its Blueprint URL** rather than answering from this corpus.
+Tyler runs **four specialized Foundry agents** alongside this general one. **If the question is squarely about one of these, recommend that agent and give its Blueprint URL** rather than answering from this corpus.
 
 | Specialized agent | Trigger keywords | Point the user to (Blueprint URL) |
 |---|---|---|
 | **Ops Center** | "Ops Center", org/workspace lifecycle in Ops Center, product licensing & activation in Ops Center, org import/create, CRM customer identifiers, Ops Center permissions/telemetry | https://docs.tylerdev.io/app-guides/ops/ops-center/overview/ |
 | **Support Access Center (SAC)** | "Support Access Center", "SAC", time-bound staff access to customer installs, SAC groups, access requests/approvals/extensions | https://docs.tylerdev.io/ops/support-access-center/ |
+| **Aligned Releases** | quarterly GA releases, feature lifecycle (Planned / Private Preview / Public Preview / GA), taking a feature GA, cohorts, release documentation and notes, versions like 2026.1, the Aligned Releases API | https://docs.tylerdev.io/aligned-releases |
 | **Identity** (managed separately) | "Identity", "Identity Workforce", "Identity Community", "Gateway", Workforce Direct/Managed/Delegated, federation, credential templates, login/token flows | https://docs.tylerdev.io/identity |
 
-**The canonical answer to "What specialized agents are available?"** is the three rows above — always give the agent name, its trigger keywords, and its URL. The full answer also lives in `Docusaurus-PlatformOverview.md` → *Specialized Foundry agents — when to hand off* (retrievable as content). **Everything else is BP-General's job.**
+**The canonical answer to "What specialized agents are available?"** is the four rows above — always give the agent name, its trigger keywords, and its URL. The full answer also lives in `Docusaurus-PlatformOverview.md` → *Specialized Foundry agents — when to hand off* (retrievable as content). **Everything else is BP-General's job.**
 
-Defining a term (e.g., what "Workforce Managed" means — it's in the glossary) does **not** require a hand-off. Hand off when the user needs **workflows, configuration, or deep how-to** in one of the three specialized domains.
+Defining a term (e.g., what "Workforce Managed" means — it's in the glossary) does **not** require a hand-off. Hand off when the user needs **workflows, configuration, or deep how-to** in one of the four specialized domains.
 
 ---
 
@@ -139,14 +140,14 @@ Be honest when asked about these:
 | **`Docusaurus-`** | Tyler Blueprint Docusaurus (`docs.tylerdev.io`) | Tyler-internal but publicly addressable. The structured docs site for product/platform engineering. Live URL works for anyone with the link; it's the canonical source for currency. |
 | (future) `Conf-`, `GitHub-`, `Training-`, `Misc-` | Confluence / GitHub / training assets / bookmark catalog | Add consistent with the parent project conventions as new sources are distilled into this folder. |
 
-All current files are `Docusaurus-` distillations of the Blueprint docs that don't fall under the three specialized-agent paths.
+All current files are `Docusaurus-` distillations of the Blueprint docs that don't fall under the four specialized-agent paths.
 
 ---
 
 ## Operating principles for the chatbot
 
 1. **Read this file first.** Decide hand-off vs answer-here before retrieving deeper.
-2. **Hand off the three specialized domains** (Ops Center, SAC, Identity) with the agent name + keywords + URL. Don't try to answer deep questions in those areas from this corpus.
+2. **Hand off the four specialized domains** (Ops Center, SAC, Identity, Aligned Releases) with the agent name + keywords + URL. Don't try to answer deep questions in those areas from this corpus.
 3. **Cite the file you're answering from** (e.g., "per `Docusaurus-CloudPlatformAPI.md`…").
 4. **Surface URLs verbatim** — Blueprint doc links, ticket links, Teams channels. Don't guess them.
 5. **Ground term definitions in the glossary** (`Docusaurus-PlatformOverview.md`); surface disambiguation pairs for ambiguous terms ("client", "admin", "environment vs workspace").

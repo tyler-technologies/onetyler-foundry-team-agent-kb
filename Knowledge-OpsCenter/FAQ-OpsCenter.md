@@ -80,6 +80,24 @@ If the sense is genuinely unclear, **ask one clarifying question** rather than g
   contexts", but does not give this routing rule. If the glossary is expanded to cover it,
   move this there.
 
+### Q: Is there a way to see all the Admin Center instances I have access to?
+
+**A:** **No — there is currently no single place** that lists every Admin Center instance a
+user has access to.
+
+Once a product has adopted **Support Access Center**, Tyler users will be able to see all of
+their access requests — to Admin Center *and* to products — on the **SAC Dashboard**. That is
+the closest thing to a consolidated view, and it only covers products that have adopted SAC.
+
+Do not offer a workaround that implies a consolidated list exists.
+
+- **Source:** Vijay Venkataraman, reviewing transcript `team/2026-08-21--e7510651`, where the
+  team routed this to Tyler Identity and the answer was wrong. Diagnosis was `search-empty` —
+  nothing in any corpus answered it.
+- **Added:** 2026-08-24 by vijay-tylertech
+- **Confidence:** confirmed by owner
+- **Promote when:** if Blueprint documents a consolidated access view, move it there.
+
 ### Q: Is the team still called CorpDev?
 
 **A:** No — the team is **OneTyler**. "CorpDev" is the former name, but it is still used
