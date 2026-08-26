@@ -48,6 +48,21 @@ else
 fi
 
 echo
+# Instruction files are admin-only. Catch a stray edit HERE, before it is committed and
+# before CI has to reject the PR — an AI agent that has quietly "improved" CLAUDE.md is
+# then following its own rewrite, and this is the cheapest place to notice.
+INSTR_RE='^(CLAUDE\.md|README\.md|contributor-initial-prompt\.md|contributors\.json|\.gitignore|transcripts/(README|ONBOARDING)\.md|scripts/|templates/|\.github/|Knowledge-[^/]*/_START_HERE\.md)'
+touched_instr=$(git diff --name-only "origin/main...HEAD" 2>/dev/null | grep -E "$INSTR_RE" || true)
+if [ -n "$touched_instr" ]; then
+  echo "==> ⚠ this branch modifies ADMIN-ONLY instruction files"
+  echo "$touched_instr" | sed 's/^/      /'
+  echo "    Contributors write to transcripts/ only. If you are not a repo admin, revert these"
+  echo "    and raise the issue in the PR description instead:"
+  echo "      git checkout origin/main -- <file>"
+  echo "    CI will fail the PR otherwise."
+  echo
+fi
+
 echo "==> checking the reviewer list is current"
 # Uses YOUR gh credentials — there is deliberately no shared PAT for this. Needs read:org;
 # if it is missing, run:  gh auth refresh -s read:org

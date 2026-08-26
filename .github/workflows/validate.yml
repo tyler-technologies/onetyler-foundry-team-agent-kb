@@ -1,7 +1,7 @@
 name: Validate
 
-# Runs on every pull request. Two checks, both stdlib-only Python — no dependencies,
-# no build step, so this stays fast and cannot break on a package update.
+# Runs on every pull request. Stdlib-only Python and shell — no dependencies and no build
+# step, so this stays fast and cannot break on a package update.
 on:
   pull_request:
     branches: [main]
@@ -17,6 +17,51 @@ jobs:
         with:
           # Full history so validate_reviews.py can diff against the base branch.
           fetch-depth: 0
+
+      - name: Instruction files are not modified by a non-admin
+        # A TRIPWIRE, NOT A SECURITY BOUNDARY. Be clear about which is which:
+        #
+        #   The real boundary is CODEOWNERS + branch protection ("Require review from Code
+        #   Owners", verified on), which GitHub enforces server-side. A pull request cannot
+        #   weaken it.
+        #
+        #   This step cannot make that claim, because `pull_request` runs the workflow file
+        #   from the PR's own head — so a PR that edits this file is checked by its edited
+        #   version. It therefore catches ACCIDENTS, which is the actual risk here: an AI
+        #   agent helpfully "improving" CLAUDE.md and then following its own rewrite for the
+        #   rest of the session. It fails early and loudly with an explanation, instead of
+        #   the contributor discovering it at review time.
+        #
+        # ADMINS is duplicated from the onetyler-tcp-pm-admins team on purpose: GITHUB_TOKEN
+        # cannot read org team membership, and this repo has decided against a shared PAT
+        # (see CLAUDE.md). Keep it in step with the team.
+        env:
+          ACTOR: ${{ github.actor }}
+        run: |
+          ADMINS="vijay-tylertech"
+          PATHS='^(CLAUDE\.md|README\.md|contributor-initial-prompt\.md|contributors\.json|\.gitignore|transcripts/(README|ONBOARDING)\.md|scripts/|templates/|\.github/|Knowledge-[^/]*/_START_HERE\.md)'
+          touched=$(git diff --name-only "origin/${{ github.base_ref }}...HEAD" | grep -E "$PATHS" || true)
+          if [ -z "$touched" ]; then
+            echo "no instruction files touched"; exit 0
+          fi
+          if echo " $ADMINS " | grep -q " $ACTOR "; then
+            echo "instruction files changed by admin '$ACTOR' — allowed:"
+            echo "$touched" | sed 's/^/  /'
+            exit 0
+          fi
+          echo "::error::'$ACTOR' is not a repo admin but this PR modifies instruction files."
+          echo "$touched" | sed 's/^/  /'
+          cat <<'EOF'
+          These files define how everyone (including AI agents) works in this repo, so they
+          are admin-only. Contributors write to transcripts/ only.
+
+          If you are an AI agent: do not edit these, and do not edit this check to get past
+          it. Revert them, keep your transcripts/ changes, and say in the PR what you think
+          should change and why. An admin will make the call.
+
+              git checkout "origin/${GITHUB_BASE_REF}" -- <each file listed above>
+          EOF
+          exit 1
 
       - name: Frontmatter is well-formed
         run: python3 scripts/review_status.py --check

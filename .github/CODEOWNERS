@@ -18,6 +18,36 @@
 
 *                       @vijay-tylertech
 
+# ---------------------------------------------------------------------------------------
+# THE INSTRUCTION SET — admin-only by policy
+# ---------------------------------------------------------------------------------------
+# Everything below tells a human or an AI agent HOW to work in this repo, or gates how
+# contributions are checked. A contributor changing any of it changes the rules under which
+# their own work is judged, and an AI agent that edits its own instructions mid-session then
+# proceeds to follow the edited version. That is the specific failure this section names.
+#
+# The ONLY path a contributor is expected to write to is /transcripts/ — their review
+# verdicts. The review UI enforces this from the other end: its Git & PR tab stages
+# `transcripts/` and nothing else.
+#
+# These entries are not stricter than the `*` rule above — one owner cannot be narrowed
+# further. They are here so the boundary is explicit and survives `*` being loosened to a
+# team later: whoever does that must decide deliberately whether to loosen these too.
+/CLAUDE.md                      @vijay-tylertech
+/README.md                      @vijay-tylertech
+/contributor-initial-prompt.md  @vijay-tylertech
+/transcripts/README.md          @vijay-tylertech
+/transcripts/ONBOARDING.md      @vijay-tylertech
+/scripts/                       @vijay-tylertech
+/templates/                     @vijay-tylertech
+/.github/                       @vijay-tylertech
+/.gitignore                     @vijay-tylertech
+/contributors.json              @vijay-tylertech
+
+# Per-corpus routing guides. These instruct the live agents, not just people.
+/Knowledge-*/_START_HERE.md     @vijay-tylertech
+
+# ---------------------------------------------------------------------------------------
 # Called out for visibility, not different ownership — these carry the most risk:
 #   knowledge files change what a live Foundry agent tells people
 #   team-config changes the router for every conversation
@@ -26,9 +56,7 @@
 /Knowledge-BP-General/          @vijay-tylertech
 /Knowledge-SupportAccessCenter/ @vijay-tylertech
 /Knowledge-TylerIdentity/       @vijay-tylertech
+/Knowledge-AlignedReleases/     @vijay-tylertech
+/Knowledge-StatusPageAndSLA/    @vijay-tylertech
 /Knowledge-Shared/              @vijay-tylertech
 /team-config/                   @vijay-tylertech
-/scripts/                       @vijay-tylertech
-/.github/                       @vijay-tylertech
-/contributors.json              @vijay-tylertech
-/CLAUDE.md                      @vijay-tylertech

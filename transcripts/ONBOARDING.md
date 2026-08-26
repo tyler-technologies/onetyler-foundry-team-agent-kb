@@ -104,6 +104,10 @@ If the answer was good: **change nothing and click "Mark reviewed & next."** The
 already set to routing `correct`, answer `good`, diagnosis `n-a`, nothing to fix. Pick your
 name once and it's remembered for the rest of the session.
 
+**Every field has an ⓘ icon.** Click it for what the field is for and what each value
+commits you to — `diagnosis` in particular, where the wrong value sends the fix to the wrong
+place. Use it rather than guessing; Esc or a click outside closes it.
+
 If it wasn't, the field that matters most is **`diagnosis`**, and you read it off the
 tools-called line:
 
