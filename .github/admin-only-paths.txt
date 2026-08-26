@@ -39,6 +39,7 @@
 # Agent instructions. An agent that edits these then follows its own rewrite.
 ^CLAUDE\.md$
 ^contributor-initial-prompt\.md$
+^contributor-update-prompt\.md$
 ^transcripts/README\.md$
 ^transcripts/ONBOARDING\.md$
 # Tooling and the checks that gate everyone's contributions.
