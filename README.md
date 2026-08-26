@@ -20,12 +20,24 @@ this file to pick a sub-agent; the sub-agent reads its own `_START_HERE.md` to p
 | Looking for the process and field definitions | [`transcripts/README.md`](transcripts/README.md) |
 | An AI agent working in this repo | [`CLAUDE.md`](CLAUDE.md) — read it in full before anything else |
 
-**Contributors write to `transcripts/` only.** The instruction set — `CLAUDE.md`, this
-README, `contributor-initial-prompt.md`, `transcripts/README.md`,
-`transcripts/ONBOARDING.md`, `scripts/`, `templates/`, `.github/`, `.gitignore`,
-`contributors.json`, and every `Knowledge-*/_START_HERE.md` — is admin-only, enforced by
-CODEOWNERS plus a CI check. Found a problem in one? Say so in your PR description rather than
-fixing it.
+**Who may change what.** Contributors own subject-matter content; admins own anything that
+decides which agent answers. The authoritative list is
+[`.github/admin-only-paths.txt`](.github/admin-only-paths.txt).
+
+| Contributors may change | Admin-only |
+|---|---|
+| Knowledge content in any `Knowledge-<Domain>/` folder — the `Conf-`, `Docusaurus-`, `FAQ-`, `Misc-`, `Training-`, `GitHub-` files | `README.md` (this file — the team routing table), `team-config/`, **every `Knowledge-*/_START_HERE.md`** |
+| Review verdicts under `transcripts/` | `CLAUDE.md`, `contributor-initial-prompt.md`, `transcripts/README.md`, `transcripts/ONBOARDING.md`, `scripts/`, `templates/`, `.github/`, `.gitignore`, `contributors.json` |
+
+`_START_HERE.md` sits in a folder contributors can otherwise edit, but it carries
+**cross-agent hand-off rules**, which is team-level routing — so it is admin-only.
+
+Enforced by CODEOWNERS plus branch protection, a CI check, and a warning in
+`start_review_session.sh`. Found a problem in an admin-only file? Say so in your PR
+description rather than fixing it.
+
+What no check catches: routing advice written *inside* a knowledge file. Human review is the
+only control for that.
 
 ---
 

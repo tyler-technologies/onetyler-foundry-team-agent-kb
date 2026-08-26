@@ -1,40 +1,44 @@
-# Every path is owned by @vijay-tylertech, so every pull request needs his approval while
-# this review workflow is still bedding in. Combined with branch protection's
-# "Require review from Code Owners", that is what makes the approval mandatory rather
-# than advisory.
+# Ownership, and therefore who must approve a pull request.
 #
-# Note the deliberate asymmetry: because a PR author can never approve their own PR,
-# @vijay-tylertech would be permanently blocked on his own changes if administrators were
-# also forced through the gate. Branch protection therefore leaves "Do not allow bypassing"
-# OFF, so repo admins can merge their own work while everyone else waits for review.
-# The practical effect, given branch protection exempts admins:
-#   @tyler-technologies/onetyler-tcp-pm-admins       admin  -> can merge without review
-#   @tyler-technologies/onetyler-tcp-pm-contributors write  -> PRs need approval below
-# So put reviewers on the CONTRIBUTORS team. Putting someone on the admins team removes the
-# review requirement from them, which is the opposite of the intent.
+# LAST MATCHING RULE WINS in CODEOWNERS. The `*` line comes first so it is the fallback;
+# every rule below it is more specific and overrides it for those paths.
 #
-# Loosen this to a team (e.g. @tyler-technologies/onetyler-tcp-pm-admins) once the team is
-# comfortable with the process.
+# Branch protection is configured "Require review from Code Owners" with 1 approval, and
+# "Do not allow bypassing" is deliberately OFF. Because a PR author can never approve their
+# own PR, the sole code owner would otherwise be permanently blocked on his own changes. So:
+#
+#   @tyler-technologies/onetyler-tcp-pm-admins        admin  -> can merge without review
+#   @tyler-technologies/onetyler-tcp-pm-contributors  write  -> PRs need approval
+#
+# Put reviewers on the CONTRIBUTORS team. Adding someone to the admins team silently removes
+# the review requirement from them, which is the opposite of the intent.
 
-*                       @vijay-tylertech
+*                               @vijay-tylertech
 
-# ---------------------------------------------------------------------------------------
-# THE INSTRUCTION SET — admin-only by policy
-# ---------------------------------------------------------------------------------------
-# Everything below tells a human or an AI agent HOW to work in this repo, or gates how
-# contributions are checked. A contributor changing any of it changes the rules under which
-# their own work is judged, and an AI agent that edits its own instructions mid-session then
-# proceeds to follow the edited version. That is the specific failure this section names.
+# =======================================================================================
+# ADMIN-ONLY — team-level routing, and how the repo operates
+# =======================================================================================
+# Mirrors .github/admin-only-paths.txt, which CI and the session script read. The two
+# CANNOT share a file (this is GitHub's own format), so scripts/check_admin_paths.py
+# asserts they agree and CI runs it. If you change one, change both.
 #
-# The ONLY path a contributor is expected to write to is /transcripts/ — their review
-# verdicts. The review UI enforces this from the other end: its Git & PR tab stages
-# `transcripts/` and nothing else.
-#
-# These entries are not stricter than the `*` rule above — one owner cannot be narrowed
-# further. They are here so the boundary is explicit and survives `*` being loosened to a
-# team later: whoever does that must decide deliberately whether to loosen these too.
-/CLAUDE.md                      @vijay-tylertech
+# The boundary: contributors own subject-matter content; admins own anything that decides
+# WHICH AGENT answers. A bad knowledge edit gives one wrong answer. A bad routing edit
+# misroutes every conversation, and the transcript that reveals it looks like a content
+# problem.
+
+# --- team-level routing ---
 /README.md                      @vijay-tylertech
+/team-config/                   @vijay-tylertech
+# Per-corpus start pages look like within-corpus routing, and partly are. But they also
+# carry CROSS-AGENT hand-off rules — Knowledge-BP-General/_START_HERE.md opens by telling
+# the agent to decide whether a question belongs to one of the four specialized agents, and
+# routes to Identity / Ops Center / SAC by name. CODEOWNERS cannot own half a file, so the
+# whole file is admin-owned.
+/Knowledge-*/_START_HERE.md     @vijay-tylertech
+
+# --- how the repo operates ---
+/CLAUDE.md                      @vijay-tylertech
 /contributor-initial-prompt.md  @vijay-tylertech
 /transcripts/README.md          @vijay-tylertech
 /transcripts/ONBOARDING.md      @vijay-tylertech
@@ -44,19 +48,35 @@
 /.gitignore                     @vijay-tylertech
 /contributors.json              @vijay-tylertech
 
-# Per-corpus routing guides. These instruct the live agents, not just people.
+# =======================================================================================
+# CONTRIBUTOR-EDITABLE
+# =======================================================================================
+# Knowledge CONTENT in each corpus — the Conf-, Docusaurus-, FAQ-, Misc-, Training- and
+# GitHub- files — is where contributors are expected to work. That is the point of having
+# them: they know the subject matter.
+#
+# These paths are still owned (so every PR gets an approval — branch protection requires one
+# regardless), but ownership is recorded here as the contributors team to say plainly that
+# this is their ground. The `_START_HERE.md` rule above is MORE specific than these folder
+# rules, so it still wins for that one file in each folder.
+#
+# NOTE the limit of path-based enforcement: nothing here stops a contributor putting
+# team-level routing advice INSIDE a knowledge file — "for identity questions use the
+# Identity agent" in an FAQ is routing content in a file they may edit. No tool catches
+# that. Human review is the only control, so read content edits for routing claims.
+/Knowledge-OpsCenter/           @tyler-technologies/onetyler-tcp-pm-contributors
+/Knowledge-BP-General/          @tyler-technologies/onetyler-tcp-pm-contributors
+/Knowledge-SupportAccessCenter/ @tyler-technologies/onetyler-tcp-pm-contributors
+/Knowledge-TylerIdentity/       @tyler-technologies/onetyler-tcp-pm-contributors
+/Knowledge-AlignedReleases/     @tyler-technologies/onetyler-tcp-pm-contributors
+/Knowledge-StatusPageAndSLA/    @tyler-technologies/onetyler-tcp-pm-contributors
+/Knowledge-Shared/              @tyler-technologies/onetyler-tcp-pm-contributors
+
+# Re-stated AFTER the folder rules because last-match-wins: without these, the folder rules
+# above would hand the start pages back to the contributors team.
 /Knowledge-*/_START_HERE.md     @vijay-tylertech
 
-# ---------------------------------------------------------------------------------------
-# Called out for visibility, not different ownership — these carry the most risk:
-#   knowledge files change what a live Foundry agent tells people
-#   team-config changes the router for every conversation
-#   scripts and workflows gate everyone else's contributions
-/Knowledge-OpsCenter/           @vijay-tylertech
-/Knowledge-BP-General/          @vijay-tylertech
-/Knowledge-SupportAccessCenter/ @vijay-tylertech
-/Knowledge-TylerIdentity/       @vijay-tylertech
-/Knowledge-AlignedReleases/     @vijay-tylertech
-/Knowledge-StatusPageAndSLA/    @vijay-tylertech
-/Knowledge-Shared/              @vijay-tylertech
-/team-config/                   @vijay-tylertech
+# Transcripts — review verdicts. The contributor's primary output.
+/transcripts/                   @tyler-technologies/onetyler-tcp-pm-contributors
+/transcripts/README.md          @vijay-tylertech
+/transcripts/ONBOARDING.md      @vijay-tylertech

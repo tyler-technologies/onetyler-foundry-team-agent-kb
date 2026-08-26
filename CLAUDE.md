@@ -30,28 +30,60 @@ depth, but never assume they are present.)
 5. **A Foundry write is a production change.** Collections and configs back live agents.
    Confirm with the user before uploading, deleting, syncing, or changing any config. Never
    do it as a side effect of another task.
-6. **NEVER edit the instruction set unless you are working for a repo admin.** These files
-   define how everyone — human and AI — works here:
 
-   `CLAUDE.md` · `README.md` · `contributor-initial-prompt.md` · `transcripts/README.md` ·
-   `transcripts/ONBOARDING.md` · `scripts/**` · `templates/**` · `.github/**` ·
-   `.gitignore` · `contributors.json` · `Knowledge-*/_START_HERE.md`
+   **Nothing reaches Foundry until it is MERGED to `main` — not merely PR'd.** Run
+   `python3 scripts/preflight_upload.py <files>` first; it refuses anything whose bytes
+   differ from `origin/main`. Uploading from an unmerged branch puts content in front of
+   users that the repo has not accepted, and then the next drift check tries to undo it. This
+   has happened once — a 6.5-hour window on 2026-08-25 — which is why the check exists.
 
-   **If you are running for a contributor, the only path you write to is `transcripts/`.**
+   **After EVERY PR merge, run `python3 scripts/check_foundry_drift.py`.** A merge is the
+   moment `main` gets ahead of the live agents, and nothing else notices: a knowledge file
+   only reaches an agent when someone uploads it, so an unshipped change leaves the agent
+   answering from old text while the repo looks correct. It covers all five collections,
+   every shared file against every one of its `upload_targets`, and the team router. Report
+   what it says even when the answer is "in sync".
+6. **Contributors own knowledge content. Admins own routing.** The split matters because
+   the blast radius differs: a bad knowledge edit gives one wrong answer, while a bad routing
+   edit misroutes every conversation — and the transcript that reveals it looks like a
+   content problem, so it gets misdiagnosed.
 
-   The reason is specific to you: an agent that edits its own instructions then follows the
-   edited version for the rest of the session, and nobody reviewing the PR can tell which
-   rules you were actually operating under. Improving a doc feels helpful and is exactly the
-   move to avoid.
+   **Contributors MAY change**, and are expected to:
+   - knowledge content in any `Knowledge-<Domain>/` folder — the `Conf-`, `Docusaurus-`,
+     `FAQ-`, `Misc-`, `Training-` and `GitHub-` files
+   - their review verdicts under `transcripts/`
+
+   **ADMIN-ONLY.** The list is `.github/admin-only-paths.txt` — read it rather than
+   remembering it. In summary: `README.md` (the team routing table), `team-config/`,
+   **every `Knowledge-*/_START_HERE.md`**, and the machinery — `CLAUDE.md`,
+   `contributor-initial-prompt.md`, `transcripts/README.md`, `transcripts/ONBOARDING.md`,
+   `scripts/`, `templates/`, `.github/`, `.gitignore`, `contributors.json`.
+
+   `_START_HERE.md` catches people out. It reads like within-corpus routing and partly is,
+   but it also carries **cross-agent hand-off rules** — `Knowledge-BP-General/_START_HERE.md`
+   opens by telling the agent to decide whether the question belongs to one of the four
+   specialized agents, and routes to Identity / Ops Center / SAC by name. That is team-level
+   routing, and a path-based rule cannot own half a file, so the whole file is admin-only.
+
+   **If you are running for a contributor, do not touch the admin-only paths.** The reason is
+   specific to you: an agent that edits its own instructions then follows the edited version
+   for the rest of the session, and nobody reviewing the PR can tell which rules you were
+   operating under. Improving a doc feels helpful and is exactly the move to avoid.
 
    Found a real problem — a wrong command, a stale count, a contradiction? **Say so in your
-   response and in the PR description. Do not fix it.** An admin decides. Being right about
-   the problem does not make the edit yours to make.
+   response and in the PR description. Do not fix it.** Being right about the problem does not
+   make the edit yours to make.
 
-   Enforced from three directions: CODEOWNERS plus branch protection (server-side, a PR
-   cannot weaken it), a CI tripwire that fails a non-admin PR touching these paths, and
-   `scripts/start_review_session.sh`, which warns before you get as far as committing. **Do
-   not edit the tripwire to get past it** — that is the same violation, one level up.
+   **What none of this can enforce:** nothing stops team-level routing advice being written
+   *inside* a knowledge file — "for identity questions, use the Identity agent" in an FAQ is
+   routing content in a file a contributor may edit. Path-based rules cannot see it. So when
+   you review or write content edits, read them for routing claims and flag them. Human
+   review is the only control there, and pretending otherwise is worse than knowing it.
+
+   Enforced by CODEOWNERS plus branch protection (server-side; a PR cannot weaken it), a CI
+   tripwire, and `scripts/start_review_session.sh`. All three read one boundary —
+   `check_admin_paths.py` asserts CODEOWNERS and `admin-only-paths.txt` agree. **Do not edit
+   the tripwire to get past it**: same violation, one level up.
 
 7. **NEVER broaden access without asking.** The approved grants are exactly two teams:
    `onetyler-tcp-pm-admins` (**admin**) and `onetyler-tcp-pm-contributors` (**write**), plus
@@ -92,7 +124,7 @@ within-corpus routing.
 
 ---
 
-## Session start — do these three things, every session
+## Session start — do these four things, every session
 
 Before the user's first real request, in this order. It takes well under a minute and it is
 what makes a session usable rather than nearly-usable.
@@ -131,7 +163,20 @@ Run it in the background so it survives the session, and confirm it answers befo
 anyone it is up. Loopback-only; nothing leaves the machine. If 7777 is taken, use
 `--port 7778` and quote the port you actually used.
 
-### 3. Finish by putting the URL in front of them
+### 3. Check Foundry still matches the repo
+
+Only if a merge has landed since anyone last looked, which after any active day it will have:
+
+```bash
+python3 scripts/check_foundry_drift.py
+```
+
+Cheap, read-only, and it catches the case nothing else does — `main` carrying content the
+live agents have not received. Mention the result in your first response either way; "in
+sync" is information too. If it reports drift, do NOT fix it silently: say what drifted and
+in which direction, and ask, because an upload is a production change (hard rule 5).
+
+### 4. Finish by putting the URL in front of them
 
 **End your first response with the URL, visually separated — not buried in a paragraph.**
 Every admin and every contributor needs it, and it is the one thing that makes the review
@@ -189,8 +234,8 @@ List agents with `GET /api/transcripts/agents`.
 test -n "$FOUNDRY_API_KEY" && echo "key set (${#FOUNDRY_API_KEY} chars)" || echo "NOT SET"
 ```
 
-If unset, ask the user for it. They keep it in a gitignored env file outside this repo
-(`foundry-secrets.env` in the parent project) which can be sourced:
+If unset, ask the user for it. It lives in a gitignored env file **outside** this repo, which
+can be sourced:
 
 ```bash
 source ../foundry-secrets.env    # path depends on checkout location; ask if unsure
@@ -198,9 +243,32 @@ source ../foundry-secrets.env    # path depends on checkout location; ask if uns
 
 Never write the key into a file in this repo, a script, or a command that gets committed.
 
-Keys are created in Foundry under **Dev → API Keys**, are **tenant-scoped** (a key from one
-tenant 403s against another), and are limited to 10 per user. If requests start returning
-401, the key was rotated or revoked — ask for a fresh one.
+**Every person uses their own key — there is no shared one.** Keys are per-user, so a shared
+key would make every action look like one person's in the audit trail, and rotating it would
+break everyone at once.
+
+**Setting one up on a new machine** (walk a new contributor through this; do not do it for
+them — the key must not pass through you or a transcript):
+
+1. In Foundry, go to **Dev → API Keys** and create one. Keys are **tenant-scoped** — a key
+   from another tenant returns 403 with no useful message — and each user may hold **10**.
+2. Save it *outside* any git repo, one directory above this checkout:
+
+   ```bash
+   printf 'export FOUNDRY_API_KEY=%s\n' 'PASTE_KEY_HERE' > ../foundry-secrets.env
+   chmod 600 ../foundry-secrets.env      # not world-readable; it is a live production key
+   ```
+
+3. `source ../foundry-secrets.env`, then verify with the request in step 3 below.
+
+Tell them to add it to their shell profile if they would rather not source it each session.
+`*.env` and `foundry-secrets*` are both gitignored here, but that is a backstop, not the
+reason it is safe — keeping it outside the repo is.
+
+If requests start returning 401, the key was rotated or revoked — ask for a fresh one.
+Note what a contributor's key can do: **uploading changes what live agents tell users, with
+no review gate of its own.** The only thing keeping that honest is hard rule 5 — upload only
+what is already merged to `main`, and run `preflight_upload.py` to prove it.
 
 ### 2. Two required request headers
 
