@@ -234,41 +234,120 @@ List agents with `GET /api/transcripts/agents`.
 test -n "$FOUNDRY_API_KEY" && echo "key set (${#FOUNDRY_API_KEY} chars)" || echo "NOT SET"
 ```
 
-If unset, ask the user for it. It lives in a gitignored env file **outside** this repo, which
-can be sourced:
+If unset, ask the user for it. Assume they know how to load an env var — the part worth being
+explicit about is **where the key is kept**, because the obvious answer is wrong here.
+
+#### Keep it in the OS credential store, not in a file
+
+**Ask which platform the user is on before giving instructions.** The team runs both macOS and
+Windows, and the two have different credential stores and different cloud-sync traps.
+
+##### macOS — Keychain
+
+This is the documented default as of 2026-08-26. No plaintext on disk, encrypted at rest,
+unlocked by the login session:
 
 ```bash
-source ../foundry-secrets.env    # path depends on checkout location; ask if unsure
+# store once — prompts for the value, so it never lands in shell history
+security add-generic-password -a "$USER" -s foundry-api-key -U -w
+
+# in ~/.zshrc
+export FOUNDRY_API_KEY=$(security find-generic-password -a "$USER" -s foundry-api-key -w)
 ```
 
-Never write the key into a file in this repo, a script, or a command that gets committed.
+Verify with the request in step 3 below rather than assuming the export worked. A shell that
+was already open will not have it — the user needs a fresh terminal.
 
-**Every person uses their own key — there is no shared one.** Keys are per-user, so a shared
-key would make every action look like one person's in the audit trail, and rotating it would
-break everyone at once.
+Caveats, so this is not oversold: the first access from a new process may prompt for keychain
+permission, and a cron or otherwise non-interactive run needs the keychain unlocked. If that
+bites, the file fallback below is legitimate.
 
-**Setting one up on a new machine** (walk a new contributor through this; do not do it for
-them — the key must not pass through you or a transcript):
+##### Windows — DPAPI-encrypted file (PowerShell)
 
-1. In Foundry, go to **Dev → API Keys** and create one. Keys are **tenant-scoped** — a key
-   from another tenant returns 403 with no useful message — and each user may hold **10**.
-2. Save it *outside* any git repo, one directory above this checkout:
+The closest equivalent, with no modules to install. `ConvertFrom-SecureString` encrypts with
+DPAPI keyed to **that user on that machine**, so the file is useless if copied anywhere else —
+including if OneDrive syncs it:
 
-   ```bash
-   printf 'export FOUNDRY_API_KEY=%s\n' 'PASTE_KEY_HERE' > ../foundry-secrets.env
-   chmod 600 ../foundry-secrets.env      # not world-readable; it is a live production key
-   ```
+```powershell
+# store once — prompts, so the value never lands in PowerShell history
+New-Item -ItemType Directory -Force "$env:LOCALAPPDATA\Foundry" | Out-Null
+Read-Host -AsSecureString "Foundry API key" | ConvertFrom-SecureString |
+  Set-Content "$env:LOCALAPPDATA\Foundry\key.dpapi"
 
-3. `source ../foundry-secrets.env`, then verify with the request in step 3 below.
+# add to your PowerShell profile ($PROFILE)
+$sec = Get-Content "$env:LOCALAPPDATA\Foundry\key.dpapi" | ConvertTo-SecureString
+$env:FOUNDRY_API_KEY = [Runtime.InteropServices.Marshal]::PtrToStringAuto(
+  [Runtime.InteropServices.Marshal]::SecureStringToBSTR($sec))
+```
 
-Tell them to add it to their shell profile if they would rather not source it each session.
-`*.env` and `foundry-secrets*` are both gitignored here, but that is a backstop, not the
-reason it is safe — keeping it outside the repo is.
+`%LOCALAPPDATA%` is deliberate: unlike `%USERPROFILE%\Documents` or `%OneDrive%`, it is not
+roamed or cloud-synced.
 
-If requests start returning 401, the key was rotated or revoked — ask for a fresh one.
-Note what a contributor's key can do: **uploading changes what live agents tell users, with
-no review gate of its own.** The only thing keeping that honest is hard rule 5 — upload only
-what is already merged to `main`, and run `preflight_upload.py` to prove it.
+If they would rather use PowerShell SecretManagement (`Install-Module Microsoft.PowerShell.SecretStore`),
+that is also fine and arguably nicer — it just needs a module install, which some machines
+restrict.
+
+**A plain user environment variable is NOT equivalent.** `setx FOUNDRY_API_KEY ...` stores the
+key as cleartext in the registry under `HKCU\Environment`, readable by any process running as
+that user and visible in `setx` history. Use it only if the options above are unavailable, and
+say plainly that it is weaker.
+
+##### Running the tooling on Windows
+
+The Python scripts are stdlib-only and run as-is with `python` instead of `python3`.
+`scripts/start_review_session.sh` is bash — it works under **Git Bash** (ships with Git for
+Windows) or WSL, but not in PowerShell or cmd. If a contributor is stuck, the equivalent is
+`git switch main && git pull --ff-only`, then `python scripts/fetch_transcripts.py` and
+`python scripts/review_status.py`.
+
+#### If a file is used instead — three rules, not two
+
+1. **Outside this repo.** `.gitignore` blocks `*.env` and `foundry-secrets*`, but that is a
+   backstop; being outside the working tree is the actual control.
+2. **Outside any cloud-synced folder** — OneDrive, Dropbox, iCloud Drive, Google Drive.
+   This is the one that catches people, including this repo's own instructions until
+   2026-08-26: they said "one directory above this checkout", and for a checkout under
+   `~/Library/CloudStorage/OneDrive-.../Repo/...` that put a live production key straight into
+   OneDrive, replicated off the laptop and onto every device on the account. A path can
+   satisfy rule 1 and still be badly wrong.
+
+   On Windows the same trap is `C:\Users\<you>\OneDrive - Tyler Technologies, Inc\...`, and
+   note that `Documents` and `Desktop` are often redirected into OneDrive by policy — so those
+   are cloud-synced even though the path does not say so. `%LOCALAPPDATA%` is not.
+3. **`chmod 600`.** It is a tenant-scoped production credential that can rewrite what live
+   agents tell customers.
+
+Safe locations that satisfy all three, wherever the repo is checked out:
+`~/.config/foundry/secrets.env` (`chmod 700` the directory) on macOS/Linux, and
+`%LOCALAPPDATA%\Foundry\` on Windows.
+
+**Check, do not assume.** If the user already has a key file, test the path rather than trust
+it:
+
+```bash
+f=<their key file>
+ls -l "$f"                       # want -rw------- (600)
+case "$(cd "$(dirname "$f")" && pwd -P)" in
+  *CloudStorage*|*Dropbox*|*"Google Drive"*|*"Mobile Documents"*)
+    echo "CLOUD-SYNCED — this key is leaving the machine; tell the user" ;;
+  *) echo "not cloud-synced" ;;
+esac
+```
+
+**A key that has been in a cloud-synced folder, a chat window, or a log should be rotated,**
+not just relocated. Deleting the file does not purge OneDrive version history.
+
+Never write the key into a file in this repo, a script, a command that gets committed, or your
+own response. Never ask the user to paste it to you — point them at **Dev → API Keys**.
+
+**Every person uses their own key.** Keys are per-user, so a shared one would make every
+action look like one person's in the audit trail and rotating it would break everyone at once.
+Keys are tenant-scoped (a key from another tenant returns 403 with no useful message) and each
+user may hold 10. A 401 means the key was rotated or revoked — ask for a fresh one.
+
+Note what a contributor's key can do: **uploading changes what live agents tell users, with no
+review gate of its own.** The only thing keeping that honest is hard rule 5 — upload only what
+is already merged to `main`, and run `preflight_upload.py` to prove it.
 
 ### 2. Two required request headers
 

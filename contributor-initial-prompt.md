@@ -64,19 +64,42 @@ Then, in this order:
    record a review until I am. Don't hand-edit the file to work around it; it's generated,
    the next sync overwrites it, and it grants no access anyway.
 
-4. Check whether I have a Foundry API key, since fetching transcripts needs one:
+4. Check whether I have a Foundry API key, since fetching transcripts needs one.
+   **Ask me whether I'm on macOS or Windows first** — the setup differs.
 
+       # macOS / Linux / Git Bash
        test -n "$FOUNDRY_API_KEY" && echo "key set" || echo "NOT SET"
-       # if not set, try:  source ../foundry-secrets.env
+       # PowerShell
+       if ($env:FOUNDRY_API_KEY) { "key set" } else { "NOT SET" }
 
-   If I don't have one, walk me through creating it — **don't ask me to paste it to you, and
-   don't put it in a file inside the repo.** In Foundry: **Dev → API Keys**, create one, then
-   I save it one directory ABOVE this checkout and lock the permissions:
+   If I don't have one, tell me to create one in Foundry under **Dev → API Keys**, then give me
+   the storage steps **for my platform** — the key goes in the OS credential store, not a file:
 
-       printf 'export FOUNDRY_API_KEY=%s\n' 'PASTE_KEY_HERE' > ../foundry-secrets.env
-       chmod 600 ../foundry-secrets.env
+   **macOS** (Keychain):
 
-   Keys are per-user and tenant-scoped, and I can hold 10. `CLAUDE.md` has the details.
+       security add-generic-password -a "$USER" -s foundry-api-key -U -w
+       # then in ~/.zshrc:
+       export FOUNDRY_API_KEY=$(security find-generic-password -a "$USER" -s foundry-api-key -w)
+
+   **Windows** (DPAPI — encrypted to my user on this machine, so a synced copy is useless):
+
+       New-Item -ItemType Directory -Force "$env:LOCALAPPDATA\Foundry" | Out-Null
+       Read-Host -AsSecureString "Foundry API key" | ConvertFrom-SecureString |
+         Set-Content "$env:LOCALAPPDATA\Foundry\key.dpapi"
+       # then in $PROFILE:
+       $sec = Get-Content "$env:LOCALAPPDATA\Foundry\key.dpapi" | ConvertTo-SecureString
+       $env:FOUNDRY_API_KEY = [Runtime.InteropServices.Marshal]::PtrToStringAuto(
+         [Runtime.InteropServices.Marshal]::SecureStringToBSTR($sec))
+
+   Either way I need a **fresh terminal** after editing my profile. If I insist on a file
+   instead, tell me all three rules: outside the repo, **outside any cloud-synced folder**, and
+   locked-down permissions. Watch for the trap — on macOS a checkout under
+   `~/Library/CloudStorage/OneDrive-.../` makes "one level up" *inside* OneDrive; on Windows,
+   `Documents` and `Desktop` are often redirected into OneDrive by policy. `~/.config/foundry/`
+   and `%LOCALAPPDATA%\Foundry\` are safe.
+
+   **Don't ask me to paste the key to you**, and don't write it into any file in the repo.
+   Keys are per-user and tenant-scoped, and I can hold 10. `CLAUDE.md` has the rest.
 
    Without a key you can still work from the transcripts already in the repo — say so and
    carry on rather than stopping.
@@ -137,7 +160,10 @@ Nothing committed, nothing pushed, no transcript reviewed. That's all yours.
 Your reviewing loop, from `transcripts/ONBOARDING.md`:
 
 1. `./scripts/start_review_session.sh` at the start of each session — pulls `main` first,
-   which is what stops two reviewers silently overwriting each other.
+   which is what stops two reviewers silently overwriting each other. On Windows run it from
+   **Git Bash** (not PowerShell); if that's awkward, `git switch main && git pull --ff-only`
+   then `python scripts/fetch_transcripts.py` does the same job. Use `python` rather than
+   `python3` on Windows.
 2. Review in the UI. A clean transcript is one click; the ⓘ icon next to every field explains
    what it means and what each value commits you to.
 3. Commit and open a PR from the UI's **Git & PR** tab.

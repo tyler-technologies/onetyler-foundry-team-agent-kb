@@ -86,7 +86,11 @@ def main():
 
     if not KEY:
         print("FOUNDRY_API_KEY is not set — cannot check Foundry.\n"
-              "  source ../foundry-secrets.env    (path depends on your checkout)")
+              "  The key belongs in the macOS Keychain; put this in your shell profile:\n"
+              "    export FOUNDRY_API_KEY=$(security find-generic-password "
+              "-a \"$USER\" -s foundry-api-key -w)\n"
+              "  A new export needs a fresh terminal. See CLAUDE.md for setup and the\n"
+              "  file-based fallback.")
         return 1
 
     shared = shared_targets()
