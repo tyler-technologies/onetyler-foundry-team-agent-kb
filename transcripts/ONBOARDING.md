@@ -126,6 +126,11 @@ Then `fix_target` says where the fix goes: `knowledge-file`, `agent-instructions
 it *should* have said, in your own words. That's what Claude turns into content. A vague
 "this is wrong" produces a vague fix.
 
+**And that alone is enough.** You don't have to set `diagnosis` or `fix_target` or any of the
+other dropdowns — write the correction, hit *Mark reviewed & next*, and Claude classifies it
+from what you wrote. Set the fields if you have a clear view; skip them if you don't. Either
+way the feedback gets acted on.
+
 ### When the call isn't yours to make — "Suggest & next"
 
 You'll hit transcripts where you can see something's off but you're not the person who should

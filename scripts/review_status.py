@@ -17,6 +17,7 @@ import argparse, json, re, sys
 from collections import Counter
 from pathlib import Path
 from golive import GO_LIVE, EXCLUDE_NOTE, is_pre_go_live
+from reviewtext import has_feedback, feedback_summary, needs_triage, body_feedback
 
 REPO = Path(__file__).resolve().parent.parent
 TDIR = REPO / "transcripts"
@@ -180,15 +181,44 @@ def main():
         # Only REVIEWED items are actionable. A pending transcript with fields filled in is
         # work in progress - acting on it would pre-empt a human who has not finished, and
         # CLAUDE.md forbids it. Those are listed separately so they are not invisible.
-        ready, inflight = [], []
+        #
+        # TWO ways an item is actionable, and the second one is the common one:
+        #   (a) the fields say so - kb_action add/update/split with action_status open
+        #   (b) the reviewer WROTE something, whatever the fields say
+        #
+        # (b) exists because reviewers write the correction and click "Mark reviewed" without
+        # touching the dropdowns, which is fine and expected. The form is pre-filled as
+        # "no changes needed", so those transcripts claim kb_action: none while the body says
+        # the answer was wrong. Keying only on (a) made them invisible: --actions printed
+        # nothing while the dashboard said work was waiting.
+        ready, triage, inflight = [], [], []
         for f, d in rows:
-            if d.get("kb_action", "") not in {"add", "update", "split"}:
+            txt = f.read_text(encoding="utf-8")
+            classified = (d.get("kb_action", "") in {"add", "update", "split"}
+                          and d.get("action_status") == "open")
+            written = has_feedback(txt) and d.get("action_status") not in ("applied", "wontfix")
+            if not (classified or written):
                 continue
-            if d.get("action_status") != "open":
-                continue
-            (ready if d.get("review_status") == "reviewed" else inflight).append((f, d))
+            if d.get("review_status") != "reviewed":
+                inflight.append((f, d))
+            elif classified:
+                ready.append((f, d))
+            else:
+                triage.append((f, d, txt))
         for f, d in ready:
             print(f"{f.relative_to(REPO)}  {d.get('kb_action')}  {norm_paths(d.get('kb_files',''))}")
+        if triage:
+            print(f"\n-- {len(triage)} reviewed transcript(s) with WRITTEN feedback and no "
+                  f"classification. Read the body; the fields are still the pre-filled "
+                  f"\"nothing wrong\" defaults and mean nothing here --")
+            for f, d, txt in triage:
+                fb = body_feedback(txt)
+                where = ", ".join(f"exchange {n}" for n in sorted(fb["corrections"])) or "-"
+                print(f"   {f.relative_to(REPO)}")
+                print(f"      by {d.get('reviewer') or d.get('suggested_by') or '?'}"
+                      f" | corrections in: {where}"
+                      f" | proposed fix: {'yes' if fb['proposed'] else 'no'}")
+                print(f"      \"{feedback_summary(txt)}\"")
         if inflight:
             print(f"\n-- not actionable yet: {len(inflight)} transcript(s) have an open action "
                   f"but review_status is not 'reviewed' --", file=sys.stderr)
@@ -213,6 +243,16 @@ def main():
           f"  ->  pushed {push}   ({100*closed//inscope if inscope else 0}% closed out)")
     if rev:
         print(f"  ** {rev} reviewed and awaiting processing - run --actions **")
+    # Counted from the BODY, because that is where the feedback is. Reported separately from
+    # "open KB actions" below, which counts fields — a reviewer who wrote a correction and
+    # left the dropdowns alone appears here and nowhere else.
+    untriaged = [(f, d) for f, d in rows
+                 if d.get("review_status") in ("reviewed", "suggested")
+                 and d.get("action_status") not in ("applied", "wontfix")
+                 and needs_triage(d, f.read_text(encoding="utf-8"))]
+    if untriaged:
+        print(f"  ** {len(untriaged)} transcript(s) carry WRITTEN feedback that nobody has "
+              f"classified - run --actions and read the prose **")
     if sugg:
         # Name the owners, because the whole point of the state is that it is waiting on a
         # specific person. A bare count reads as progress rather than as a queue.
@@ -238,9 +278,12 @@ def main():
         print(f"\nreassignments proposed: {len(reassign)}")
         for f, d in reassign:
             print(f"  {d.get('answered_by')} -> {d['reassign_to']}   {f.name}")
+    withtext = sum(1 for f, d in rows if has_feedback(f.read_text(encoding="utf-8")))
+    print(f"\ntranscripts carrying written feedback: {withtext}"
+          f"   (the fields may say otherwise - the prose is the signal)")
     openacts = [(f, d) for f, d in rows
                 if d.get("kb_action") in {"add", "update", "split"} and d.get("action_status") == "open"]
-    print(f"\nopen KB actions: {len(openacts)}")
+    print(f"\nopen KB actions (by field): {len(openacts)}")
     for f, d in openacts:
         print(f"  [{d.get('kb_action')}] {d.get('kb_files','(unspecified)')}  <- {f.name}")
     if bad:

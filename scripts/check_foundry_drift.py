@@ -95,7 +95,7 @@ def main():
         print(f"unknown collection {a.collection!r}; known: {', '.join(COLLECTIONS)}")
         return 1
 
-    drift = []
+    drift, pending = [], []
     for col, folder in cols.items():
         files = api(f"/api/tenant-knowledge-base/collections/{col}/files")
         if files is None:
@@ -125,8 +125,13 @@ def main():
                 if download(col, r["id"]) != p.read_bytes():
                     drift.append((col, name, "CONTENT differs despite equal size"))
             if r.get("ingestionStatus") not in ("ingested", None):
-                drift.append((col, name, f"ingestionStatus={r.get('ingestionStatus')} — "
-                                         f"uploaded but not indexed yet"))
+                # NOT drift. The repo and Foundry hold the same bytes; Bedrock is still
+                # indexing. Reporting it as drift right after a correct upload is how a check
+                # earns a reputation for crying wolf. Retrieval also commonly goes live
+                # minutes before this field flips, so it is not even a reliable
+                # "not available yet" signal — probe retrieval for that.
+                pending.append((col, name, f"ingestionStatus={r.get('ingestionStatus')} — "
+                                           f"same content as the repo, still indexing"))
 
         for name in sorted(set(remote) - set(expected)):
             drift.append((col, name, "EXTRA in Foundry — not in the repo. Left over from a "
@@ -155,6 +160,13 @@ def main():
                               "team-routing-prompt.md — mirror may be stale. Note Foundry "
                               "HTML-escapes '>' and strips <tag>-shaped text, so compare "
                               "content, not length"))
+
+    if pending:
+        print(f"{len(pending)} file(s) still indexing (NOT drift — same content as the repo):")
+        for col, name, why in pending:
+            print(f"  {col:<20} {name}\n  {'':<20}   {why}")
+        print("  Normal for a few minutes after an upload. Retrieval is often live already —"
+              "\n  probe content rather than waiting on this field.\n")
 
     if not drift:
         n = sum(1 for _ in cols)

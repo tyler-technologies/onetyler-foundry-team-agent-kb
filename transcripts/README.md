@@ -220,6 +220,18 @@ Same job, whether in the UI or a text editor:
 
 1. Pick a `pending` transcript.
 2. Read the **Q**, the **A**, and the **Tools called** line.
+**You do not have to touch the dropdowns.** If the answer was wrong, writing what it
+*should* have said — under the exchange, and/or in **Proposed fix** — is a complete review.
+Claude reads that prose and fills in `diagnosis`, `fix_target`, `kb_action` and the rest for
+you. The header fields are a convenience, not the deliverable.
+
+Two things follow from that, both handled for you:
+
+- Saving with written feedback but untouched dropdowns sets `action_status: open` and a
+  `needs-triage` note, so the file does not claim "nothing wrong" while its body says
+  otherwise.
+- `review_status.py --actions` finds work by reading the **body**, not the fields.
+
 3. **If nothing is wrong, change nothing.** The form opens pre-filled as *no changes
    needed* — routing `correct`, answer `good`, diagnosis `n-a`, fix target `none`, kb action
    `none`, action status `none-needed`. Pick your name once and it is remembered, so a clean
