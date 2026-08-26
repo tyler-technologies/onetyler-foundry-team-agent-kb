@@ -74,37 +74,24 @@ CHOICES = {
     "kb_action":       ["", "none", "add", "update", "split"],
     "action_status":   ["", "none-needed", "open", "applied", "wontfix"],
 }
-HELP = {
-    "reviewer":        "Who made the call. Set when you mark this reviewed — not when you suggest.",
-    "suggested_by":    "Who drafted this suggestion without claiming the verdict. Set by 'Suggest'.",
-    "awaiting":        "The area owner this is handed to. They accept it by marking it reviewed.",
-    "routing_verdict": "Did the right sub-agent handle this?",
-    "reassign_to":     "Which agent should have. Only if wrong-agent.",
-    "answer_verdict":  "Quality of the answer that was given.",
-    "diagnosis":       "WHY it went wrong — read the 'Tools called' line on each exchange.",
-    "fix_target":      "Where the fix belongs. Pick agent-instructions or team-routing when "
-                       "no knowledge file needs to change.",
-    "kb_action":       "What must happen to the corpus. 'none' is a valid, useful answer.",
-    "kb_files":        "Comma-separated paths, e.g. Knowledge-OpsCenter/Misc-Links.md",
-    "action_status":   "'none-needed' when nothing must change. Claude sets 'applied' once a change ships.",
-    "review_round":    "1 for a first review. Use the Re-review button to start round 2+.",
-    "review_status":   "pending -> suggested (optional handoff) -> reviewed (you) -> pushed "
-                       "(set by Claude once any change is live in Foundry). 'excluded' = not "
-                       "real feedback.",
-    "notes":           "One line. Long-form goes in Proposed fix below.",
-}
-
-# Long-form explanation behind each field's ⓘ icon: what the field is FOR, and what every
-# value means. The one-line HELP hint above is for someone who already knows the model; this
-# is for someone meeting the field for the first time and having to pick a value they will be
-# held to. A reviewer guessing at `diagnosis` produces a confidently wrong fix, so the cost of
-# leaving this implicit is real.
+# Everything explanatory about a field lives HERE, behind its ⓘ icon — nothing is printed
+# beside the field itself. The form is fourteen fields; a sentence of guidance next to each one
+# turned the page into a wall of grey text that reviewers scrolled past, which is worse than no
+# guidance at all. So the label carries the field name and the icon, and that is all.
 #
-# `about` is prose. `values` maps each allowed value to what choosing it commits you to.
+# This used to be split: a one-line hint rendered inline plus this panel. The two said the same
+# thing in different words, which is how they drift.
+#
+# `about` is prose: what the field is for, and what gets it wrong. `values` maps each allowed
+# value to what choosing it commits you to — a reviewer guessing at `diagnosis` produces a
+# confidently wrong knowledge-file change, so the cost of leaving this implicit is real.
+# `flow` is an optional at-a-glance line rendered in monospace above the prose.
 FIELD_DOC = {
     "review_status": {
+        "flow": "pending → suggested → reviewed → pushed        (excluded = out of scope)",
         "about": "Where this transcript sits in the review lifecycle. You normally change this "
-                 "with the buttons at the bottom rather than the dropdown.",
+                 "with the buttons at the bottom rather than the dropdown. `suggested` is "
+                 "optional — skip it for areas you own.",
         "values": {
             "pending": "Nobody has reached a conclusion yet. Saving with fields filled in and "
                        "leaving it here is a deliberate note-to-self — nobody else will act on it.",
@@ -119,7 +106,8 @@ FIELD_DOC = {
         },
     },
     "reviewer": {
-        "about": "Who made the call. Required for `reviewed` and `excluded`. Restricted to "
+        "about": "Who made the call — set it when you mark this reviewed, NOT when you "
+                 "suggest. Required for `reviewed` and `excluded`. Restricted to "
                  "contributors.json, which is generated from GitHub team membership — if your "
                  "name is missing, you are not on the team yet, and typing it in will not help.",
         "values": {},
@@ -259,8 +247,27 @@ FIELD_DOC = {
             "wontfix": "Decided against acting on it. Say why in `notes`.",
         },
     },
+    # Not frontmatter fields — the two free-text boxes. Same treatment so the page reads
+    # uniformly: a label, an icon, and nothing else.
+    "correction": {
+        "about": "What the agent SHOULD have said, in your own words. The single most valuable "
+                 "thing you can write here — it is what Claude turns into content, so a vague "
+                 "\"this is wrong\" produces a vague fix. Write it as you would have answered "
+                 "the person. Leave it empty if the answer was fine.",
+        "values": {},
+    },
+    "proposed_fix": {
+        "about": "What should change so this answer is right next time. For a knowledge-file "
+                 "fix, say what content is missing and roughly where it belongs. For an "
+                 "instructions or routing fix, give the exact wording to add or reword — those "
+                 "live in Foundry and Claude cannot edit them from the repo, so a precise "
+                 "proposal is the whole deliverable. This is committed even when no knowledge "
+                 "file changes: a PR of verdicts and proposals alone is a full contribution.",
+        "values": {},
+    },
     "notes": {
-        "about": "One line, free text — context that does not fit the structured fields: who to "
+        "about": "One line, free text — long-form belongs in Proposed fix at the bottom of the "
+                 "page. Context that does not fit the structured fields: who to "
                  "ask, why you are unsure, what you decided against. Long-form belongs in "
                  "Proposed fix at the bottom of the page. Claude appends its own processing "
                  "notes here after a '||' separator, so expect this to grow.",
@@ -434,6 +441,9 @@ padding:11px 13px;font-size:12px;font-weight:400;text-transform:none;letter-spac
 .tip[hidden]{display:none}
 .tip b{font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:#4a5260}
 .tip p{margin:6px 0 8px}
+.flow{margin:7px 0 0;padding:5px 7px;background:#f4f6f9;border-radius:4px;
+font:11px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;color:#3d4655;white-space:nowrap;
+overflow:auto}
 table.dvt{border:0;border-radius:0;margin:0 0 8px}
 table.dvt td{border-bottom:1px solid #f0f2f5;padding:3px 6px 3px 0;font-size:12px;
 white-space:normal;vertical-align:top}
@@ -657,18 +667,19 @@ def doc_popover(k):
         f"<td>{html.escape(t)}</td></tr>"
         for v, t in d.get("values", {}).items())
     table = f"<table class=dvt>{rows}</table>" if rows else ""
+    flow = f"<div class=flow>{html.escape(d['flow'])}</div>" if d.get("flow") else ""
     icon = (f"<button type=button class=info onclick=\"tip(this)\" "
             f"aria-label=\"What does {html.escape(k)} mean?\" title=\"What is this?\">i</button>")
-    panel = (f"<div class=tip hidden><b>{html.escape(k.replace('_',' '))}</b>"
+    panel = (f"<div class=tip hidden><b>{html.escape(k.replace('_',' '))}</b>{flow}"
              f"<p>{html.escape(d['about'])}</p>{table}"
              f"<button type=button class='sec tipclose' onclick=\"tip(this)\">Close</button></div>")
     return icon, panel
 
 
 def field(k, val):
-    hint = f"<span class=hint> — {html.escape(HELP[k])}</span>" if k in HELP else ""
+    # Label = field name + ⓘ, nothing else. All guidance is in the panel; see FIELD_DOC.
     icon, panel = doc_popover(k)
-    lab = f"<label>{k.replace('_',' ')}{icon}{hint}</label>"
+    lab = f"<label>{k.replace('_',' ')}{icon}</label>"
     if k in PEOPLE_KEYS:
         people = contributors()
         if not people:
@@ -751,6 +762,7 @@ def detail_page(rel):
     parts = [head, banner, "<div class=card><div class=grid>"
              + "".join(field(k, prefill.get(k, "")) for k in REVIEW_KEYS) + "</div></div>"]
 
+    ci, cp = doc_popover("correction")
     for n, tools, q, a, rv in exchanges_of(body):
         none_tools = "none" in tools.lower()
         parts.append(
@@ -760,14 +772,13 @@ def detail_page(rel):
             f"<div class=q>{html.escape(q)}</div>"
             f"<div style='margin:8px 0 4px;font-size:12px;color:#4a5260'><b>Answer given</b></div>"
             f"<div class=a>{html.escape(a)}</div>"
-            f"<label style='margin-top:10px'>Correction — what it should have said"
-            f"<span class=hint> — the most useful thing you can write</span></label>"
-            f"<textarea data-ex={n}>{html.escape(rv)}</textarea></div>")
+            f"<div class=fld><label style='margin-top:10px'>Correction{ci}</label>{cp}"
+            f"<textarea data-ex={n}>{html.escape(rv)}</textarea></div></div>")
 
-    parts.append("<div class=card><label>Proposed fix<span class=hint> — what changes so this is "
-                 "right next time? For an instructions or routing fix, say exactly what to add or "
-                 "reword. This is committed even when no knowledge file changes.</span></label>"
-                 f"<textarea id=proposed style='min-height:130px'>{html.escape(proposed_of(body))}</textarea></div>")
+    pi, pp = doc_popover("proposed_fix")
+    parts.append(f"<div class=card><div class=fld><label>Proposed fix{pi}</label>{pp}"
+                 f"<textarea id=proposed style='min-height:130px'>{html.escape(proposed_of(body))}</textarea>"
+                 f"</div></div>")
 
     parts.append(
         f"<div class=nav><div>{f'<a href=\"{prev_}\"><button class=sec>&larr; Previous</button></a>' if prev_ else ''}</div>"
