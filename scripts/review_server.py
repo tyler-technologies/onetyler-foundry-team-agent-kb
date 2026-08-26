@@ -94,6 +94,180 @@ HELP = {
     "notes":           "One line. Long-form goes in Proposed fix below.",
 }
 
+# Long-form explanation behind each field's ⓘ icon: what the field is FOR, and what every
+# value means. The one-line HELP hint above is for someone who already knows the model; this
+# is for someone meeting the field for the first time and having to pick a value they will be
+# held to. A reviewer guessing at `diagnosis` produces a confidently wrong fix, so the cost of
+# leaving this implicit is real.
+#
+# `about` is prose. `values` maps each allowed value to what choosing it commits you to.
+FIELD_DOC = {
+    "review_status": {
+        "about": "Where this transcript sits in the review lifecycle. You normally change this "
+                 "with the buttons at the bottom rather than the dropdown.",
+        "values": {
+            "pending": "Nobody has reached a conclusion yet. Saving with fields filled in and "
+                       "leaving it here is a deliberate note-to-self — nobody else will act on it.",
+            "suggested": "You worked it up but the call is not yours to make. Goes to the owner "
+                         "named in `awaiting`; requires `suggested_by`. Claude will NOT act on it.",
+            "reviewed": "Your verdict, on the record. This is the queue Claude works from, so "
+                        "only set it when you are content for changes to be made on this basis.",
+            "pushed": "Processed AND live in Foundry. Claude sets this after verifying the "
+                      "upload — it is a claim about Foundry, not about the repo. Don't set it by hand.",
+            "excluded": "Not real feedback, so it leaves the queue without counting as review "
+                        "work. Used for pre-go-live internal testing (before 2026-08-19 19:42 UTC).",
+        },
+    },
+    "reviewer": {
+        "about": "Who made the call. Required for `reviewed` and `excluded`. Restricted to "
+                 "contributors.json, which is generated from GitHub team membership — if your "
+                 "name is missing, you are not on the team yet, and typing it in will not help.",
+        "values": {},
+    },
+    "suggested_by": {
+        "about": "Who drafted a suggestion they are explicitly NOT claiming as a verdict. "
+                 "Required when review_status is `suggested`. The Suggest button fills this in "
+                 "and clears `reviewer`, because those two fields answer different questions: "
+                 "who wrote this, versus who decided it.",
+        "values": {},
+    },
+    "awaiting": {
+        "about": "The area owner a suggestion is handed to — the person who should accept or "
+                 "override it. Optional: blank means anyone can pick it up. Naming someone is "
+                 "what makes `--suggestions --for <user>` find it. Cleared once reviewed, "
+                 "since it is no longer waiting on anybody.",
+        "values": {},
+    },
+    "review_round": {
+        "about": "Which pass over this transcript this is. Raising it is how you re-open "
+                 "something already decided without overwriting the previous verdict — both end "
+                 "up on the record. Use the Re-review button rather than editing the number; CI "
+                 "rejects a second first-review at the same round.",
+        "values": {},
+    },
+    "routing_verdict": {
+        "about": "Whether the TEAM agent handed the question to the right sub-agent. This is "
+                 "about routing only — a perfectly routed question can still get a bad answer, "
+                 "and that is what `answer_verdict` is for. Check the Delegation table above.",
+        "values": {
+            "": "Not assessed.",
+            "correct": "The right sub-agent handled it.",
+            "wrong-agent": "The wrong one handled it. Name who should have in `reassign_to`.",
+            "ambiguous": "The question genuinely spanned areas, or was too vague to route. "
+                         "Usually a signal the router should have asked a clarifying question.",
+        },
+    },
+    "reassign_to": {
+        "about": "Which sub-agent SHOULD have handled it. Only meaningful when routing_verdict "
+                 "is `wrong-agent`. Repeated reassignments to the same target are the strongest "
+                 "evidence the team routing rules need changing.",
+        "values": {
+            "": "Not applicable.",
+            "ops-center": "Ops Center — the Ops Center UI, orgs, workspaces, licensing, "
+                          "product activation, Admin Center access.",
+            "bp-general": "General Blueprint Docs — platform orientation, APIs, service "
+                          "architecture, DevOps, product registration concepts.",
+            "sac": "Support Access Center — support access requests and the SAC dashboard.",
+            "identity": "Tyler Identity — Okta, federation, OIDC/OAuth, identity clients, "
+                        "tokens, Gateway.",
+            "team": "The team router itself should have handled or clarified it, rather than "
+                    "delegating at all.",
+        },
+    },
+    "answer_verdict": {
+        "about": "Quality of the answer the user actually received. Judge it against what you "
+                 "would have told them — not against whether the agent tried hard.",
+        "values": {
+            "": "Not assessed.",
+            "good": "You would have been happy to send this.",
+            "incomplete": "Correct as far as it goes, but missing something that matters. The "
+                          "most common real verdict.",
+            "wrong": "Materially incorrect — it would mislead someone who acted on it.",
+            "stale": "Was true once; the world moved and the corpus did not.",
+            "refused": "Declined or deflected a question it should have answered.",
+        },
+    },
+    "diagnosis": {
+        "about": "WHY it went wrong — the single most important field, because it decides who "
+                 "fixes it. Read the 'Tools called' line on the exchange: it tells you what the "
+                 "agent actually did, which four different failures all look identical in the "
+                 "visible chat. Do not guess; if you cannot tell, say so in `notes`.",
+        "values": {
+            "": "Not assessed.",
+            "n-a": "Nothing went wrong. This is the pre-filled default on a clean transcript.",
+            "no-search": "Tools called: none — it answered from the model's own priors without "
+                         "looking anything up. An AGENT PROMPT problem, not a content gap.",
+            "search-empty": "It searched and found nothing. Content is MISSING or unretrievable "
+                            "— a genuine knowledge-file gap.",
+            "search-irrelevant": "It searched and got the wrong material. Content exists but is "
+                                 "wrong, badly structured, or badly chunked.",
+            "retrieved-ok-answered-badly": "It found the right material and still answered "
+                                           "badly. An AGENT PROMPT problem — do not rewrite a "
+                                           "knowledge file to paper over it.",
+            "routing-only": "The answer was fine for whoever gave it; it just should not have "
+                            "been them. A TEAM ROUTING problem.",
+        },
+    },
+    "fix_target": {
+        "about": "Where the fix belongs. This is what tells Claude whether to touch a corpus "
+                 "file at all — only `knowledge-file` does. For the others the deliverable is a "
+                 "concrete written proposal, because the thing needing the change lives in "
+                 "Foundry, not in this repo.",
+        "values": {
+            "": "Not assessed.",
+            "none": "Nothing needs to change anywhere.",
+            "knowledge-file": "A file in a Knowledge-* folder must change. Name it in `kb_files`.",
+            "agent-instructions": "The sub-agent's system prompt needs changing. Lives in "
+                                  "Foundry — write the exact wording in Proposed fix; Claude "
+                                  "cannot edit it from here.",
+            "team-routing": "The team router's rules need changing — the routing table in "
+                            "README.md, or hand-off guidance in a _START_HERE.md.",
+            "sample-prompts": "The agent's canned starting questions need changing. Also lives "
+                              "in Foundry.",
+        },
+    },
+    "kb_action": {
+        "about": "What must physically happen to the corpus. `none` is a valid and common "
+                 "answer — plenty of bad answers are not content problems at all. A review with "
+                 "`none` and a good Proposed fix is still a complete contribution.",
+        "values": {
+            "": "Not assessed.",
+            "none": "No corpus change needed.",
+            "add": "New content that exists nowhere. If it has no upstream source, it belongs "
+                   "in that folder's FAQ-*.md file, not in a derived Conf-/Docusaurus- file.",
+            "update": "Existing content is wrong, thin, or stale and needs editing in place.",
+            "split": "One file is covering too much and retrieving badly; it needs breaking up.",
+        },
+    },
+    "kb_files": {
+        "about": "Which file(s) the change goes in, comma-separated, repo-relative — e.g. "
+                 "Knowledge-OpsCenter/FAQ-OpsCenter.md. It must be a file that is actually "
+                 "deployed to a collection: Knowledge-Shared/_START_HERE.md looks like a "
+                 "knowledge file but is repo-only documentation, so a fix there reaches no "
+                 "agent. If unsure, name the corpus in `notes` and let Claude place it.",
+        "values": {},
+    },
+    "action_status": {
+        "about": "Whether the change has actually been made. This is the field that stops open "
+                 "work being quietly buried — a transcript cannot be closed out while this says "
+                 "`open` and kb_action asks for something.",
+        "values": {
+            "": "Not assessed.",
+            "none-needed": "Nothing had to change.",
+            "open": "A change is required and has not been made yet. Claude's to-do list.",
+            "applied": "The change has been made. Set by Claude, not by you.",
+            "wontfix": "Decided against acting on it. Say why in `notes`.",
+        },
+    },
+    "notes": {
+        "about": "One line, free text — context that does not fit the structured fields: who to "
+                 "ask, why you are unsure, what you decided against. Long-form belongs in "
+                 "Proposed fix at the bottom of the page. Claude appends its own processing "
+                 "notes here after a '||' separator, so expect this to grow.",
+        "values": {},
+    },
+}
+
 
 # ---------------------------------------------------------------- file I/O
 def is_transcript(p):
@@ -247,11 +421,42 @@ td.nowrap,th.nowrap{white-space:nowrap}
 tr.row[data-status=excluded] td{opacity:.5}
 .deleg{font-size:11px;color:#7a5cbf;font-weight:600}
 pre.out{background:#10151f;color:#d6dde8;padding:10px;border-radius:6px;font-size:12px;overflow:auto;max-height:240px}
+/* Field help. .fld is the positioning context so the panel OVERLAYS rather than reflowing
+   the grid — otherwise opening one help panel shoves every other field down the page. */
+.fld{position:relative}
+button.info{background:#dbe4f0;color:#1c4f8f;border:0;border-radius:50%;width:15px;height:15px;
+padding:0;margin-left:5px;font:700 10px/15px Georgia,serif;cursor:pointer;vertical-align:middle;
+text-transform:none;letter-spacing:0}
+button.info:hover{background:#1c5fbf;color:#fff}
+.tip{position:absolute;z-index:40;top:100%;left:0;width:340px;max-width:78vw;background:#fff;
+border:1px solid #b9c3d0;border-radius:8px;box-shadow:0 6px 22px rgba(16,21,31,.18);
+padding:11px 13px;font-size:12px;font-weight:400;text-transform:none;letter-spacing:0;color:#1a1d21}
+.tip[hidden]{display:none}
+.tip b{font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:#4a5260}
+.tip p{margin:6px 0 8px}
+table.dvt{border:0;border-radius:0;margin:0 0 8px}
+table.dvt td{border-bottom:1px solid #f0f2f5;padding:3px 6px 3px 0;font-size:12px;
+white-space:normal;vertical-align:top}
+td.dv{white-space:nowrap;width:1%}
+td.dv code{background:#eef1f5;padding:1px 5px;border-radius:3px;font-size:11px}
+button.tipclose{padding:3px 10px;font-size:11px}
 """
 
 JS = """
 async function post(url,body){const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},
 body:JSON.stringify(body)});return r.json()}
+// Field help. One open at a time, so the page never fills with overlapping panels.
+function tip(btn){const w=btn.closest('.fld'); if(!w) return;
+const t=w.querySelector('.tip'); const opening=t.hidden;
+document.querySelectorAll('.tip').forEach(o=>o.hidden=true);
+t.hidden=!opening;}
+document.addEventListener('keydown',e=>{if(e.key==='Escape')
+document.querySelectorAll('.tip').forEach(o=>o.hidden=true)});
+// Click anywhere else closes it. Ignore clicks on the icon (tip() already toggled) and
+// inside the panel, so selecting the text in it does not dismiss it.
+document.addEventListener('click',e=>{
+if(e.target.closest('.tip')||e.target.closest('button.info')) return;
+document.querySelectorAll('.tip').forEach(o=>o.hidden=true)});
 function toast(m,ok=true){const t=document.getElementById('toast');t.textContent=m;
 t.style.background=ok?'#0f6b34':'#a11';t.classList.add('on');setTimeout(()=>t.classList.remove('on'),2600)}
 async function saveDoc(path,then){const fields={},ex={};
@@ -440,25 +645,46 @@ def list_page():
                 + filt + "".join(rows) + "</table>")
 
 
+def doc_popover(k):
+    """The ⓘ icon and its hidden panel: what the field means, and what each value commits you
+    to. Rendered for every field that has an entry, so a first-time reviewer never has to
+    guess at a value they will be held to."""
+    d = FIELD_DOC.get(k)
+    if not d:
+        return "", ""
+    rows = "".join(
+        f"<tr><td class=dv><code>{html.escape(v) if v else '(blank)'}</code></td>"
+        f"<td>{html.escape(t)}</td></tr>"
+        for v, t in d.get("values", {}).items())
+    table = f"<table class=dvt>{rows}</table>" if rows else ""
+    icon = (f"<button type=button class=info onclick=\"tip(this)\" "
+            f"aria-label=\"What does {html.escape(k)} mean?\" title=\"What is this?\">i</button>")
+    panel = (f"<div class=tip hidden><b>{html.escape(k.replace('_',' '))}</b>"
+             f"<p>{html.escape(d['about'])}</p>{table}"
+             f"<button type=button class='sec tipclose' onclick=\"tip(this)\">Close</button></div>")
+    return icon, panel
+
+
 def field(k, val):
     hint = f"<span class=hint> — {html.escape(HELP[k])}</span>" if k in HELP else ""
-    lab = f"<label>{k.replace('_',' ')}{hint}</label>"
+    icon, panel = doc_popover(k)
+    lab = f"<label>{k.replace('_',' ')}{icon}{hint}</label>"
     if k in PEOPLE_KEYS:
         people = contributors()
         if not people:
-            return (f"<div>{lab}<input data-fm={k} value=\"{html.escape(val)}\" "
-                    f"placeholder='contributors.json is empty or unreadable'></div>")
+            return (f"<div class=fld>{lab}<input data-fm={k} value=\"{html.escape(val)}\" "
+                    f"placeholder='contributors.json is empty or unreadable'>{panel}</div>")
         opts = "".join(f"<option{' selected' if o == val else ''}>{html.escape(o)}</option>"
                        for o in [""] + people)
         stale = ("<div class=hint style='color:#a11'>current value "
                  f"'{html.escape(val)}' is not in contributors.json</div>"
                  if val and val not in people else "")
-        return f"<div>{lab}<select data-fm={k}>{opts}</select>{stale}</div>"
+        return f"<div class=fld>{lab}<select data-fm={k}>{opts}</select>{stale}{panel}</div>"
     if k in CHOICES:
         opts = "".join(f"<option{' selected' if o == val else ''}>{html.escape(o)}</option>"
                        for o in CHOICES[k])
-        return f"<div>{lab}<select data-fm={k}>{opts}</select></div>"
-    return f"<div>{lab}<input data-fm={k} value=\"{html.escape(val)}\"></div>"
+        return f"<div class=fld>{lab}<select data-fm={k}>{opts}</select>{panel}</div>"
+    return f"<div class=fld>{lab}<input data-fm={k} value=\"{html.escape(val)}\">{panel}</div>"
 
 
 def detail_page(rel):

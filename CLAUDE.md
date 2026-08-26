@@ -30,7 +30,30 @@ depth, but never assume they are present.)
 5. **A Foundry write is a production change.** Collections and configs back live agents.
    Confirm with the user before uploading, deleting, syncing, or changing any config. Never
    do it as a side effect of another task.
-6. **NEVER broaden access without asking.** The approved grants are exactly two teams:
+6. **NEVER edit the instruction set unless you are working for a repo admin.** These files
+   define how everyone — human and AI — works here:
+
+   `CLAUDE.md` · `README.md` · `contributor-initial-prompt.md` · `transcripts/README.md` ·
+   `transcripts/ONBOARDING.md` · `scripts/**` · `templates/**` · `.github/**` ·
+   `.gitignore` · `contributors.json` · `Knowledge-*/_START_HERE.md`
+
+   **If you are running for a contributor, the only path you write to is `transcripts/`.**
+
+   The reason is specific to you: an agent that edits its own instructions then follows the
+   edited version for the rest of the session, and nobody reviewing the PR can tell which
+   rules you were actually operating under. Improving a doc feels helpful and is exactly the
+   move to avoid.
+
+   Found a real problem — a wrong command, a stale count, a contradiction? **Say so in your
+   response and in the PR description. Do not fix it.** An admin decides. Being right about
+   the problem does not make the edit yours to make.
+
+   Enforced from three directions: CODEOWNERS plus branch protection (server-side, a PR
+   cannot weaken it), a CI tripwire that fails a non-admin PR touching these paths, and
+   `scripts/start_review_session.sh`, which warns before you get as far as committing. **Do
+   not edit the tripwire to get past it** — that is the same violation, one level up.
+
+7. **NEVER broaden access without asking.** The approved grants are exactly two teams:
    `onetyler-tcp-pm-admins` (**admin**) and `onetyler-tcp-pm-contributors` (**write**), plus
    named individuals from `contributors.json`.
 
@@ -47,7 +70,7 @@ depth, but never assume they are present.)
    access is not possible anyway — everything is divisionally protected — so an org-wide grant
    is both unwanted and ineffective. A public repo needs no grant for outside contribution:
    people fork and open a PR.
-7. **ALWAYS back up before changing anything in Foundry, and commit the backup.** Backups
+8. **ALWAYS back up before changing anything in Foundry, and commit the backup.** Backups
    live in the repo forever — `team-config/backups/<object>-backup-<YYYYMMDD-HHMMSS>.json`,
    never in a scratch dir, never deleted. Fetch the current object, scan it for credentials,
    commit the backup, and only then write. This applies to every config object that exists
@@ -66,6 +89,65 @@ one agent retrieves from its tenant knowledge-base collection.
 There is no application code, build, or test suite. The deliverables are content files.
 See `README.md` for the team-level routing model and `_START_HERE.md` in each folder for
 within-corpus routing.
+
+---
+
+## Session start — do these three things, every session
+
+Before the user's first real request, in this order. It takes well under a minute and it is
+what makes a session usable rather than nearly-usable.
+
+### 1. Sync the reviewer list from GitHub
+
+New contributors join the team and cannot then be named as a `reviewer`, because
+`contributors.json` is generated from team membership and the review UI offers only what is
+in it. A reviewer who cannot pick their own name is stuck before they start.
+
+```bash
+python3 scripts/sync_contributors.py --check   # exits 1 if drifted
+python3 scripts/sync_contributors.py           # rebuild, then commit
+```
+
+Run the `--check` first. If it reports drift, regenerate and **commit the result** — the file
+is only useful to the next person if it lands in the repo.
+
+- Uses **your own `gh` credentials**; there is deliberately no shared PAT. If it errors, the
+  token probably lacks the scope: `gh auth refresh -s read:org`.
+- Sources are the `onetyler-tcp-pm-admins` and `onetyler-tcp-pm-contributors` teams.
+- **Never hand-edit `contributors.json`** — the next sync overwrites it and a hand-added
+  entry confers no repo access anyway.
+- This syncs **from** the team. It does not add anyone **to** a team: that is broadening
+  access and needs the user's explicit say-so (hard rule 7).
+- If the sync cannot run at all (no `gh`, no network), say so plainly rather than proceeding
+  as though the list were current — a stale list silently blocks the new contributor.
+
+### 2. Start the review server
+
+```bash
+python3 scripts/review_server.py     # http://127.0.0.1:7777
+```
+
+Run it in the background so it survives the session, and confirm it answers before you tell
+anyone it is up. Loopback-only; nothing leaves the machine. If 7777 is taken, use
+`--port 7778` and quote the port you actually used.
+
+### 3. Finish by putting the URL in front of them
+
+**End your first response with the URL, visually separated — not buried in a paragraph.**
+Every admin and every contributor needs it, and it is the one thing that makes the review
+queue reachable. Something like:
+
+```
+────────────────────────────────────────────
+  Transcript review UI:  http://127.0.0.1:7777
+  4 pending · 1 suggestion awaiting you
+────────────────────────────────────────────
+```
+
+Include the counts from `python3 scripts/review_status.py` — "4 pending" tells someone
+whether to open it now. If suggestions are waiting on them specifically
+(`--suggestions --for <user>`), say so on that line: it is addressed to them and nobody else
+will pick it up.
 
 ---
 

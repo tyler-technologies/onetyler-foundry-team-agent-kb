@@ -11,6 +11,24 @@ this file to pick a sub-agent; the sub-agent reads its own `_START_HERE.md` to p
 
 ---
 
+## New here?
+
+| You are | Start with |
+|---|---|
+| A contributor setting up for the first time | [`contributor-initial-prompt.md`](contributor-initial-prompt.md) — the first prompt to give your AI agent. Clones the repo, orients the agent, starts the review UI. |
+| A reviewer wanting the walkthrough | [`transcripts/ONBOARDING.md`](transcripts/ONBOARDING.md) |
+| Looking for the process and field definitions | [`transcripts/README.md`](transcripts/README.md) |
+| An AI agent working in this repo | [`CLAUDE.md`](CLAUDE.md) — read it in full before anything else |
+
+**Contributors write to `transcripts/` only.** The instruction set — `CLAUDE.md`, this
+README, `contributor-initial-prompt.md`, `transcripts/README.md`,
+`transcripts/ONBOARDING.md`, `scripts/`, `templates/`, `.github/`, `.gitignore`,
+`contributors.json`, and every `Knowledge-*/_START_HERE.md` — is admin-only, enforced by
+CODEOWNERS plus a CI check. Found a problem in one? Say so in your PR description rather than
+fixing it.
+
+---
+
 ## Team composition
 
 Foundry team: **OneTyler Cloud Living** — Amazon Bedrock, Claude 4.5 Sonnet, temperature 0.7.
