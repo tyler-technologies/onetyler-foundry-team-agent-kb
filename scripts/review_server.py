@@ -19,6 +19,7 @@ from collections import Counter
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from golive import GO_LIVE, EXCLUDE_NOTE, is_pre_go_live
+from reviewtext import has_feedback, needs_triage
 from urllib.parse import unquote
 
 REPO = Path(__file__).resolve().parent.parent
@@ -372,6 +373,28 @@ def save(p, fm_new, ex_reviews, proposed):
                   lambda m: m.group(1) + (proposed.strip() + "\n" if proposed.strip() else "") + m.group(2),
                   body, flags=re.S)
     p.write_text("\n".join(L) + "\n" + body, encoding="utf-8")
+
+
+def set_fields(p, updates):
+    """Rewrite ONLY frontmatter values, leaving the body byte-identical.
+
+    Deliberately not save(): save() re-renders the body from its `ex_reviews` and `proposed`
+    arguments, so calling it to touch one header field means either passing the body back
+    (fragile) or passing empty strings, which WIPES the reviewer's correction and proposed
+    fix. Passing None crashes on proposed.strip(). This does a line-level substitution and
+    cannot touch prose.
+    """
+    txt = p.read_text(encoding="utf-8")
+    m = re.match(r"^---\n(.*?)\n---\n", txt, re.S)
+    if not m:
+        return
+    head = m.group(1)
+    for k, v in updates.items():
+        if re.search(rf"^{re.escape(k)}:.*$", head, re.M):
+            head = re.sub(rf"^{re.escape(k)}:.*$", f"{k}: {v}", head, count=1, flags=re.M)
+        else:
+            head += f"\n{k}: {v}"
+    p.write_text("---\n" + head + "\n---\n" + txt[m.end():], encoding="utf-8")
 
 
 def refresh_index():
@@ -740,8 +763,12 @@ def detail_page(rel):
     if is_new:
         banner = ("<div class=bar style='background:#eef7ee;border-color:#c6e3c6'>"
                   "Pre-filled as <b>no changes needed</b> — routing correct, answer good, "
-                  "nothing to fix. Just pick your name and hit "
-                  "<b>Mark reviewed &amp; next</b>. Change any field if that is not true."
+                  "nothing to fix. If that is true, just pick your name and hit "
+                  "<b>Mark reviewed &amp; next</b>."
+                  "<br><b>If it is not true, you do not have to touch the dropdowns.</b> "
+                  "Write what the answer <i>should</i> have said under the exchange, and/or "
+                  "fill in <b>Proposed fix</b> at the bottom. That prose is the valuable part; "
+                  "Claude reads it and fills the classification fields in for you."
                   "</div>")
     elif (fm.get("review_status") or "") == "suggested":
         # Nothing here is a verdict yet. Say so loudly, or the owner reads a filled-in form
@@ -888,6 +915,22 @@ class H(BaseHTTPRequestHandler):
                         f"Leave it 'excluded'. Only post-go-live conversations get reviewed.")
                 save(p, fields, data.get("exchanges", {}),
                      data.get("proposed", ""))
+                # The reviewer may have written a correction and left the pre-filled
+                # "nothing wrong" dropdowns alone — which is an expected way to work, not a
+                # mistake. But the file would then assert kb_action: none while its body says
+                # the answer was wrong, and the field-driven queries would skip it. Flip
+                # action_status to `open` so the state is internally consistent and the work
+                # is findable. Deliberately does NOT guess diagnosis/fix_target: that is a
+                # judgement from the prose, and Claude records it with its reasoning.
+                fm_after, body_after = parse(p)
+                if (fm_after and (fm_after.get("review_status") in ("reviewed", "suggested"))
+                        and needs_triage(fm_after, body_after or "")):
+                    note = fm_after.get("notes", "")
+                    mark = "needs-triage: written feedback, fields not classified"
+                    upd = {"action_status": "open"}
+                    if mark not in note:
+                        upd["notes"] = (note + " || " if note else "") + mark
+                    set_fields(p, upd)
                 refresh_index()
                 return self._send(200, json.dumps({"ok": True, "path": rel}), "application/json")
             except Exception as e:

@@ -620,6 +620,39 @@ already `reviewed` on the base branch unless `review_round` is raised. Never res
 lowering the round or reverting the other person's verdict — pull the base branch, read it,
 and re-review explicitly if you still disagree.
 
+**THE PROSE IS THE FEEDBACK. THE FIELDS ARE A HINT, AND OFTEN A WRONG ONE.**
+
+Reviewers write the correction under the bad answer, and/or a **Proposed fix**, and click
+*Mark reviewed*. They frequently do not touch the dropdowns — and they are not expected to.
+Writing "this is wrong, it should have said X" is the valuable part; turning that into
+`diagnosis` and `fix_target` is clerical work, and it is **your** job.
+
+This matters because the form opens **pre-filled as "nothing wrong"** (routing `correct`,
+answer `good`, diagnosis `n-a`, `fix_target: none`, `kb_action: none`,
+`action_status: none-needed`), so a transcript can assert nothing is wrong in its frontmatter
+while its body says the answer was wrong. Measured on 2026-08-26 in exactly that state:
+`--check` passed and `--actions` printed **nothing** while the dashboard said work was
+waiting. An agent followed that pointer, found an empty list, and would have concluded there
+was nothing to do.
+
+So:
+
+1. **Read the whole transcript body** — every `<!-- review:N -->` block and the
+   `<!-- proposed-fix -->` block. Never decide there is no work from the fields alone.
+2. `--actions` now reports these under *"reviewed transcript(s) with WRITTEN feedback and no
+   classification"*. Treat that list as the real inbox.
+3. **You may — and should — fill in the classification fields from the prose**:
+   `routing_verdict`, `reassign_to`, `answer_verdict`, `diagnosis`, `fix_target`, `kb_action`,
+   `kb_files`, `action_status`. Say in your response which values you derived and from which
+   sentence, so a human can check your reading.
+4. **Never set or change `review_status` or `reviewer`.** Those record a human's judgement
+   and their identity. The human has already reviewed it; you are classifying, not deciding.
+   Do not "upgrade" a `suggested` transcript to `reviewed` either.
+5. If the prose is genuinely ambiguous, **ask** rather than picking a `diagnosis` — the wrong
+   diagnosis sends the fix to the wrong place, which is worse than a delay.
+6. Clear the `needs-triage` marker from `notes` once you have classified it, and record what
+   you concluded.
+
 **Only act on files with `review_status: reviewed`.** A `pending` file has not been looked
 at by a human, and a `suggested` one has been looked at by someone who explicitly declined to
 decide; do not infer corpus changes from either unprompted.
