@@ -18,6 +18,7 @@ Usage:
 """
 import argparse, json, os, re, subprocess, sys
 from pathlib import Path
+from golive import GO_LIVE, EXCLUDE_NOTE, is_pre_go_live
 
 BASE = os.environ.get("FOUNDRY_API_URL", "https://foundry.tylertechai.com")
 KEY = os.environ.get("FOUNDRY_API_KEY", "")
@@ -128,6 +129,8 @@ def keep_exchange(e):
 # Review fields a human fills in. Kept in the file so the schema is self-documenting.
 REVIEW_TEMPLATE = """review_status: pending
 reviewer:
+suggested_by:
+awaiting:
 routing_verdict:
 reassign_to:
 answer_verdict:
@@ -137,6 +140,28 @@ kb_action:
 kb_files:
 action_status: open
 notes:"""
+
+# A pre-go-live conversation arrives already out of scope. Deciding that is ARITHMETIC —
+# compare a timestamp to a settled constant — not a judgement, so no reviewer is named and
+# no human time is spent on it.
+#
+# This used to be manual, and it did not scale: --start defaults to 01/01/2025, so every
+# fetch dragged months of pre-go-live testing into the queue as `pending` for someone to
+# exclude by hand. 34 of the first 41 transcripts were excluded that way. Worse, a reviewer
+# who opens one has no signal that it is out of scope until they read the date.
+EXCLUDED_TEMPLATE = f"""review_status: excluded
+reviewer:
+suggested_by:
+awaiting:
+routing_verdict:
+reassign_to:
+answer_verdict:
+diagnosis:
+fix_target: none
+kb_action: none
+kb_files:
+action_status: wontfix
+notes: {EXCLUDE_NOTE}"""
 
 
 def api(path):
@@ -216,7 +241,7 @@ def render(slug, meta, data, deleg=None):
          f"{'/' + deleg['strategy'] if deleg and deleg.get('strategy') else ''}",
          "",
          "# ---- review fields: edit these ----",
-         REVIEW_TEMPLATE,
+         (EXCLUDED_TEMPLATE if is_pre_go_live(date) else REVIEW_TEMPLATE),
          "---",
          "",
          f"# Transcript — {slug} — {date}",

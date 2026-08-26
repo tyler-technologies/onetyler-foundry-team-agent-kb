@@ -16,6 +16,7 @@ Usage:
 import argparse, json, re, sys
 from collections import Counter
 from pathlib import Path
+from golive import GO_LIVE, EXCLUDE_NOTE, is_pre_go_live
 
 REPO = Path(__file__).resolve().parent.parent
 TDIR = REPO / "transcripts"
@@ -40,6 +41,7 @@ PEOPLE_KEYS = ("reviewer", "suggested_by", "awaiting")
 # Not closed out. `suggested` is open work with a name on it, not a verdict.
 OPEN = ("pending", "suggested")
 DONE = ("reviewed", "pushed", "excluded")
+
 
 VALID = {
     "review_status":   {"", "pending", "suggested", "reviewed", "pushed", "excluded"},
@@ -133,8 +135,19 @@ def main():
             if v and people and v not in people:
                 bad.append((f, f"{k}={v!r} is not in contributors.json"))
         rv = d.get("reviewer", "")
-        if d.get("review_status") in DONE and not rv:
-            bad.append((f, f"review_status={d.get('review_status')} but no reviewer set"))
+        pre_go_live = is_pre_go_live(d.get("date", ""))
+        st = d.get("review_status")
+        # A pre-go-live exclusion is arithmetic, not a judgement, so it needs no reviewer —
+        # fetch_transcripts.py stamps it automatically. Every OTHER done-state still does.
+        if st in DONE and not rv and not (st == "excluded" and pre_go_live):
+            bad.append((f, f"review_status={st} but no reviewer set"))
+        # The reverse, and the reason this check exists: a pre-go-live transcript must not be
+        # reviewed or suggested. It is not user signal, so a verdict on it is wasted work that
+        # also inflates the reviewed percentage with review nobody needed to do.
+        if pre_go_live and st in ("reviewed", "suggested", "pushed"):
+            bad.append((f, f"date {d.get('date')} is before go-live ({GO_LIVE}) but "
+                           f"review_status={st} — pre-go-live conversations are internal "
+                           f"testing and belong in 'excluded', not the review queue"))
         # An unattributed suggestion is the failure this state exists to prevent: the owner
         # inherits verdict-shaped fields with nobody to ask what they meant.
         if d.get("review_status") == "suggested" and not d.get("suggested_by"):

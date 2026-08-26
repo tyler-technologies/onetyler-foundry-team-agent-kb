@@ -18,10 +18,12 @@ import argparse, html, json, re, subprocess, sys, webbrowser
 from collections import Counter
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from golive import GO_LIVE, EXCLUDE_NOTE, is_pre_go_live
 from urllib.parse import unquote
 
 REPO = Path(__file__).resolve().parent.parent
 TDIR = REPO / "transcripts"
+
 STATUS = REPO / "scripts" / "review_status.py"
 
 CONTRIB = REPO / "contributors.json"
@@ -875,6 +877,15 @@ class H(BaseHTTPRequestHandler):
                 if st == "suggested" and not (fields.get("suggested_by") or "").strip():
                     raise ValueError("a suggestion needs suggested_by — pick your name, then "
                                      "use Suggest (it fills this in for you)")
+                # Refuse to drag a pre-go-live conversation into the review queue. Without
+                # this, one click of Suggest or Mark reviewed silently overwrote an `excluded`
+                # verdict and put months-old internal testing back in front of a reviewer.
+                cur_fm, _ = parse(p)
+                if is_pre_go_live((cur_fm or {}).get("date", "")) and st in ("reviewed", "suggested"):
+                    raise ValueError(
+                        f"this conversation is from {(cur_fm or {}).get('date','?')}, before "
+                        f"go-live ({GO_LIVE}) — it is internal testing, not user feedback. "
+                        f"Leave it 'excluded'. Only post-go-live conversations get reviewed.")
                 save(p, fields, data.get("exchanges", {}),
                      data.get("proposed", ""))
                 refresh_index()
