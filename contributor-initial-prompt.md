@@ -28,18 +28,30 @@ Then, in this order:
    (my walkthrough as a reviewer) and `transcripts/README.md` (the process and every review
    field). Don't skim these — the whole workflow depends on details in them.
 
-2. **Do not modify the instructions.** These files are admin-only:
+2. **Know what I may and may not change.** Read `.github/admin-only-paths.txt` — that file
+   is the boundary, so use it rather than your memory of this list.
 
-   `CLAUDE.md`, `README.md`, `contributor-initial-prompt.md`, `transcripts/README.md`,
-   `transcripts/ONBOARDING.md`, `scripts/`, `templates/`, `.github/`, `.gitignore`,
-   `contributors.json`, and any `Knowledge-*/_START_HERE.md`.
+   I **can** change: knowledge content in any `Knowledge-<Domain>/` folder — the `Conf-`,
+   `Docusaurus-`, `FAQ-`, `Misc-`, `Training-` and `GitHub-` files — plus my review verdicts
+   under `transcripts/`. That's my job here; I know the subject matter.
 
-   I am a contributor, not an admin. The only path you write to is `transcripts/` — my review
-   verdicts. If you spot a genuine problem in any instruction file — a wrong command, a stale
-   number, a contradiction — **tell me about it and leave it alone.** Don't fix it, and don't
-   edit the CI check that enforces this. An admin decides. This matters more for you than for
-   me: if you rewrite your own instructions mid-session you'll then follow the rewrite, and
-   nobody reviewing my pull request can tell which rules you were actually working under.
+   I **cannot** change: anything that decides which agent answers, or how the repo operates.
+   `README.md`, `team-config/`, **every `Knowledge-*/_START_HERE.md`**, `CLAUDE.md`,
+   `transcripts/README.md`, `transcripts/ONBOARDING.md`, `scripts/`, `templates/`,
+   `.github/`, `.gitignore`, `contributors.json`.
+
+   `_START_HERE.md` is the one that catches people out: it sits in a folder I can otherwise
+   edit, but it carries cross-agent hand-off rules, so it's admin-only. Don't touch it.
+
+   If you spot a genuine problem in any of those — a wrong command, a stale number, a
+   contradiction — **tell me and leave it alone.** Don't fix it, and don't edit the CI check
+   that enforces this. An admin decides. This matters more for you than for me: if you
+   rewrite your own instructions mid-session you'll then follow the rewrite, and nobody
+   reviewing my pull request can tell which rules you were actually working under.
+
+   One thing no check can catch, so watch for it yourself: don't put routing advice *inside*
+   a knowledge file. "For identity questions, use the Identity agent" in an FAQ is
+   team-level routing in a file I'm allowed to edit. Flag it to me instead.
 
 3. Sync the reviewer list, so I can pick my own name as a reviewer:
 
@@ -52,18 +64,35 @@ Then, in this order:
    record a review until I am. Don't hand-edit the file to work around it; it's generated,
    the next sync overwrites it, and it grants no access anyway.
 
-4. Start the transcript review UI in the background and confirm it responds:
+4. Check whether I have a Foundry API key, since fetching transcripts needs one:
+
+       test -n "$FOUNDRY_API_KEY" && echo "key set" || echo "NOT SET"
+       # if not set, try:  source ../foundry-secrets.env
+
+   If I don't have one, walk me through creating it — **don't ask me to paste it to you, and
+   don't put it in a file inside the repo.** In Foundry: **Dev → API Keys**, create one, then
+   I save it one directory ABOVE this checkout and lock the permissions:
+
+       printf 'export FOUNDRY_API_KEY=%s\n' 'PASTE_KEY_HERE' > ../foundry-secrets.env
+       chmod 600 ../foundry-secrets.env
+
+   Keys are per-user and tenant-scoped, and I can hold 10. `CLAUDE.md` has the details.
+
+   Without a key you can still work from the transcripts already in the repo — say so and
+   carry on rather than stopping.
+
+5. Start the transcript review UI in the background and confirm it responds:
 
        python3 scripts/review_server.py
 
    It serves http://127.0.0.1:7777 on loopback only. If that port is busy use `--port 7778`
    and tell me the port you actually used.
 
-5. Show me the state of the queue — `python3 scripts/review_status.py` — and explain in your
+6. Show me the state of the queue — `python3 scripts/review_status.py` — and explain in your
    own words what I'm looking at: how many transcripts are waiting, and what the lifecycle
    states mean.
 
-6. **Finish your reply with the review UI's URL, visually separated so I can't miss it**,
+7. **Finish your reply with the review UI's URL, visually separated so I can't miss it**,
    with the pending count and anything waiting specifically on me. Something like:
 
        ────────────────────────────────────────────

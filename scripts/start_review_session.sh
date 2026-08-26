@@ -51,13 +51,19 @@ echo
 # Instruction files are admin-only. Catch a stray edit HERE, before it is committed and
 # before CI has to reject the PR — an AI agent that has quietly "improved" CLAUDE.md is
 # then following its own rewrite, and this is the cheapest place to notice.
-INSTR_RE='^(CLAUDE\.md|README\.md|contributor-initial-prompt\.md|contributors\.json|\.gitignore|transcripts/(README|ONBOARDING)\.md|scripts/|templates/|\.github/|Knowledge-[^/]*/_START_HERE\.md)'
-touched_instr=$(git diff --name-only "origin/main...HEAD" 2>/dev/null | grep -E "$INSTR_RE" || true)
+# Patterns from .github/admin-only-paths.txt — the single source shared with CI and
+# CODEOWNERS, so all three describe one boundary.
+INSTR_RE=$(grep -vE '^[[:space:]]*(#|$)' .github/admin-only-paths.txt | paste -sd'|' -)
+touched_instr=$(git diff --name-only "origin/main...HEAD" 2>/dev/null \
+                | grep -E "($INSTR_RE)" || true)
 if [ -n "$touched_instr" ]; then
-  echo "==> ⚠ this branch modifies ADMIN-ONLY instruction files"
+  echo "==> ⚠ this branch modifies ADMIN-ONLY files"
   echo "$touched_instr" | sed 's/^/      /'
-  echo "    Contributors write to transcripts/ only. If you are not a repo admin, revert these"
-  echo "    and raise the issue in the PR description instead:"
+  echo "    These decide which agent answers, or how the repo operates. Contributors own"
+  echo "    knowledge CONTENT (Conf-/Docusaurus-/FAQ-/Misc-/Training-/GitHub- files in each"
+  echo "    Knowledge-<Domain>/ folder) and their verdicts under transcripts/ — but NOT"
+  echo "    _START_HERE.md, which carries cross-agent hand-off rules."
+  echo "    If you are not a repo admin, revert these and raise it in the PR description:"
   echo "      git checkout origin/main -- <file>"
   echo "    CI will fail the PR otherwise."
   echo

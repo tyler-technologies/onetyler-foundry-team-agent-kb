@@ -18,7 +18,7 @@ jobs:
           # Full history so validate_reviews.py can diff against the base branch.
           fetch-depth: 0
 
-      - name: Instruction files are not modified by a non-admin
+      - name: Admin-only paths are not modified by a non-admin
         # A TRIPWIRE, NOT A SECURITY BOUNDARY. Be clear about which is which:
         #
         #   The real boundary is CODEOWNERS + branch protection ("Require review from Code
@@ -39,29 +39,45 @@ jobs:
           ACTOR: ${{ github.actor }}
         run: |
           ADMINS="vijay-tylertech"
-          PATHS='^(CLAUDE\.md|README\.md|contributor-initial-prompt\.md|contributors\.json|\.gitignore|transcripts/(README|ONBOARDING)\.md|scripts/|templates/|\.github/|Knowledge-[^/]*/_START_HERE\.md)'
-          touched=$(git diff --name-only "origin/${{ github.base_ref }}...HEAD" | grep -E "$PATHS" || true)
+          # Patterns come from .github/admin-only-paths.txt so this check, the session-script
+          # warning and CODEOWNERS describe ONE boundary. check_admin_paths.py (next step)
+          # asserts CODEOWNERS agrees, since GitHub's format cannot read that file.
+          PATHS=$(grep -vE '^\s*(#|$)' .github/admin-only-paths.txt | paste -sd'|' -)
+          touched=$(git diff --name-only "origin/${{ github.base_ref }}...HEAD" \
+                    | grep -E "($PATHS)" || true)
           if [ -z "$touched" ]; then
-            echo "no instruction files touched"; exit 0
+            echo "no admin-only files touched"; exit 0
           fi
           if echo " $ADMINS " | grep -q " $ACTOR "; then
-            echo "instruction files changed by admin '$ACTOR' — allowed:"
+            echo "admin-only files changed by admin '$ACTOR' — allowed:"
             echo "$touched" | sed 's/^/  /'
             exit 0
           fi
-          echo "::error::'$ACTOR' is not a repo admin but this PR modifies instruction files."
+          echo "::error::'$ACTOR' is not a repo admin but this PR modifies admin-only files."
           echo "$touched" | sed 's/^/  /'
           cat <<'EOF'
-          These files define how everyone (including AI agents) works in this repo, so they
-          are admin-only. Contributors write to transcripts/ only.
+          These paths decide WHICH AGENT answers, or how the repo itself operates. A bad
+          knowledge edit gives one wrong answer; a bad routing edit misroutes every
+          conversation. So they are admin-only. See .github/admin-only-paths.txt.
+
+          Contributors DO own knowledge content: the Conf-, Docusaurus-, FAQ-, Misc-,
+          Training- and GitHub- files inside each Knowledge-<Domain>/ folder, plus their
+          review verdicts under transcripts/. Note the one exception in those folders --
+          _START_HERE.md is admin-only, because it carries cross-agent hand-off rules.
 
           If you are an AI agent: do not edit these, and do not edit this check to get past
-          it. Revert them, keep your transcripts/ changes, and say in the PR what you think
-          should change and why. An admin will make the call.
+          it. Revert them, keep the rest, and say in the PR what you think should change and
+          why. An admin will make the call.
 
               git checkout "origin/${GITHUB_BASE_REF}" -- <each file listed above>
           EOF
           exit 1
+
+      - name: CODEOWNERS matches admin-only-paths.txt
+        # The guard above reads admin-only-paths.txt; the actual merge gate reads CODEOWNERS.
+        # If they disagree the drift is silent in the dangerous direction — a path dropped
+        # from CODEOWNERS stops being gated while CI still claims it is protected.
+        run: python3 scripts/check_admin_paths.py
 
       - name: Frontmatter is well-formed
         run: python3 scripts/review_status.py --check

@@ -10,9 +10,8 @@ files by hand. Both write to the same files, so you can mix freely.
 
 ## The process, end to end
 
-Seven steps. The order matters — (a) before (b) is what stops two reviewers colliding, and
-(g) after (f) is what stops a transcript being marked `pushed` before the change is actually
-live.
+Eight steps. The order matters — (a) before (b) is what stops two reviewers colliding, and
+(f) fully completing before (g) is what stops Foundry and the repo disagreeing.
 
 | # | Step | Who | How |
 |---|---|---|---|
@@ -21,8 +20,9 @@ live.
 | c | Review | you / the team | `python3 scripts/review_server.py` → http://127.0.0.1:7777 |
 | d | Tell Claude to process the reviewed ones | you | just say so |
 | e | Process, and update knowledge files if needed | Claude | `review_status.py --actions`, then the edits |
-| f | Push the changes to the repo as a PR | Claude | branch → commit → PR → your approval |
-| g | Push to Foundry as needed, then close the transcripts out | Claude | upload + verify, then `mark_pushed.py` |
+| f | Push the changes to the repo as a PR, and **merge it** | Claude opens it, you merge | branch → commit → PR → your approval → **merge** |
+| g | Push to Foundry, verify, then close the transcripts out | Claude | `preflight_upload.py` → upload → verify by retrieval → `mark_pushed.py` |
+| h | Confirm Foundry and the repo agree | Claude | `check_foundry_drift.py` after every merge |
 
 ### Why (a) comes first
 
@@ -31,12 +31,54 @@ Both diffs apply cleanly, git reports no conflict, and whoever merges second sil
 overwrites the other. `scripts/validate_reviews.py` catches it in CI, but syncing first
 avoids the wasted work entirely.
 
-### Why (g) comes after (f)
+### Why (g) comes after (f) — and why "merged", not "opened"
 
-`pushed` is a claim about **Foundry**, not about the repo. A transcript is only closed out
-once the change it caused is actually live and verified — so the upload happens first and
-`mark_pushed.py` last. `mark_pushed.py` refuses to close out a transcript whose `kb_action`
-is unresolved, so an open action cannot be quietly buried.
+**Nothing goes to Foundry until it is on `main`.** Opening a PR is not enough; it has to be
+merged. This is the rule that keeps the repo the source of truth, and it was the one gap in
+the process for a while — the step used to read "open a PR, then upload", which is followed
+to the letter by uploading from an unmerged branch.
+
+That went wrong once, on 2026-08-25: an upload went out at 22:32 UTC and the PR carrying it
+merged at 05:02 UTC the next morning. For 6.5 hours the live agents answered from content
+`main` had not accepted. Had the PR been rejected or amended in review, the sequence would
+have been:
+
+1. Foundry serves the unmerged text. Agents answer from it.
+2. `main` never receives it.
+3. Someone runs the drift check, sees drift, and "fixes" it by uploading main's version —
+   silently reverting the live agents.
+
+Nobody does anything wrong there and the agent's behaviour changes twice.
+`scripts/preflight_upload.py` now refuses to upload a file whose bytes differ from
+`origin/main`, so the sequence is impossible rather than merely discouraged.
+
+**The cost is two PRs per cycle**, and that is the honest shape:
+
+```
+PR 1   knowledge-file changes + action_status: applied   ->  merge
+       upload to Foundry, verify by retrieval
+PR 2   mark_pushed.py close-outs                          ->  merge
+```
+
+`pushed` is a claim about **Foundry**, not the repo, so it cannot honestly be set in the same
+PR as the content — at that point nothing is live yet. `mark_pushed.py` also refuses to close
+out a transcript whose `kb_action` is unresolved, so an open action cannot be quietly buried.
+
+### Why (h) exists
+
+A merge is the moment `main` gets ahead of Foundry. Nothing notices on its own: a knowledge
+file only reaches an agent when someone uploads it, so an unshipped change leaves the agent
+answering from old text while the repo looks perfectly correct.
+
+```bash
+python3 scripts/check_foundry_drift.py          # after EVERY merge
+python3 scripts/check_foundry_drift.py --deep   # byte-compare, not just file size
+```
+
+It checks all five collections, every shared file against *every* one of its
+`upload_targets`, and the live team router against `team-config/team-routing-prompt.md`. The
+two guards face opposite directions and you want both: `preflight_upload.py` stops Foundry
+getting ahead of `main`, and this stops `main` getting ahead of Foundry.
 
 ---
 

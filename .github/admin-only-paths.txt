@@ -1,0 +1,50 @@
+# Paths only a repo ADMIN may change. One extended-regex per line, matched against
+# repo-relative paths. Blank lines and #-comments ignored.
+#
+# SINGLE SOURCE for the boundary. Read by:
+#   .github/workflows/validate.yml       (fails a non-admin PR that touches these)
+#   scripts/start_review_session.sh      (warns before you commit)
+# .github/CODEOWNERS must be kept in step by hand — it is GitHub's own format and cannot
+# read this file. scripts/check_admin_paths.py asserts the two agree, and CI runs it.
+#
+# ---------------------------------------------------------------------------------------
+# THE RULE
+# ---------------------------------------------------------------------------------------
+# Contributors MAY change knowledge content inside a Knowledge-<Domain>/ folder — the
+# Conf-, Docusaurus-, FAQ-, Misc-, Training- and GitHub- files. That is the point of having
+# contributors: they know the subject matter.
+#
+# Only admins may change anything that decides WHICH AGENT answers, or how the repo itself
+# operates. Getting routing wrong misroutes every conversation, not just one answer, and the
+# damage is invisible in the transcript that caused it.
+#
+# ---------------------------------------------------------------------------------------
+# Team-level routing
+# ---------------------------------------------------------------------------------------
+# The team routing layer: which sub-agent gets the question.
+^README\.md$
+# The router's actual prompt, plus config backups that are the only copy of a live object.
+^team-config/
+# Per-corpus start pages. These look like within-corpus routing, and partly are — but they
+# also carry CROSS-AGENT hand-off rules, which is team-level routing by any definition.
+# Knowledge-BP-General/_START_HERE.md, for one, opens by telling the agent to "decide whether
+# the question belongs to one of the four specialized Foundry agents and hand off", and its
+# tables route to the Identity, Ops Center and SAC agents by name. A path-based rule cannot
+# split one file down the middle, so the whole file is admin-owned.
+^Knowledge-[^/]+/_START_HERE\.md$
+
+# ---------------------------------------------------------------------------------------
+# How the repo operates
+# ---------------------------------------------------------------------------------------
+# Agent instructions. An agent that edits these then follows its own rewrite.
+^CLAUDE\.md$
+^contributor-initial-prompt\.md$
+^transcripts/README\.md$
+^transcripts/ONBOARDING\.md$
+# Tooling and the checks that gate everyone's contributions.
+^scripts/
+^templates/
+^\.github/
+^\.gitignore$
+# Generated from GitHub team membership; hand-editing it does nothing but cause confusion.
+^contributors\.json$
