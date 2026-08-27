@@ -1247,6 +1247,17 @@ await saveDoc(path)}
 // Stage states for step 3's progress list. Only `push` and `pr` are driven from here,
 // because they are the only two this button performs; `merge` and `foundry` stay as they were
 // rendered, which is the honest picture - they are somebody's next action, not this click's.
+// The output panel's heading tracks what is in it: the pending diff before any step runs,
+// a step's output afterwards. One heading for both would be wrong half the time.
+function setOutHead(action){
+ const h=document.getElementById('outhead'), s=document.getElementById('outsub');
+ if(!h||!s)return;
+ if(action==='diff'){h.textContent='Your changes';
+   s.textContent='Every edit you have made and not yet sent in. Green is added, red is removed.';
+ } else {h.textContent='Output';
+   s.textContent='From the step you just ran. If something failed, paste this to your AI '
+     +'assistant.';}
+}
 function stage(name,state){const el=document.querySelector('#prog li[data-stage='+name+']');
  if(!el||el.classList.contains('none'))return;
  el.classList.remove('wait','run','done','fail'); el.classList.add(state);}
@@ -1264,6 +1275,7 @@ if(action==='pr'){
 const el=document.getElementById('gitout');
 // Prefer the server's tinted markup (escaped in diff_html) so a diff shown by the
 // button reads the same as the one rendered on load; fall back to text.
+setOutHead(action);
 if(r.html){el.innerHTML=r.html}else{el.textContent=r.output||'(no output)'}
 el.scrollTop=0;toast(r.ok?action+' ok':action+' failed',r.ok)}
 
@@ -2361,10 +2373,15 @@ def git_page():
              "<button onclick=\"gitDo('pr')\">Send my reviews in</button></div>")
       + "</div>"
 
+      # The heading FOLLOWS the content, because this panel shows two different things.
+      # "What happened" was wrong from the moment the panel started rendering a diff on load:
+      # nothing has happened yet at that point, it is showing your pending edits. "Output" is
+      # right after a step runs and wrong before one. So it starts as "Your changes" and
+      # gitDo() switches it to "Output" - see setOutHead() in the JS.
       "<div class=card>"
-      "<h3>What happened</h3>"
-      "<p class=sub>Output from the last step. If something failed, paste this to your AI "
-      "assistant.</p>"
+      "<h3 id=outhead>Your changes</h3>"
+      "<p class=sub id=outsub>Every edit you have made and not yet sent in. Green is added, "
+      "red is removed.</p>"
       "<pre class=out id=gitout>" + diff_html(review_diff()) + "</pre></div>"
 
       "<details class=card><summary>"
