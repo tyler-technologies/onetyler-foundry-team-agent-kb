@@ -40,11 +40,17 @@ def main():
     text = SRC.read_text(encoding="utf-8")
 
     # Guard 1 - the declaration itself.
-    if not re.search(r"^JS = r\"\"\"", text, re.M):
-        fail("scripts/review_server.py declares JS as a non-raw string.\n"
-             "      Use `JS = r\"\"\"` — otherwise Python consumes JS escape sequences such as\n"
-             "      \\n and \\t, which breaks JS string literals and silently kills the entire\n"
-             "      <script> block. See the docstring in this file.")
+    # Both asset blocks, not just JS. CSS bit next, and worse: `content:"\25B8"` for a
+    # disclosure triangle became chr(21) + "B8" because Python read `\25` as an OCTAL escape,
+    # so the page rendered a literal "B" beside the heading and the triangle never appeared.
+    # Same root cause, different block — hence one loop rather than a second special case.
+    for name in ("CSS", "JS"):
+        if not re.search(rf"^{name} = r\"\"\"", text, re.M):
+            fail(f"scripts/review_server.py declares {name} as a non-raw string.\n"
+                 f'      Use `{name} = r"""` — otherwise Python consumes the escape\n'
+                 "      sequences first. In JS that breaks a string literal and kills the whole\n"
+                 "      <script> block; in CSS `\\\\25B8` is read as octal and emits garbage.\n"
+                 "      Neither language wants Python's escapes. See the docstring here.")
 
     # Guard 2 - the emitted JS must parse. Import the module rather than re-deriving the
     # string, so this tests what the browser is actually served.

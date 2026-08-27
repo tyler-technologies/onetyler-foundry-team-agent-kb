@@ -16,6 +16,7 @@ or use the Git panel in the UI.
 """
 import argparse, html, json, os, re, subprocess, sys, webbrowser
 from collections import Counter
+from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from golive import GO_LIVE, EXCLUDE_NOTE, is_pre_go_live
@@ -593,7 +594,11 @@ def porcelain_path(line):
 
 
 # ---------------------------------------------------------------- rendering
-CSS = """
+# RAW string, for the same reason as JS below. CSS carries backslash escapes too - a
+# `content:"\25B8"` disclosure triangle - and Python ate `\25` as an OCTAL escape, producing
+# chr(21) + "B8". The page rendered a literal "B" before the heading, which is how it was
+# spotted; the triangle simply never appeared. Nothing in CSS wants Python's escapes.
+CSS = r"""
 /* ---------------------------------------------------------------------------------------
    Tyler Forge light theme. Values lifted from the real forge.css light-theme block, not
    guessed, so this matches Ops Center rather than merely resembling it.
@@ -784,18 +789,55 @@ header .brand{flex:0 0 auto;display:block}
 header{border-bottom:1px solid var(--brand-edge)}
 /* Mode switch. Sits left of the username - it is chrome, not content, so it belongs with the
    identity block rather than in the page. */
-/* margin-left:auto lives on the WRAPPER, not here - with it on .modesw the switch was
-   pushed right but the username then sat further right still, leaving the switch stranded
-   mid-bar looking like it belonged to the title. */
-.hdrright{margin-left:auto;display:flex;align-items:center;gap:var(--forge-spacing-medium);
+/* margin-left:auto lives on the WRAPPER, not on the control - with it on the control, the
+   control was pushed right but the username then sat further right still, leaving it
+   stranded mid-bar looking like it belonged to the title. */
+.hdrright{margin-left:auto;display:flex;align-items:center;gap:var(--forge-spacing-small);
 flex:0 0 auto}
-.modesw{display:inline-flex;gap:0;flex:0 0 auto;
-border:1px solid rgba(255,255,255,.35);border-radius:4px;overflow:hidden}
-.modesw button{background:transparent;color:#fff;border:0;padding:3px 7px;font-size:12px;
-line-height:1.4;cursor:pointer;opacity:.72;min-width:26px}
-.modesw button:hover{background:rgba(255,255,255,.14);opacity:1}
-.modesw button[aria-pressed=true]{background:rgba(255,255,255,.22);opacity:1;font-weight:600}
-header .who{margin-left:0}
+header .who{margin-left:var(--forge-spacing-small)}
+
+/* Display theme: icon button in the bar + a dialog. Geometry and colours copied from
+   ops-tools/forge.css rather than approximated, so this matches Ops Center instead of merely
+   resembling it: 394px dialog, 36px controls, a bordered toggle group with 2px inset, and a
+   RAISED (filled + elevated) Close. */
+.fg-iconbtn{display:inline-flex;align-items:center;justify-content:center;width:36px;
+height:36px;padding:0;border:0;border-radius:50%;background:transparent;color:#fff;
+cursor:pointer;flex:0 0 auto}
+.fg-iconbtn:hover{background:rgba(255,255,255,.14);filter:none}
+.fg-iconbtn:active{background:rgba(255,255,255,.22)}
+.fg-iconbtn:focus-visible{outline:2px solid #fff;outline-offset:2px}
+/* fill:currentColor is LOAD-BEARING. These are fill-drawn Material paths with no fill of
+   their own, and an unfilled path defaults to black - invisible on the dark app bar. */
+.fg-iconbtn svg{width:22px;height:22px;display:block;fill:currentColor}
+.fg-dialog-scrim{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.45);
+display:flex;align-items:center;justify-content:center;padding:var(--forge-spacing-large)}
+.fg-dialog-scrim[hidden]{display:none}
+.fg-dialog{width:394px;max-width:100%;background:var(--forge-theme-surface);
+color:var(--forge-theme-text-high);border-radius:4px;
+box-shadow:0 8px 10px rgba(0,0,0,.2),0 6px 30px rgba(0,0,0,.12),0 16px 24px rgba(0,0,0,.14);
+overflow:hidden}
+.fg-dialog h2{margin:0;padding:var(--forge-spacing-large) var(--forge-spacing-large) 0;
+font:400 20px/1.4 Roboto,sans-serif;letter-spacing:normal}
+.fg-dialog-body{padding:var(--forge-spacing-medium) var(--forge-spacing-large)
+var(--forge-spacing-large);text-align:center}
+.fg-dialog-body p{margin:0 0 var(--forge-spacing-large);font-size:16px;line-height:22px;
+color:var(--forge-theme-text-high);text-align:left}
+.fg-toggle-group{display:inline-flex;gap:2px;padding:2px;
+border:1px solid var(--forge-theme-outline-low);border-radius:4px}
+.fg-toggle{display:inline-flex;align-items:center;gap:2px;height:36px;padding:2px 8px;
+border:0;border-radius:2px;background:transparent;color:var(--forge-theme-text-medium);
+font:500 14px/1.4 Roboto,sans-serif;cursor:pointer}
+.fg-toggle:hover{background:var(--forge-theme-surface-container-low);filter:none}
+.fg-toggle.is-selected{background:var(--forge-theme-primary-container-low);
+color:var(--forge-theme-primary)}
+.fg-toggle-icon{width:18px;height:18px;fill:currentColor}
+.fg-dialog-foot{display:flex;justify-content:flex-end;
+padding:var(--forge-spacing-xsmall) var(--forge-spacing-medium) var(--forge-spacing-medium)}
+.fg-dialog-close{height:36px;padding:0 var(--forge-spacing-medium);
+border:1px solid var(--forge-theme-primary);border-radius:4px;
+background:var(--forge-theme-primary);color:var(--on-accent);
+font:500 14px/1.4 Roboto,sans-serif;letter-spacing:.07em;cursor:pointer;
+box-shadow:0 3px 1px -2px rgba(0,0,0,.2),0 2px 2px 0 rgba(0,0,0,.14)}
 header{gap:10px}
 header b{font-size:16px;font-weight:500;letter-spacing:.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 header .who{margin-left:auto;font-size:13px;opacity:.85;white-space:nowrap;flex:0 0 auto}
@@ -815,7 +857,7 @@ padding:var(--forge-spacing-small) var(--forge-spacing-small);
 position:sticky;top:56px;height:calc(100vh - 56px);overflow-y:auto}
 nav.side .grp{font:500 11px/1.6 Roboto,sans-serif;text-transform:uppercase;letter-spacing:.09em;
 color:var(--forge-theme-text-low);padding:var(--forge-spacing-medium) var(--forge-spacing-medium) var(--forge-spacing-xsmall)}
-nav.side a{display:flex;align-items:center;gap:10px;
+nav.side a{display:flex;align-items:center;gap:11px;font-size:14.5px;
 padding:11px var(--forge-spacing-medium);border-radius:4px;
 color:var(--forge-theme-text-high);text-decoration:none;font-size:14px}
 nav.side a:hover{background:var(--forge-theme-primary-container-minimum)}
@@ -825,7 +867,7 @@ nav.side a .ic{width:20px;text-align:center;font-size:15px;opacity:.8}
 nav.side a .ct{margin-left:auto;font-size:12px;color:var(--forge-theme-text-medium);
 background:var(--forge-theme-surface-container-low);border-radius:10px;padding:0 7px}
 nav.side a.on .ct{background:var(--forge-theme-surface);color:var(--forge-theme-primary)}
-nav.side .hint{font-size:11px;color:var(--forge-theme-text-medium);line-height:1.45;
+nav.side .hint{font-size:12.5px;color:var(--forge-theme-text-medium);line-height:1.45;
 padding:var(--forge-spacing-small) var(--forge-spacing-medium) var(--forge-spacing-medium)}
 main.wrap{flex:1;min-width:0;max-width:none;
 padding:var(--forge-spacing-large) var(--forge-spacing-large)
@@ -836,8 +878,50 @@ padding:var(--forge-spacing-large) var(--forge-spacing-large)
 /* --- surfaces --- */
 .bar,.card{background:var(--forge-theme-surface);border:1px solid var(--forge-theme-outline);
 border-radius:4px;box-shadow:var(--shadow-card)}
-.bar{padding:12px var(--forge-spacing-medium);margin-bottom:var(--forge-spacing-medium)}
-.card{padding:var(--forge-spacing-medium);margin-bottom:14px}
+.bar{padding:14px 18px;margin-bottom:20px;font-size:13.5px}
+/* Card padding and gap, sized against Foundry's own pages rather than chosen. Forge is
+   generous here and it is most of what makes the difference between "calm" and "busy": the
+   same content in a 16px-padded card with a 14px gap reads as a stack of strips, and in a
+   24px-padded card with a 20px gap reads as a panel. */
+.card{padding:var(--forge-spacing-large);margin-bottom:20px}
+/* A card TITLE has to outrank the body text, or nothing on the page is an entry point. The
+   old heading was 14px bold - the same size as body copy and only a weight apart, which is
+   why seven cards all looked equally important. 17px/500 with a grey subtitle under it is
+   the pattern Foundry uses. */
+.card>h3{font:500 17px/1.35 Roboto,sans-serif;margin:0;color:var(--forge-theme-text-high)}
+.card>h3+.sub{margin:4px 0 0}
+.sub{font:400 13.5px/1.5 Roboto,sans-serif;color:var(--forge-theme-text-medium);margin:0}
+.sub li{margin-bottom:5px}
+
+/* Numbered steps INSIDE one card. Previously three separate cards, which made each step a
+   peer of the section rather than a part of it. The number is the ordering signal, so the
+   headings no longer have to carry "Step 1 -" and the buttons no longer have to carry "1." */
+.step{display:flex;gap:14px;padding:20px 0 0;margin-top:20px;
+border-top:1px solid var(--row-line)}
+.stepnum{flex:0 0 24px;height:24px;border-radius:50%;
+background:var(--forge-theme-primary-container-low);color:var(--forge-theme-primary);
+font:600 12px/24px Roboto,sans-serif;text-align:center}
+.stepbody{flex:1;min-width:0}
+.stepbody h4{font:500 15px/1.4 Roboto,sans-serif;margin:0 0 3px;
+color:var(--forge-theme-text-high)}
+.stepbody .sub{margin-bottom:12px}
+.stepacts{margin-top:12px;display:flex;gap:10px;flex-wrap:wrap}
+/* The file list is context for the steps, not a step - a recessed panel says that without
+   needing another bordered card. */
+.whatsent{background:var(--forge-theme-surface-container-minimum);border-radius:4px;
+padding:12px 16px;margin-top:16px;font-size:13.5px}
+.whatsent>b{font-weight:500;font-size:13px;color:var(--forge-theme-text-medium)}
+.whatsent ul{margin:6px 0 0 18px;padding:0}
+
+/* Reference material, collapsed. It was a permanently-open card competing with the controls
+   on every visit; behind a summary it is still one click away and no longer part of the
+   page's visual weight. */
+details.card>summary{cursor:pointer;list-style:none}
+details.card>summary::-webkit-details-marker{display:none}
+details.card>summary h3{display:inline}
+details.card>summary::before{content:"\25B8";display:inline-block;width:16px;
+color:var(--forge-theme-text-medium)}
+details.card[open]>summary::before{content:"\25BE"}
 /* Sized to the Forge scale: heading4 for section titles, body2 (14px) as the body default
    which the Forge typography sheet also applies to <body>, label1 for field labels. */
 h2.sec{font:400 24px/1.4 Roboto,sans-serif;letter-spacing:0;
@@ -966,7 +1050,7 @@ border-radius:4px;padding:10px 12px;max-height:340px;overflow:auto;white-space:p
 font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace}
 .tools{font-size:12px;color:var(--forge-theme-text-medium);margin:6px 0}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:12px}
-label{display:block;font:500 12px/1.4 Roboto,sans-serif;letter-spacing:.01em;
+label{display:block;font:500 13px/1.5 Roboto,sans-serif;letter-spacing:.01em;
 text-transform:none;color:var(--forge-theme-text-medium);margin-bottom:4px}
 .hint{font-size:11px;color:var(--forge-theme-text-medium);font-weight:400;text-transform:none;letter-spacing:0}
 select,input,textarea{width:100%;padding:7px 8px;border:1px solid var(--forge-theme-outline-medium);
@@ -993,7 +1077,7 @@ tr.filters small{color:var(--forge-theme-text-low);font-weight:400}
 td.nowrap,th.nowrap{white-space:nowrap}
 tr.row[data-status=excluded] td{opacity:.5}
 .deleg{font-size:11px;color:var(--accent-purple);font-weight:500}
-pre.out{background:#263238;color:#eceff1;padding:12px;border-radius:4px;font-size:12px;
+pre.out{background:#263238;color:#eceff1;padding:16px;border-radius:4px;font-size:12.5px;margin-top:14px;
 overflow:auto;max-height:280px;line-height:1.5}
 tr.row.mine-area td{background:var(--forge-theme-primary-container-minimum)}
 tr.row.mine-area td:first-child{box-shadow:inset 3px 0 0 var(--forge-theme-primary)}
@@ -1319,36 +1403,54 @@ applyFilters()}
 // definitions exist and throws a ReferenceError, leaving the filters inert.
 if(document.getElementById('tbl')) initFilters();
 
-// ---- display mode ------------------------------------------------------------------------
-// The inline <head> script already applied the mode; this only wires the buttons and keeps
-// them in sync. Two things worth noting:
-//   - It listens for OS changes, so "Auto" tracks a machine that flips at sunset WITHOUT a
-//     reload. A stale "Auto" that only updates on navigation is the bug people report as
-//     "dark mode doesn't work".
-//   - The listener is registered unconditionally but no-ops unless the preference is auto,
-//     rather than being added and removed as the preference changes - fewer states to get
-//     wrong, and the check is free.
+// ---- display theme ----------------------------------------------------------------------
+// The <head> script already applied the mode; this wires the icon button, the dialog and the
+// OS listener. Structure follows ops-tools/forge-shell.js.
 (function(){
  const root=document.documentElement;
+ const btn=document.getElementById('themebtn'), scrim=document.getElementById('themescrim');
  const osDark=()=>window.matchMedia('(prefers-color-scheme: dark)').matches;
+ const ICON={};  // filled from the markup, so the paths live in exactly one place
+ document.querySelectorAll('.fg-toggle').forEach(t=>{
+   const pth=t.querySelector('path'); if(pth) ICON[t.dataset.modeSet]=pth.getAttribute('d');
+ });
  function paint(){
    const pref=root.dataset.modePref||'auto';
    root.dataset.mode = pref==='auto' ? (osDark()?'dark':'light') : pref;
-   document.querySelectorAll('[data-mode-set]').forEach(b=>{
-     b.setAttribute('aria-pressed', String(b.dataset.modeSet===pref));
+   // THE BAR ICON SHOWS THE RESOLVED THEME, NOT THE SETTING — so under Automatic the bar
+   // still answers "which am I in?", which is the question you have when looking at it.
+   const shown=root.dataset.mode==='dark'?'dark':'light';
+   if(btn&&ICON[shown]){
+     const svg=btn.querySelector('path'); if(svg) svg.setAttribute('d',ICON[shown]);
+     const lbl='Display theme ('+pref+')'; btn.title=lbl; btn.setAttribute('aria-label',lbl);
+   }
+   document.querySelectorAll('.fg-toggle').forEach(t=>{
+     const on=t.dataset.modeSet===pref;
+     t.classList.toggle('is-selected',on); t.setAttribute('aria-pressed',String(on));
    });
  }
- document.querySelectorAll('[data-mode-set]').forEach(b=>{
-   b.addEventListener('click',()=>{
-     const v=b.dataset.modeSet;
-     root.dataset.modePref=v;
-     try{localStorage.setItem('foundry-review-mode',v)}catch(e){}
-     paint();
-   });
+ function open(){ if(scrim){scrim.hidden=false;
+   const s=scrim.querySelector('.fg-toggle.is-selected')||scrim.querySelector('.fg-toggle');
+   if(s)s.focus();} }
+ function close(){ if(scrim){scrim.hidden=true; if(btn)btn.focus();} }
+ if(btn) btn.addEventListener('click',()=>{paint();open()});
+ if(scrim) scrim.addEventListener('click',e=>{
+   const tg=e.target.closest('.fg-toggle');
+   if(tg){ root.dataset.modePref=tg.dataset.modeSet;
+     try{localStorage.setItem('foundry-review-mode',tg.dataset.modeSet)}catch(err){}
+     paint(); return; }
+   // The scrim itself or Close dismisses. The group is always populated, so there is no
+   // "off" state to handle.
+   if(e.target.closest('.fg-dialog-close')||e.target===scrim) close();
  });
+ document.addEventListener('keydown',e=>{
+   if(e.key==='Escape'&&scrim&&!scrim.hidden) close();
+ });
+ // Automatic follows the OS, so repaint when the OS flips - without a reload. A stale Auto
+ // that only updates on navigation is the bug people report as "dark mode doesn't work".
  try{
-   window.matchMedia('(prefers-color-scheme: dark)')
-     .addEventListener('change',()=>{ if((root.dataset.modePref||'auto')==='auto') paint(); });
+  window.matchMedia('(prefers-color-scheme: dark)')
+    .addEventListener('change',()=>{ if((root.dataset.modePref||'auto')==='auto') paint(); });
  }catch(e){}
  paint();
 })();
@@ -1361,17 +1463,60 @@ if(document.getElementById('tbl')) initFilters();
 """
 
 
-# Light / Dark / Auto. Three states, not a two-way toggle: "Auto" is the default and it has
-# to stay reachable, because a reviewer who lands in dark because it is 9pm and their OS
-# switched should be able to say "follow the OS" again rather than being stuck on an explicit
-# choice they made once. aria-pressed is set by JS from the stored preference.
+# Display theme, built the way ops-tools/forge-shell.js builds it, because that was checked
+# against the live Ops Center rather than invented: Forge does NOT put a theme control in the
+# app bar. It puts a single ICON there - a sun or a moon - which opens a "Display theme"
+# dialog holding a three-way Light / Dark / Automatic toggle group and a raised Close.
+#
+# The first cut here was a three-button strip sitting in the bar. It worked, but it is not the
+# pattern, and it put a persistent tri-state control in the busiest 40px of the page.
+#
+# Two details from that file that are easy to get wrong and worth keeping:
+#   - THE BAR ICON SHOWS THE RESOLVED THEME, NOT THE SETTING. Under "Automatic" it shows a
+#     moon at night and a sun by day, so the bar still answers "which am I in?" - which is the
+#     question you actually have when looking at it.
+#   - The icon paths are Material glyphs lifted from Forge (wb_sunny,
+#     moon_waning_crescent, settings_brightness), drawn as FILLS. They carry
+#     fill="currentColor" via CSS; a path with no fill defaults to BLACK, which is invisible
+#     on a dark bar - a bug ops-tools' notes call out explicitly.
+THEME_ICONS = {
+    "light": ("M6.76 4.84 4.96 3.05 3.55 4.46l1.79 1.79zM4 10.5H1v2h3zm9-9.95h-2V3.5h2zm7.45 "
+              "3.91-1.41-1.41-1.79 1.79 1.41 1.41zm-3.21 13.7 1.79 1.8 1.41-1.41-1.8-1.79zM20 "
+              "10.5v2h3v-2zm-8-5c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6-2.69-6-6-6m-1 "
+              "16.95h2V19.5h-2zm-7.45-3.91 1.41 1.41 1.79-1.8-1.41-1.41z"),
+    "dark": "M2 12a10 10 0 0 0 13 9.54 10 10 0 0 1 0-19.08A10 10 0 0 0 2 12",
+    "auto": ("M21 3H3c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2m0 "
+             "16.01H3V4.99h18zM8 16h2.5l1.5 1.5 1.5-1.5H16v-2.5l1.5-1.5-1.5-1.5V8h-2.5L12 "
+             "6.5 10.5 8H8v2.5L6.5 12 8 13.5zm4-7c1.66 0 3 1.34 3 3s-1.34 3-3 3z"),
+}
+THEME_MODES = [("light", "Light", "light", "Use light theme"),
+               ("dark", "Dark", "dark", "Use dark theme"),
+               ("auto", "Automatic", "auto", "Use your browser's setting")]
+
+
+def _svg(path, cls):
+    return (f"<svg class={cls} viewBox='0 0 24 24' aria-hidden=true>"
+            f"<path d='{path}'/></svg>")
+
+
 MODE_SWITCH = (
-    "<div class=modesw role=group aria-label='Display mode'>"
-    "<button type=button data-mode-set=light title='Light' aria-pressed=false>&#9788;</button>"
-    "<button type=button data-mode-set=dark title='Dark' aria-pressed=false>&#9790;</button>"
-    "<button type=button data-mode-set=auto title='Follow the operating system' "
-    "aria-pressed=false>A</button>"
-    "</div>")
+    "<button type=button class=fg-iconbtn id=themebtn aria-haspopup=dialog "
+    "aria-label='Display theme'>" + _svg(THEME_ICONS["light"], "fg-icon") + "</button>"
+    "<div class=fg-dialog-scrim id=themescrim hidden>"
+    "<div class=fg-dialog role=dialog aria-modal=true aria-labelledby=themetitle>"
+    "<h2 id=themetitle>Display theme</h2>"
+    "<div class=fg-dialog-body>"
+    "<p>Choose what theme you would like to use for this application.</p>"
+    "<div class=fg-toggle-group role=group aria-label='Display theme'>"
+    + "".join(
+        f"<button type=button class=fg-toggle data-mode-set={v} aria-pressed=false "
+        f"title=\"{tip}\">{_svg(THEME_ICONS[icon], 'fg-toggle-icon')}"
+        f"<span>{label}</span></button>"
+        for v, label, icon, tip in THEME_MODES)
+    + "</div></div>"
+      "<div class=fg-dialog-foot>"
+      "<button type=button class=fg-dialog-close>Close</button>"
+      "</div></div></div>")
 
 
 def nav_counts():
@@ -1908,6 +2053,43 @@ def detail_page(rel):
     return page(f"{fm.get('answered_by','')} {rel}", "".join(parts))
 
 
+def default_branch_name(current):
+    """The prefilled name for step 1's "copy".
+
+    Step 1 runs `git switch -c <name>`, which is the ONE action on this page that can
+    collide: the branch either does not exist (fine) or it does, and then the command fails
+    outright. Steps 2 and 3 are additive - a commit is always a new commit, and `gh pr create`
+    refuses rather than overwriting an existing PR - so nothing there needs disambiguating.
+
+    Carries BOTH the username and a timestamp, for two different reasons:
+      - the username, so a glance at `git branch -a` says whose copy this is;
+      - the timestamp, because a username alone collides the second time the same person
+        starts a batch, which is exactly the hard failure this is here to avoid.
+
+    If they are ALREADY on a review branch, returns it unchanged. The card promises step 1 is
+    "safe to click twice", and handing back a fresh name on reload would instead start a
+    second copy and split one batch of reviews across two branches. (The old default also had
+    a latent bug here - it produced `review/review/foo` when already on `review/foo`.)
+    """
+    if current.startswith("review/"):
+        return current
+    who = ME or "batch"
+    return f"review/{who}/{datetime.now().strftime('%m%d%Y-%H%M%S')}"
+
+
+def default_commit_message():
+    """Step 2's prefilled message.
+
+    Carries the username and no timestamp. Git already records the author and the date, so a
+    timestamp would be duplicating what `git log` shows anyway - but the name is NOT
+    redundant, because step 3 runs `gh pr create --fill`, which takes the PR title from the
+    first commit. Without a name in it, every reviewer's pull request is titled
+    "Review transcripts: verdicts and proposed fixes" and the PR list becomes unreadable.
+    """
+    who = f" ({ME})" if ME else ""
+    return f"Review transcripts{who}: verdicts and proposed fixes"
+
+
 def git_page():
     """Send a finished batch of reviews in.
 
@@ -1942,51 +2124,78 @@ def git_page():
             "<div class=hint style='margin-top:6px'>Nothing changed under transcripts/ yet — " \
             "review something on <b>All transcripts</b> first.</div>"
 
+    # SEVEN stacked cards of identical weight is what made this page read as busy: every block
+    # had the same border, the same 14px bold heading and the same padding, so nothing looked
+    # more important than anything else and the eye had no entry point. Restructured to three
+    # cards, matching how Foundry's own pages group content - a card is a CATEGORY, and the
+    # steps within it are steps, not peers of it.
+    #
+    #   before                                  after
+    #   status bar                              status bar  (absorbs "about to be sent")
+    #   What is about to be sent   -----------> Publish your reviews
+    #   Step 1  ------------------------------>   step 1 / 2 / 3 inside it
+    #   Step 2  ------------------------------>
+    #   Step 3  ------------------------------>
+    #   What happened             -----------> What happened
+    #   Worth knowing             -----------> Worth knowing  (collapsed <details>)
+    #
+    # "Worth knowing" is now collapsed: it is reference material that was competing with the
+    # controls every single visit.
+    def step(num, title, desc, inner):
+        return (f"<div class=step><div class=stepnum>{num}</div><div class=stepbody>"
+                f"<h4>{title}</h4><p class=sub>{desc}</p>{inner}</div></div>")
+
     body = (
       f"<h2 class=sec>Save &amp; Share your reviews</h2>"
       f"<div class=bar>{state}<br><span class=hint>You are working on "
       f"<b>{html.escape(branch)}</b>." + (" That is the shared copy, so step 1 will move you "
       "onto your own copy first." if on_main else "") + "</span></div>"
 
-      "<div class=card><b>What is about to be sent</b>" + files + "</div>"
+      "<div class=card>"
+      "<h3>Publish your reviews</h3>"
+      "<p class=sub>Three steps, in order. Nothing leaves your machine until step 3.</p>"
+      "<div class=whatsent><b>About to be sent</b>" + files + "</div>"
+      + step(1, "Put your work on your own copy",
+             "A personal copy, so your changes cannot disturb anyone else's. Safe to click "
+             "twice.",
+             "<label>Name for your copy<span class=hint> — anything; a date is fine</span>"
+             "</label>"
+             f"<input id=branch value=\"{html.escape(default_branch_name(branch))}\">"
+             "<div class=stepacts>"
+             "<button class=sec onclick=\"gitDo('branch')\">Make my own copy</button></div>")
+      + step(2, "Save your reviews",
+             "Records your reviews locally. Nothing is shared yet.",
+             "<label>What did you review?<span class=hint> — one line, for whoever reads it "
+             "later</span></label>"
+             f"<input id=cmsg value=\"{html.escape(default_commit_message())}\">"
+             "<div class=stepacts>"
+             "<button class=sec onclick=\"gitDo('commit')\">Save my reviews</button>"
+             "<button class=sec onclick=\"gitDo('diff')\">Show me exactly what changed</button>"
+             "</div>")
+      + step(3, "Send them in for review",
+             "Opens a change request for someone to check before it becomes official. This is "
+             "the step that reaches the team, and you get a link back.",
+             "<div class=stepacts>"
+             "<button onclick=\"gitDo('pr')\">Send my reviews in</button></div>")
+      + "</div>"
 
-      "<div class=card><b>Step 1 — put your work on your own copy</b>"
-      "<p class=hint style='margin:6px 0 10px'>A personal copy, so your changes cannot disturb "
-      "anyone else's. Safe to click twice.</p>"
-      "<label>Name for your copy<span class=hint> — anything; a date is fine</span></label>"
-      f"<input id=branch value='review/{branch if branch.startswith('review/') else 'batch'}'>"
-      "<div style='margin-top:10px'>"
-      "<button class=sec onclick=\"gitDo('branch')\">1. Make my own copy</button></div></div>"
-
-      "<div class=card><b>Step 2 — save your reviews</b>"
-      "<p class=hint style='margin:6px 0 10px'>Records your reviews locally. Nothing is shared "
-      "yet.</p>"
-      "<label>What did you review?<span class=hint> — one line, for whoever reads it later</span></label>"
-      "<input id=cmsg value='Review transcripts: verdicts and proposed fixes'>"
-      "<div style='margin-top:10px;display:flex;gap:8px;flex-wrap:wrap'>"
-      "<button class=sec onclick=\"gitDo('commit')\">2. Save my reviews</button>"
-      "<button class=sec onclick=\"gitDo('diff')\">Show me exactly what changed</button>"
-      "</div></div>"
-
-      "<div class=card><b>Step 3 — send them in for review</b>"
-      "<p class=hint style='margin:6px 0 10px'>Opens a <b>change request</b> for someone to check "
-      "before it becomes official. This is the step that reaches the team. You get a link back.</p>"
-      "<button onclick=\"gitDo('pr')\">3. Send my reviews in</button></div>"
-
-      "<div class=card><b>What happened</b>"
-      "<p class=hint style='margin:6px 0 8px'>Output from the last step. If something failed, "
-      "paste this to your AI assistant.</p>"
+      "<div class=card>"
+      "<h3>What happened</h3>"
+      "<p class=sub>Output from the last step. If something failed, paste this to your AI "
+      "assistant.</p>"
       "<pre class=out id=gitout>"
       + html.escape("\n".join(changed) or "(nothing changed under transcripts/ yet)")
       + "</pre></div>"
 
-      "<div class=card><b>Worth knowing</b><ul class=hint style='margin:6px 0 0 18px;padding:0'>"
+      "<details class=card><summary><h3>Worth knowing</h3></summary>"
+      "<ul class=sub style='margin:10px 0 0 20px;padding:0'>"
       "<li>A review with nothing to fix is still worth sending.</li>"
       "<li>Writing what <i>should</i> have been said is the valuable part — a knowledge-file "
       "change is not required.</li>"
-      "<li>Suggestions handed to someone else need sending in too; that is how they reach them.</li>"
+      "<li>Suggestions handed to someone else need sending in too; that is how they reach "
+      "them.</li>"
       "<li>Only step 3 shares anything.</li>"
-      "</ul></div>")
+      "</ul></details>")
     return page("Save & Share", body, active="git")
 
 
