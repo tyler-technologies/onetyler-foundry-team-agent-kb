@@ -272,21 +272,116 @@ a Citizen Connect product manager cannot add features to Enterprise ERP.
 
 ### Q: Can we lock down who is allowed to assign cohorts?
 
-**A:** **Not separately — cohort assignment is bundled with the create-features permission.**
-Anyone who can add features to a product can also change that product's cohort assignments.
-There is no distinct cohort-assignment role.
+**A:** **Assigning and unassigning are governed differently — do not answer as though they are
+one permission.**
 
-The compensating control is the **audit tab**, present on every product: it records who
-changed what and when, so an unexpected cohort change can be traced and discussed. Both
-presenters invited feedback if finer-grained control turns out to be needed, so this may
-change.
+- **Assigning** a workspace to a cohort is **bundled with the create-features permission**.
+  Anyone who can add features to a product can also assign that product's cohorts. There is no
+  separate assign-only role.
+- **Unassigning** — removing a workspace from its assigned cohort — requires a **distinct
+  permission** that not everyone with edit rights has. See *Who can unassign a workspace from a
+  cohort…* below.
 
-- **Source:** Release Manager Tool Walkthrough recording — question from a divisional lead;
-  answered by Kyle Hall, with Nate Hanna pointing at the audit tab.
-- **Added:** 2026-08-26 by vijay-tylertech
+The compensating control for assignment is the **audit tab**, present on every product: it
+records who changed what and when, so an unexpected cohort change can be traced and discussed.
+
+**This area is in flux.** Nate Hanna acknowledged on 2026-08-27 that there is "an inconsistency
+in the cohort assignment behavior", so verify current behaviour before making a firm statement
+about who can do what.
+
+- **Source:** Release Manager Tool Walkthrough recording (Kyle Hall on assignment being
+  bundled; Nate Hanna on the audit tab), **updated 2026-08-27** with Nate Hanna's confirmation
+  that a separate unassignment permission exists — which the walkthrough answer did not cover
+  and which read, on its own, as "no separate cohort permission of any kind".
+- **Added:** 2026-08-26 by vijay-tylertech, revised 2026-08-27
+- **Confidence:** confirmed by owner, but the owner has flagged the surrounding behaviour as
+  inconsistent — treat as subject to change.
+- **Promote when:** Blueprint documents the assign/unassign permission split.
+
+### Q: Who can unassign a workspace from a cohort, and how do I get that permission?
+
+**A:** **A permission for cohort unassignment exists.** If your user has it, you can remove a
+workspace from its assigned cohort. It is separate from the create-features permission that
+covers cohort *assignment*.
+
+**Who it is for:** the people responsible for managing a given product or workspace's Aligned
+Releases participation and cohort assignments — expected to be **a select few within a product
+team**, typically someone higher up in the product's hierarchy. It is explicitly **not a
+OneTyler-only permission**; it is access control for the appropriate product-side owners.
+
+### ⚠ The request process is NOT yet confirmed — do not hand one out
+
+**As of 2026-08-27 the ticket and process for obtaining this permission are still being
+settled.** The likely route is a **OneTyler support ticket** (the JSM portal is still titled
+"CorpDev Support"), but that was given as a belief rather than a confirmed answer, and is being
+checked with the team before anyone is told to follow it.
+
+**So: tell the user the permission exists, that it is intended for product-side owners, and
+that the request process is being finalised — then point them at the OneTyler team to ask.**
+Do **not** name a specific form or ticket ID for this. Naming the wrong one sends someone down
+a process that does not exist and gets their request bounced or lost.
+
+This entry should be revised the moment the process is confirmed.
+
+- **Source:** Nate Hanna, 2026-08-27, after checking with Chris C: "we do have a permission for
+  cohort unassignment… if your user has that permission, you should be able to remove a
+  workspace from its assigned cohort." On the process: "I *believe* it's through a CorpDev
+  support ticket request — let's confirm this one with Jay/the team rather than give you the
+  wrong process."
+- **Added:** 2026-08-27 by vijay-tylertech
+- **Confidence:** **the permission's existence and audience are confirmed by owner; the request
+  process is PROVISIONAL and explicitly unconfirmed.** Hedge on the process, not on the
+  permission.
+- **Promote when:** the ticket/process is confirmed with the team — at which point add it to
+  `Knowledge-Shared/Conf-OneTylerTickets.md` and reduce this entry to a pointer.
+
+### Q: Can I activate a feature for a workspace that is not in the current GA cohort?
+
+**A:** **Yes, and that is intentional — not a loophole.** Activation for a workspace is
+deliberately independent of that workspace's GA cohort.
+
+That independence is what makes previews work: **Private and Public Preview activation is
+*supposed* to happen before GA, for selected workspaces.** If activation were locked to the GA
+cohort schedule you could not run a preview at all.
+
+**Cohorts govern something narrower than "who can have this":** they govern the **four-week GA
+rollout to all participating client workspaces**. They are the schedule for the general
+rollout, not a gate on every activation.
+
+- **Source:** Nate Hanna, 2026-08-27: "Being able to activate a feature for a workspace
+  independent of its GA cohort, however, is intentional. Private and Public Preview activation
+  should occur before GA for selected workspaces; cohorts govern the four-week GA rollout to
+  all participating client workspaces."
+- **Added:** 2026-08-27 by vijay-tylertech
 - **Confidence:** confirmed by owner
-- **Promote when:** a separate cohort permission is introduced, or Blueprint documents the
-  bundling.
+- **Promote when:** Blueprint states that activation is independent of cohort by design.
+
+### Q: Can I undo a feature activation for a workspace?
+
+**A:** **Not currently — and that is a known problem, not the intended design.** Treat this as
+an open gap rather than a rule to explain away.
+
+Nate Hanna, 2026-08-27: the inability to undo an activation "is **inconsistent with the
+intended workflow**, so I'll bring it up with the team."
+
+**Why it matters, and why it will change:** there are explicit lifecycle scenarios that
+*require* disabling a feature for specific workspaces after it was already activated. The
+worked example: an issue is discovered during the GA rollout, the product team needs to disable
+the feature for the clients hitting the defect, and the feature is moved to the next quarterly
+release. That is the *Rollback mid-GA* path in
+`Docusaurus-AlignedReleases.md` → *Representative Lifecycle Scenarios*, so the need is already
+documented even though the capability is not there.
+
+**How to answer someone asking:** say that undoing an activation is not currently possible,
+that this has been raised with the Aligned Releases team as inconsistent with the intended
+workflow, and that the documented rollback path is to remove the feature from the release and
+return it to a preview state. Do not present the limitation as deliberate.
+
+- **Source:** Nate Hanna, 2026-08-27, responding to "unable to undo activation".
+- **Added:** 2026-08-27 by vijay-tylertech
+- **Confidence:** confirmed by owner as a **known inconsistency being raised with the team** —
+  expected to change. Re-check before repeating the "not possible" part.
+- **Promote when:** the behaviour is fixed, or a documented workaround is published.
 
 ### Q: When do clients get emailed, and does the timing depend on their cohort?
 

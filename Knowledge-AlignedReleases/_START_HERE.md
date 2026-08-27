@@ -67,6 +67,9 @@ Two supporting distinctions worth stating early:
 | "Is there an SDK?" | `Tyler.AlignedReleases.Sdk` (C#, on Artifactory) — see *Requesting API Access* |
 | "Which ticket do I file?" | `Knowledge-Shared/Conf-OneTylerTickets.md` — the authoritative catalog for every domain |
 | Something no document states | `FAQ-AlignedReleases.md` |
+| **Unassigning a workspace from a cohort / getting that permission** | `FAQ-AlignedReleases.md` → *Who can unassign a workspace from a cohort…* **The permission exists; the REQUEST PROCESS IS NOT YET CONFIRMED.** Say it is being finalised and point at the OneTyler team — never name a ticket form for it. |
+| Activating a feature outside its GA cohort | `FAQ-AlignedReleases.md` — intentional, and what makes previews possible. Cohorts govern the four-week GA rollout, not every activation. |
+| **Undoing / reversing a feature activation** | `FAQ-AlignedReleases.md` — not currently possible, and flagged by the owner as **inconsistent with the intended workflow**. Present it as a known gap being raised, not as by-design. |
 | Whether a stage change switches a feature on for anyone | `FAQ-AlignedReleases.md` — it does **not**. Do not infer activation from the *Audience* column of `Docusaurus-AlignedReleases.md`'s Feature Lifecycle table; that column says who the stage is communicating **about**, not who has the feature enabled. |
 | Whether a feature must pass through preview before GA | `FAQ-AlignedReleases.md` — it must **not**. `Planned` straight to `GA` is legitimate. `Docusaurus-AlignedReleases.md` says preview *participation* is optional, which is a different claim; stages being skippable appears there only as one *Representative Lifecycle Scenarios* bullet, never as a rule. |
 | **Release Manager** — the tool, its screens, permissions, who can do what | `FAQ-AlignedReleases.md` first, then `Docusaurus-AlignedReleases.md` for the API equivalent |
