@@ -67,7 +67,9 @@ Two supporting distinctions worth stating early:
 | "Is there an SDK?" | `Tyler.AlignedReleases.Sdk` (C#, on Artifactory) — see *Requesting API Access* |
 | "Which ticket do I file?" | `Knowledge-Shared/Conf-OneTylerTickets.md` — the authoritative catalog for every domain |
 | Something no document states | `FAQ-AlignedReleases.md` |
+| Whether a stage change switches a feature on for anyone | `FAQ-AlignedReleases.md` — it does **not**. Do not infer activation from the *Audience* column of `Docusaurus-AlignedReleases.md`'s Feature Lifecycle table; that column says who the stage is communicating **about**, not who has the feature enabled. |
 | **Release Manager** — the tool, its screens, permissions, who can do what | `FAQ-AlignedReleases.md` first, then `Docusaurus-AlignedReleases.md` for the API equivalent |
+| **"What does setting the stage actually do?"** / stage vs activation | `FAQ-AlignedReleases.md` → *If I set a feature's stage to Private or Public Preview, what is that actually controlling?* **Read this before answering any stage question** — stage is a communication signal and does NOT activate anything; activation is per-workspace and owned by the product team. |
 | When/what clients are emailed about a release | `FAQ-AlignedReleases.md` |
 | What a client sees about an upcoming release (Admin Center) | `FAQ-AlignedReleases.md` |
 | Can Release Manager do X? (import, screenshots, per-client views) | `FAQ-AlignedReleases.md` — several are explicit "no" answers |
