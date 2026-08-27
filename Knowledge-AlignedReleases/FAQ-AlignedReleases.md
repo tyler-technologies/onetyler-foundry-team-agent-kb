@@ -110,6 +110,55 @@ while its stage still says `Planned`. Neither is a bug.
   that stage never drives activation, that activation is tracked per workspace, or that the
   product team owns the flag and reports back.
 
+**See also** the next entry: stage is not only non-controlling, it is also **not static** — it
+changes as the feature moves through its lifecycle.
+
+### Q: Is the feature stage a "set it and forget it" label, or does it change over time?
+
+**A:** **It changes. Stage is a feature-level lifecycle status, not a label you set once.**
+Treating it as set-and-forget is the wrong mental model — the right one is an **entire
+workflow** that runs from cataloguing the feature through to Day 1 of GA.
+
+**The path a feature takes:**
+
+1. Enters the Release Manager catalog as **`Planned`**.
+2. *May* move through **`Private Preview`** and/or **`Public Preview`**.
+3. **Ultimately reaches `GA`** once it is assigned to a release.
+
+**Preview stages are optional.** A feature does not have to progress through each one —
+`Planned` straight to `GA` is a legitimate path. Do not tell someone they must run a preview.
+
+**You do not set GA yourself, and you do not set it on Cohort 1 Day 1.** Teams do not manually
+promote a feature to GA — **the system does it automatically**. Once the feature is assigned to
+a quarterly release, **GA is tied to the start of that release (the Cohort 1 date)**. The
+mechanics of that promotion are in `Docusaurus-AlignedReleases.md` → *You do NOT set a feature
+to General Availability yourself*.
+
+**Then activation progresses separately.** After the feature reaches GA, **workspace activation
+progresses across the four GA cohorts**. That is the piece people miss: reaching GA is one
+event tied to the release start, while activation rolls out across the cohort windows after it.
+Stage stops moving; activation keeps going.
+
+Customers see the relevant lifecycle context in the customer-facing Aligned Releases **Admin
+Center** experience.
+
+**In one line:** *feature lifecycle (stage) changes as the feature moves through its lifecycle;
+workspace activation independently tells you where the feature is actually turned on.*
+
+- **Source:** Nate Hanna, 2026-08-27, answering whether stage is "a set it and forget it model"
+  or "an entire workflow all the way through Day 1 of GA". Confirms the "entire workflow" model.
+  The automatic-GA point was also covered by Kyle Hall in the Release Manager walkthrough.
+- **Added:** 2026-08-27 by vijay-tylertech
+- **Confidence:** confirmed by owner
+- **Promote when:** Blueprint states that stage is a changing status and that preview stages are
+  skippable. Note what is and is not already documented: the automatic GA promotion **is** in
+  `Docusaurus-AlignedReleases.md`; "preview *participation* is optional" is there too, but that
+  is a different claim from **stages being skippable**, which appears only implicitly in one
+  *Representative Lifecycle Scenarios* bullet ("Simple path: planned → added to release → GA")
+  and is never stated as a rule.
+
+**See also** the previous entry: stage changing does **not** activate anything.
+
 ### Q: Does the documentation link have to be added per feature, or can I add it once per release?
 
 **A:** **Per feature.** If every feature in your release points at the same release-notes URL,
