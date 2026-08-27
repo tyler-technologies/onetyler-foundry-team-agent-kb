@@ -559,7 +559,7 @@ header .who{margin-left:auto;font-size:13px;opacity:.85}
 nav.side{width:var(--nav-w);flex:0 0 var(--nav-w);background:var(--forge-theme-surface);
 border-right:1px solid var(--forge-theme-outline);padding:var(--forge-spacing-small) 0;
 position:sticky;top:56px;align-self:flex-start;max-height:calc(100vh - 56px);overflow:auto}
-nav.side .grp{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;
+nav.side .grp{font:500 11px/1.6 Roboto,sans-serif;text-transform:uppercase;letter-spacing:.09em;
 color:var(--forge-theme-text-low);padding:var(--forge-spacing-medium) var(--forge-spacing-medium) var(--forge-spacing-xsmall)}
 nav.side a{display:flex;align-items:center;gap:10px;padding:10px var(--forge-spacing-medium);
 color:var(--forge-theme-text-high);text-decoration:none;font-size:14px;
@@ -573,7 +573,7 @@ background:var(--forge-theme-surface-container-low);border-radius:10px;padding:0
 nav.side a.on .ct{background:#fff;color:var(--forge-theme-primary)}
 nav.side .hint{font-size:11px;color:var(--forge-theme-text-medium);line-height:1.45;
 padding:var(--forge-spacing-small) var(--forge-spacing-medium) var(--forge-spacing-medium)}
-main.wrap{flex:1;min-width:0;padding:var(--forge-spacing-large);max-width:1180px}
+main.wrap{flex:1;min-width:0;padding:var(--forge-spacing-large);max-width:none}
 /* the 12-column table scrolls INSIDE its card rather than stretching the page */
 .tblcard{overflow-x:auto}
 
@@ -582,7 +582,11 @@ main.wrap{flex:1;min-width:0;padding:var(--forge-spacing-large);max-width:1180px
 border-radius:4px;box-shadow:0 1px 2px rgba(0,0,0,.06)}
 .bar{padding:12px var(--forge-spacing-medium);margin-bottom:var(--forge-spacing-medium)}
 .card{padding:var(--forge-spacing-medium);margin-bottom:14px}
-h2.sec{font:500 20px/1.3 Roboto,sans-serif;margin:0 0 var(--forge-spacing-small)}
+/* Sized to the Forge scale: heading4 for section titles, body2 (14px) as the body default
+   which the Forge typography sheet also applies to <body>, label1 for field labels. */
+h2.sec{font:400 24px/1.4 Roboto,sans-serif;letter-spacing:0;
+margin:0 0 var(--forge-spacing-small);color:var(--forge-theme-text-high)}
+h3.sub{font:500 16px/1.4 Roboto,sans-serif;margin:0 0 6px}
 /* Data table, matching the Ops Center Activity table: no outer frame, no header fill,
    hairline row dividers, generous row height, grey sentence-case headers. The old dense
    bordered grid read as a spreadsheet; this reads as a list you scan. */
@@ -591,6 +595,12 @@ border-radius:4px;padding:var(--forge-spacing-medium) var(--forge-spacing-large)
 box-shadow:0 1px 2px rgba(0,0,0,.06)}
 table{width:100%;border-collapse:collapse;background:transparent}
 th,td{text-align:left;white-space:nowrap}
+/* The question column takes the leftover width and wraps; everything else stays compact.
+   Without this, eleven nowrap columns push the one column you actually read out of view. */
+td.qcell,th.qcell{white-space:normal;min-width:260px;width:34%}
+td.awcell{white-space:normal;max-width:190px}
+td.awcell .owner{display:inline-block;max-width:170px;overflow:hidden;text-overflow:ellipsis;
+white-space:nowrap;vertical-align:bottom}
 th{padding:10px 14px 10px 0;font:500 13px/1.4 Roboto,sans-serif;
 color:var(--forge-theme-text-medium);background:none;
 border-bottom:1px solid var(--forge-theme-outline)}
@@ -598,7 +608,13 @@ th .caret{color:var(--forge-theme-text-low);font-size:10px;margin-left:5px}
 td{padding:14px 14px 14px 0;font-size:14px;color:var(--forge-theme-text-high);
 border-bottom:1px solid #f0f0f0}
 tbody tr:last-child td,table tr:last-child td{border-bottom:0}
+tr.row{cursor:pointer}
 tr.row:hover td{background:var(--forge-theme-primary-container-minimum)}
+tr.row:focus-visible{outline:2px solid var(--forge-theme-primary);outline-offset:-2px}
+/* the question stays a real link for middle-click / open-in-new-tab, but loses the
+   underline-blue treatment since the whole row is now the target */
+td.qcell a{color:var(--forge-theme-text-high);text-decoration:none;font-weight:500}
+tr.row:hover td.qcell a{color:var(--forge-theme-primary)}
 /* search field above the table, Forge text-field shape */
 .searchwrap{position:relative;margin-bottom:6px}
 .searchwrap .mag{position:absolute;left:12px;top:50%;transform:translateY(-50%);
@@ -627,8 +643,8 @@ border-radius:4px;padding:10px 12px;max-height:340px;overflow:auto;white-space:p
 font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace}
 .tools{font-size:12px;color:var(--forge-theme-text-medium);margin:6px 0}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:12px}
-label{display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;
-color:var(--forge-theme-text-medium);margin-bottom:3px}
+label{display:block;font:500 12px/1.4 Roboto,sans-serif;letter-spacing:.01em;
+text-transform:none;color:var(--forge-theme-text-medium);margin-bottom:4px}
 .hint{font-size:11px;color:var(--forge-theme-text-medium);font-weight:400;text-transform:none;letter-spacing:0}
 select,input,textarea{width:100%;padding:7px 8px;border:1px solid var(--forge-theme-outline-medium);
 border-radius:4px;font-size:13px;font-family:inherit;background:var(--forge-theme-surface)}
@@ -699,7 +715,7 @@ button.tipclose{padding:3px 10px;font-size:11px}
    --------------------------------------------------------------------------------------- */
 @media (max-width:1439px){
   :root{--nav-w:184px}
-  main.wrap{padding:var(--forge-spacing-medium);max-width:none}
+  main.wrap{padding:var(--forge-spacing-medium)}
   .tblcard{padding:var(--forge-spacing-small) var(--forge-spacing-medium) var(--forge-spacing-xsmall)}
   th,td{padding-right:10px}
 }
@@ -811,6 +827,22 @@ async function bulkReview(){
  }
  toast(m); location.reload();
 }
+// Whole-row click-through. Guarded so the controls inside a row still behave: the
+// checkbox must toggle without navigating, links must keep their own behaviour (including
+// middle-click and cmd-click), and a text selection must not be treated as a click.
+document.addEventListener('click',e=>{
+ const tr=e.target.closest&&e.target.closest('tr.row'); if(!tr) return;
+ if(e.target.closest('input,button,a,label,select,textarea')) return;
+ if(e.metaKey||e.ctrlKey||e.shiftKey||e.button!==0) return;
+ const sel=window.getSelection&&window.getSelection().toString();
+ if(sel&&sel.length>2) return;
+ const href=tr.dataset.href; if(href) location.href=href;
+});
+document.addEventListener('keydown',e=>{
+ if(e.key!=='Enter') return;
+ const tr=document.activeElement&&document.activeElement.closest&&document.activeElement.closest('tr.row');
+ if(tr&&tr.dataset.href&&!e.target.closest('input,button,a,select,textarea')) location.href=tr.dataset.href;
+});
 document.addEventListener('change',e=>{
  if(e.target.id==='ckall'){const v=e.target.checked;ckList().forEach(c=>c.checked=v);ckSync()}
  else if(e.target.classList&&e.target.classList.contains('ck')) ckSync();
@@ -937,6 +969,8 @@ def page(title, inner, active="", all_view=False):
         + item("/git", "&#8593;", "Save &amp; share", uncommitted or None, "git")
         + "</nav>")
     return f"""<!doctype html><meta charset=utf-8><title>{html.escape(title)}</title>
+<meta name=viewport content="width=device-width,initial-scale=1">
+<link rel=stylesheet href="https://cdn.forge.tylertech.com/v1/css/tyler-font.css">
 <style>{CSS}</style><header><b>Transcript Review</b>{who}</header>
 <body data-default-mine="{'1' if (ME and not all_view) else '0'}">
 <div class=shell>{side}<main class=wrap>{inner}</main></div>
@@ -1012,7 +1046,7 @@ def list_page(show_all=False):
     rows = []
     for r in recs:
         rows.append(
-            "<tr class='row"
+            "<tr tabindex=0 class='row"
             + (" mine-awaiting" if r["mine_awaiting"] else "")
             + (" mine-area" if r["mine_area"] else "")
             + "'"
@@ -1026,7 +1060,8 @@ def list_page(show_all=False):
             f" data-owner=\"{html.escape(','.join(r['owners']))}\""
             f" data-eff=\"{html.escape(','.join(r['eff_agents']))}\""
             f" title=\"{html.escape(r.get('own_basis',''))}\""
-            f" data-mine=\"{'awaiting' if r['mine_awaiting'] else ('area' if r['mine_area'] else '')}\">"
+            f" data-mine=\"{'awaiting' if r['mine_awaiting'] else ('area' if r['mine_area'] else '')}\""
+            f" data-href=\"/t/{html.escape(r['rel'])}\">"
             f"<td class=nowrap><input type=checkbox class=ck value=\"{html.escape(r['rel'])}\""
             f"{' disabled' if r['status']!='pending' else ''}></td>"
             f"<td class=qcell title=\"{html.escape(r['qfull'])}\">"
@@ -1038,7 +1073,7 @@ def list_page(show_all=False):
             f"<td>{'<span class=\'pill warn\'>'+html.escape(r['fb'])+'</span>' if r['fb'] not in ('none','') else ''}</td>"
             f"<td><span class='pill {r['status']}'>{html.escape(r['status'])}</span>"
             f"{'<div class=deleg>'+html.escape(r['suggested_by'])+' &rarr; '+html.escape(r['awaiting'] or 'anyone')+'</div>' if r['status']=='suggested' else ''}</td>"
-            f"<td class=nowrap>{awaiting_cell(r)}</td>"
+            f"<td class=awcell>{awaiting_cell(r)}</td>"
             f"<td>{html.escape(r['routing'])}"
             f"{'&rarr;'+html.escape(r['reassign']) if r['reassign'] else ''}</td>"
             f"<td>{html.escape(r['answer'])}</td>"
@@ -1067,8 +1102,7 @@ def list_page(show_all=False):
               f"</span>" if counts["suggested"] else "")
            + f" &nbsp;·&nbsp; {excl} excluded (pre-go-live)"
            f" &nbsp;·&nbsp; {tot} total"
-           f" &nbsp;·&nbsp; <a href='/git'>commit &amp; open a PR &rarr;</a></div>"
-           ")")
+           f" &nbsp;·&nbsp; <a href='/git'>commit &amp; open a PR &rarr;</a></div>")
     search = ("<div class=searchwrap><span class=mag>&#128269;</span>"
               "<input class=bigsearch id=f_q placeholder='Search transcripts&hellip;'></div>"
               "<p class=searchhelp>Searches the question and filename. "
@@ -1111,7 +1145,8 @@ def list_page(show_all=False):
                 + "<div class=tblcard><table id=tbl><tr>"
                   "<th class=nowrap style='width:1%'>"
                   "<input type=checkbox id=ckall title='select all shown'></th>"
-                  + "".join(f"<th>{h}<span class=caret>&#9662;</span></th>" for h in
+                  + "".join(f"<th{' class=qcell' if h=='First question' else ''}>{h}"
+                              f"<span class=caret>&#9662;</span></th>" for h in
                      ["First question","Handled by","Date","Ex","Foundry FB","Status",
                       "Awaiting","Routing","Answer","Diagnosis","Fix target"])
                   + "</tr>"
