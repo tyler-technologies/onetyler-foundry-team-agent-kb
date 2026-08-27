@@ -39,7 +39,17 @@ Then:
    and say what failed.
 
 2. **Re-read these in full. Do not skim, and do not rely on what you remember — several of
-   these rules changed:**
+   these rules changed.** Check what actually moved first, so you know where to look:
+
+       git log --since="7 days ago" --name-only --format="%h %ad %s" --date=short -- \
+         CLAUDE.md README.md transcripts/README.md transcripts/ONBOARDING.md \
+         scripts/ .github/ 'Knowledge-*/_START_HERE.md'
+
+   Do this at the start of **every** session from now on, not just today — the instructions
+   here change often enough that reading them once is not enough. Anything the log lists,
+   re-read in full rather than just the diff.
+
+   The files:
    - `CLAUDE.md` — your operating manual. Note especially the hard rules about what may be
      edited, and about Foundry uploads.
    - `.github/admin-only-paths.txt` — the authoritative list of what only admins may change.

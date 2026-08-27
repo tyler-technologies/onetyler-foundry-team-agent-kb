@@ -141,6 +141,78 @@ choosing between them.
   `Knowledge-Shared/Conf-OneTylerTickets.md`, which is re-derived from upstream — only the
   choice-between-them rule lives here.
 
+### Q: How do I add a new org email domain?
+
+**A:** **It depends on whether the org has been initialized yet — the two routes are
+completely different, and there is no single answer.** Check the org in Ops Center for an
+existing domain before answering.
+
+**Case 1 — no domain exists yet (uninitialized org).** The first domain cannot be added
+directly. It arrives as a side effect of adding the first Org Admin, in one flow:
+
+1. Go to the organization in Ops Center and open **Organization Details**.
+2. Go to **Organization Details > Admins** and add an Org Admin, using the **"Use as
+   technical contact"** option.
+3. That Org Admin's **userid domain is automatically set as the org domain**.
+
+This needs the privileged Org Admin functionality, which is granted to **Managers** via
+*Tyler Cloud Platform (TCP) | Org Admin promotions (Admin Center access) - a Manager's guide*
+(`/wiki/spaces/TTI/pages/386629479/`). So if the requester is not a manager with that
+permission, the first step is getting it — not attempting the domain.
+
+**Case 2 — the org already has domains.** Additional domains are **not** added in Ops Center
+at all. They go through **Admin Center → Identity Workforce → Domains**.
+
+Getting this wrong wastes real time: someone sent to Admin Center for an uninitialized org
+finds nothing to work with, and someone sent through the Org Admin flow for an already-live
+org is being asked for a manager permission they do not need.
+
+- **Source:** Vijay Venkataraman, reviewing transcript `team/2026-08-25--5760409c`, where the
+  answer given did not distinguish the two cases.
+- **Added:** 2026-08-27 by vijay-tylertech
+- **Confidence:** confirmed by owner
+- **Promote when:** Blueprint or the Ops Center Confluence documentation states the
+  initialized-vs-uninitialized split. `Docusaurus-OpsCenter.md` and `Docusaurus-OrgAdminInfo.md`
+  both mention "Use as technical contact" but neither explains that it is how the *first*
+  domain is set.
+
+### Q: How do I rename or delete a workspace?
+
+**A:** **Workspaces cannot be renamed — at all.** The only route to a different name is delete
+and recreate, and even that is constrained. Do not offer a rename path.
+
+**Customer orgs — you cannot do this yourself.** Deleting a workspace is restricted to
+**OneTyler Support Staff**; it is not available to others through either the UI or the API.
+Request it via *Other non-product assistance with Organizations and Workspaces* on the
+tickets page.
+
+One prerequisite that catches people: **no products may be available on the workspace.** If
+products are still available there, the workspace will not be deleted — product availability
+applies across all products and is not removed just because one product was decommissioned.
+Clear that first, or the request will bounce.
+
+**Internal orgs — self-service.** Delete and recreate through the Ops Center UI or the API. If
+you lack permission to manage internal organizations, request the deletion via the same *Other
+non-product assistance with Organizations and Workspaces* option so you can recreate it. Note
+that on recreation **only the suffix part of the name can be set** to a custom value.
+
+**Also worth stating up front:** workspace creation is highly restricted — only **7 standard
+workspaces** can be created by default, so "delete and recreate" is not a free action to spend
+casually.
+
+For the ticket, give the **Confluence page** rather than a raw JSM form URL — see *Which link
+to hand out* in `Knowledge-Shared/Conf-OneTylerTickets.md`:
+<https://tylertech.atlassian.net/wiki/spaces/TTI/pages/386600308/Tyler+Cloud+Platform+TCP+Ops+Center+Related+Tickets+and+Permissions>
+
+- **Source:** Vijay Venkataraman, reviewing transcript `team/2026-08-25--7b3dc870`
+  ("how can i remove or rename a workspace").
+- **Added:** 2026-08-27 by vijay-tylertech
+- **Confidence:** confirmed by owner
+- **Promote when:** Blueprint states that workspaces cannot be renamed and documents the
+  7-workspace default limit. `Conf-OneTylerTickets.md` carries the ticket itself; the
+  rename-impossibility, the products-must-be-clear prerequisite and the workspace limit are
+  recorded nowhere else.
+
 ### Q: Is the team still called CorpDev?
 
 **A:** No — the team is **OneTyler**. "CorpDev" is the former name, but it is still used

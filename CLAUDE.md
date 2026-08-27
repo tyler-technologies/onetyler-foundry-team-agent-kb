@@ -124,10 +124,45 @@ within-corpus routing.
 
 ---
 
-## Session start — do these four things, every session
+## Session start — do these five things, every session
 
 Before the user's first real request, in this order. It takes well under a minute and it is
 what makes a session usable rather than nearly-usable.
+
+### 0. Re-read the instructions — every day, not once
+
+**The instructions change. Reading them once is not enough, and an agent operating from
+last week's understanding will confidently apply rules that no longer hold.** This repo's
+rules have changed materially on consecutive days — what a contributor may edit, whether
+review header fields are required, and what must happen before anything reaches Foundry have
+all moved.
+
+At the start of every session, after pulling `main`, check what moved and re-read it:
+
+```bash
+git log --since="3 days ago" --name-only --format="%h %ad %s" --date=short -- \
+  CLAUDE.md README.md contributor-initial-prompt.md contributor-update-prompt.md \
+  transcripts/README.md transcripts/ONBOARDING.md \
+  scripts/ templates/ .github/ .gitignore contributors.json \
+  'Knowledge-*/_START_HERE.md'
+```
+
+Quote the last pathspec — git expands `Knowledge-*/` itself, and an unquoted glob fails in zsh
+when no directory matches literally. (Do not try to build this list from
+`.github/admin-only-paths.txt`: those are regexes, not pathspecs, and converting them produces
+a glob that silently matches nothing.)
+
+Anything listed, **re-read in full** — not the diff alone. A diff shows what changed but not
+what it now means in context, and the surrounding paragraph is usually what carries the
+intent.
+
+Widen the window if you have been away longer, and if `git log` is unavailable for any
+reason, re-read `CLAUDE.md`, `transcripts/README.md` and `.github/admin-only-paths.txt`
+anyway — they are short and it costs less than acting on a stale rule.
+
+**Say what you found in your first response**, even when the answer is "no instruction
+changes in the last 3 days". That tells the user which rules you are operating under, which
+is the thing they cannot otherwise see.
 
 ### 1. Sync the reviewer list from GitHub
 
@@ -698,6 +733,58 @@ verdict. `scripts/validate_reviews.py` runs in CI and fails a PR that re-marks s
 already `reviewed` on the base branch unless `review_round` is raised. Never resolve that by
 lowering the round or reverting the other person's verdict — pull the base branch, read it,
 and re-review explicitly if you still disagree.
+
+**READ ALL THE FEEDBACK AS ONE BODY BEFORE CHANGING ANYTHING.** Do not walk the reviewed
+transcripts one at a time, fixing each as you go. Read every piece of feedback in the batch
+first, then decide what to change.
+
+The reason is that the same underlying problem shows up in several transcripts wearing
+different clothes, and one-at-a-time processing produces three narrow patches instead of one
+correct fix. A worked example, from the 2026-08-27 batch: three separate transcripts —
+org-admin access, internal org creation, and an Admin Center login error — each carried a
+note about the wrong ticket link. Treated individually they look like three content gaps. Read
+together they are one missing rule about which link to hand out, fixed once.
+
+The reverse trap is just as real: two transcripts can look like the same question and need
+different fixes. In that same batch, "I need to be added as an org admin" and "add org admin
+to org" are the same question, but one got a good answer needing refinement and the other got
+a clarifying question instead of an answer — a content refinement versus a retrieval failure.
+
+So, in order:
+
+1. Read every reviewed transcript's prose in full, plus the questions and the answers given.
+2. Group the feedback by underlying cause, not by transcript.
+3. **Check what is already fixed.** Some feedback predates a change you already shipped.
+   Compare the transcript's `date:` against when the relevant file was last uploaded, and
+   test the question live before writing anything. Do not re-fix something that works.
+4. Decide the smallest set of changes that covers the whole batch, then apply them.
+5. Report per-transcript so the reviewer can follow their own feedback through, even where
+   several transcripts resolved to one change.
+
+**ASK WHEN FEEDBACK IS AMBIGUOUS. NEVER ASSUME.** If a piece of feedback could reasonably
+mean two different things, stop and ask which. Do not pick the more likely reading and
+proceed.
+
+This costs a round-trip and saves a wrong change to a live agent. The asymmetry is the whole
+argument: a question costs minutes, while a misread correction ships wrong content to
+customers, looks resolved on the dashboard, and is only caught if someone re-reads the
+transcript later.
+
+Ambiguity worth asking about, in practice:
+
+- **Where a fix belongs** when the feedback describes a behaviour rather than a fact — a
+  knowledge file, an agent's system prompt, or the team router. These have different owners
+  and different blast radii, and only the knowledge file is yours to change from here.
+- **Which transcript or file** a reference points to, when the feedback says "the same as the
+  other one" or "that page" and more than one candidate exists.
+- **How far to go** — whether "improve the answer" means editing existing content or writing
+  a new entry, and whether it should apply to one agent or all of them.
+- **Anything requiring the user's own action**, such as a Foundry UI edit. Never assume they
+  will do it; confirm they want to.
+
+Ask **one question at a time**, not a bundled list, and do all the unambiguous work first so
+the question is not blocking progress. State plainly what you have already done, what you are
+blocked on, and what you would do under each reading.
 
 **THE PROSE IS THE FEEDBACK. THE FIELDS ARE A HINT, AND OFTEN A WRONG ONE.**
 
