@@ -906,6 +906,31 @@ font:600 12px/24px Roboto,sans-serif;text-align:center}
 color:var(--forge-theme-text-high)}
 .stepbody .sub{margin-bottom:12px}
 .stepacts{margin-top:12px;display:flex;gap:10px;flex-wrap:wrap}
+/* Stage list for step 3. Each stage carries a STATE, because the useful information is not
+   "here are four things" but "which of them is still owed, and which is not mine to do".
+   Merge and Upload are deliberately shown as stages even though neither happens from this
+   button - leaving them out is what made people think step 3 finished the job. */
+ol.prog{list-style:none;margin:4px 0 0;padding:0}
+ol.prog li{position:relative;padding:7px 0 7px 26px;font-size:13.5px;
+color:var(--forge-theme-text-high)}
+ol.prog li::before{position:absolute;left:0;top:8px;width:16px;height:16px;
+border-radius:50%;text-align:center;font:700 10px/16px Roboto,sans-serif}
+ol.prog li span{display:block;font-size:12.5px;color:var(--forge-theme-text-medium)}
+ol.prog li.wait::before{content:"";border:1.5px solid var(--forge-theme-outline-low);
+box-sizing:border-box}
+ol.prog li.run::before{content:"";border:1.5px solid var(--forge-theme-primary);
+border-top-color:transparent;box-sizing:border-box;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+ol.prog li.done::before{content:"\2713";background:var(--forge-theme-success);
+color:var(--on-accent)}
+ol.prog li.fail::before{content:"!";background:var(--forge-theme-error);color:var(--on-accent)}
+/* A stage that does not apply is greyed and struck, not hidden: "no Foundry upload needed"
+   is a useful answer, and hiding the row leaves the question open. */
+ol.prog li.none{color:var(--forge-theme-text-low)}
+ol.prog li.none b{text-decoration:line-through}
+ol.prog li.none::before{content:"\2013";color:var(--forge-theme-text-low)}
+ol.prog li.fdry::before{content:"";border:1.5px dashed var(--forge-theme-warning);
+box-sizing:border-box}
 /* The file list is context for the steps, not a step - a recessed panel says that without
    needing another bordered card. */
 .whatsent{background:var(--forge-theme-surface-container-minimum);border-radius:4px;
@@ -916,12 +941,21 @@ padding:12px 16px;margin-top:16px;font-size:13.5px}
 /* Reference material, collapsed. It was a permanently-open card competing with the controls
    on every visit; behind a summary it is still one click away and no longer part of the
    page's visual weight. */
-details.card>summary{cursor:pointer;list-style:none}
+details.card>summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px}
 details.card>summary::-webkit-details-marker{display:none}
 details.card>summary h3{display:inline}
-details.card>summary::before{content:"\25B8";display:inline-block;width:16px;
-color:var(--forge-theme-text-medium)}
-details.card[open]>summary::before{content:"\25BE"}
+/* The blue circled "i" reuses button.info's treatment so the affordance means the same thing
+   here as it does beside every review field - this is explanatory, click it. It is a <span>,
+   not a <button>: a button inside a <summary> swallows the click that should toggle it. */
+span.info{background:var(--forge-theme-primary-container);color:var(--forge-theme-primary);
+border-radius:50%;width:18px;height:18px;flex:0 0 auto;display:inline-flex;
+align-items:center;justify-content:center;font:700 12px/1 Roboto,sans-serif}
+/* Chevron AFTER the text, not before it: the icon opens the row, the chevron reports its
+   state, and they are different jobs that should not sit on top of each other. */
+.chev{width:16px;height:16px;flex:0 0 auto;color:var(--forge-theme-text-medium);
+font:400 11px/16px Roboto,sans-serif;text-align:center}
+.chev::before{content:"\25B8"}
+details.card[open]>summary .chev::before{content:"\25BE"}
 /* Sized to the Forge scale: heading4 for section titles, body2 (14px) as the body default
    which the Forge typography sheet also applies to <body>, label1 for field labels. */
 h2.sec{font:400 24px/1.4 Roboto,sans-serif;letter-spacing:0;
@@ -1078,7 +1112,13 @@ td.nowrap,th.nowrap{white-space:nowrap}
 tr.row[data-status=excluded] td{opacity:.5}
 .deleg{font-size:11px;color:var(--accent-purple);font-weight:500}
 pre.out{background:#263238;color:#eceff1;padding:16px;border-radius:4px;font-size:12.5px;margin-top:14px;
-overflow:auto;max-height:280px;line-height:1.5}
+overflow:auto;max-height:520px;line-height:1.55;white-space:pre-wrap;word-break:break-word}
+/* Diff tinting. The panel is dark in both display modes, so these need no mode variant.
+   Measured against #263238: 8.01 / 6.12 / 7.05 / 5.08 : 1. */
+pre.out .dadd{color:#a5d6a7}
+pre.out .ddel{color:#ef9a9a}
+pre.out .dhunk{color:#80cbc4}
+pre.out .dmeta{color:#90a4ae}
 tr.row.mine-area td{background:var(--forge-theme-primary-container-minimum)}
 tr.row.mine-area td:first-child{box-shadow:inset 3px 0 0 var(--forge-theme-primary)}
 tr.row.mine-awaiting td{background:var(--forge-theme-warning-container-low)}
@@ -1204,10 +1244,28 @@ async function reReview(path){const r=document.querySelector('[data-fm=review_ro
 r.value=String((parseInt(r.value||'1',10)||1)+1);
 document.querySelector('[data-fm=review_status]').value='reviewed';
 await saveDoc(path)}
+// Stage states for step 3's progress list. Only `push` and `pr` are driven from here,
+// because they are the only two this button performs; `merge` and `foundry` stay as they were
+// rendered, which is the honest picture - they are somebody's next action, not this click's.
+function stage(name,state){const el=document.querySelector('#prog li[data-stage='+name+']');
+ if(!el||el.classList.contains('none'))return;
+ el.classList.remove('wait','run','done','fail'); el.classList.add(state);}
 async function gitDo(action){const branch=(document.getElementById('branch')||{}).value||'';
 const msg=(document.getElementById('cmsg')||{}).value||'';
+if(action==='pr'){stage('push','run')}
 const r=await post('/git',{action,branch,message:msg});
-document.getElementById('gitout').textContent=r.output||'(no output)';toast(r.ok?action+' ok':action+' failed',r.ok)}
+if(action==='pr'){
+ // One request does both the push and the PR, so the push is only knowable as "it got far
+ // enough to try the PR". Read that off the output rather than claiming both succeeded.
+ const madePr=/pull\/\d+|already exists|https:\/\/github\.com/.test(r.output||'');
+ stage('push', r.ok||madePr ? 'done':'fail');
+ stage('pr', r.ok&&madePr ? 'done' : (r.ok?'done':'fail'));
+}
+const el=document.getElementById('gitout');
+// Prefer the server's tinted markup (escaped in diff_html) so a diff shown by the
+// button reads the same as the one rendered on load; fall back to text.
+if(r.html){el.innerHTML=r.html}else{el.textContent=r.output||'(no output)'}
+el.scrollTop=0;toast(r.ok?action+' ok':action+' failed',r.ok)}
 
 // ---- multi-select + bulk mark reviewed -------------------------------------------------
 // The reviewer name comes from localStorage, set the first time you pick your name on any
@@ -2090,6 +2148,109 @@ def default_commit_message():
     return f"Review transcripts{who}: verdicts and proposed fixes"
 
 
+# A diff can be long, so it is capped - but the cap is STATED on the page rather than
+# silently truncating, because a diff that stops early without saying so reads as "that is
+# everything that changed", which is the one thing it must never imply.
+DIFF_MAX_LINES = 1200
+
+
+def diff_html(text):
+    """A git patch as tinted, escaped HTML for the output panel.
+
+    Colour carries the same information git's own terminal output does: an unstyled patch is
+    a wall of monospace where +/- have to be read character by character. The panel is dark
+    in BOTH display modes (it is a terminal, not a surface), so one palette serves both.
+    MEASURED against the panel #263238: added 8.01:1, removed 6.12:1, hunk 7.05:1, meta
+    5.08:1 - all over 4.5:1.
+    """
+    lines = (text or "").splitlines()
+    clipped = len(lines) - DIFF_MAX_LINES
+    out = []
+    for ln in lines[:DIFF_MAX_LINES]:
+        e = html.escape(ln)
+        # Order matters: +++/--- are FILE HEADERS and must be tested before +/-, or they get
+        # tinted as though they were an added and a removed line.
+        if ln.startswith(("+++", "---", "diff --git", "index ", "new file", "deleted file",
+                          "similarity index", "rename ")):
+            cls = "dmeta"
+        elif ln.startswith("@@"):
+            cls = "dhunk"
+        elif ln.startswith("+"):
+            cls = "dadd"
+        elif ln.startswith("-"):
+            cls = "ddel"
+        else:
+            cls = ""
+        out.append(f"<span class={cls}>{e}</span>" if cls else e)
+    if clipped > 0:
+        out.append(f"<span class=dmeta>… {clipped} more line(s) not shown — run "
+                   f"`git diff -- transcripts` for the rest</span>")
+    return "\n".join(out)
+
+
+def review_diff():
+    """What the reviewer has actually changed, as a patch.
+
+    `git diff` covers tracked edits, which is what a review IS - verdicts and prose typed into
+    existing transcript files. Untracked files are NOT diffed, only named: an untracked file
+    under transcripts/ is a conversation `fetch_transcripts.py` just pulled, so its whole body
+    would render as one enormous addition and bury the three lines the reviewer typed. They
+    still need to know it is there, hence the list.
+    """
+    _, patch = git("diff", "--", "transcripts")
+    _, st = git("status", "--porcelain", "--", "transcripts")
+    new = [porcelain_path(l) for l in st.splitlines() if l.strip().startswith("??")]
+    parts = []
+    if new:
+        parts.append("# new transcript file(s), not yet saved — pulled by Sync, "
+                     "nothing typed by you:\n"
+                     + "\n".join(f"#   {f}" for f in new))
+    if patch.strip():
+        parts.append(patch)
+    if not parts:
+        return "(nothing changed under transcripts/ yet)"
+    return "\n\n".join(parts)
+
+
+# Which corpus folder feeds which Foundry collection. Same table as
+# scripts/check_foundry_drift.py; kept here so the page can name the collections a batch will
+# affect rather than saying "Foundry" vaguely.
+FOLDER_COLLECTION = {
+    "Knowledge-OpsCenter": "OT-OpsCenter",
+    "Knowledge-BP-General": "OT-BPD",
+    "Knowledge-SupportAccessCenter": "OT-SAC",
+    "Knowledge-AlignedReleases": "OT-AlignedReleases",
+    "Knowledge-TylerIdentity": "TCP-KB-Identity",
+    "Knowledge-Shared": "all five collections",
+}
+
+
+def pending_foundry_uploads():
+    """Collections this batch will need uploading to, or [] if none.
+
+    "Push to Foundry" is NOT part of step 3 and must not be wired into it. Two rules make that
+    a design constraint rather than a preference:
+      - hard rule 5: a Foundry write is a production change, confirmed with the user, never a
+        side effect of another action;
+      - nothing reaches Foundry until it is MERGED to main - and step 3 is the thing that
+        opens the pull request, so at that instant the change is by definition unmerged.
+    So the page's job is to say honestly what is owed and when, which is also the answer to
+    "is there any push to Foundry at all?" - most review batches touch only transcripts and
+    owe nothing.
+    """
+    _, committed = git("diff", "--name-only", "origin/main...HEAD")
+    _, working = git("status", "--porcelain")
+    paths = [l.strip() for l in committed.splitlines() if l.strip()]
+    paths += [porcelain_path(l) for l in working.splitlines() if l.strip()]
+    cols = []
+    for path in paths:
+        folder = path.split("/")[0]
+        col = FOLDER_COLLECTION.get(folder)
+        if col and col not in cols:
+            cols.append(col)
+    return cols
+
+
 def git_page():
     """Send a finished batch of reviews in.
 
@@ -2141,6 +2302,8 @@ def git_page():
     #
     # "Worth knowing" is now collapsed: it is reference material that was competing with the
     # controls every single visit.
+    fdry = pending_foundry_uploads()
+
     def step(num, title, desc, inner):
         return (f"<div class=step><div class=stepnum>{num}</div><div class=stepbody>"
                 f"<h4>{title}</h4><p class=sub>{desc}</p>{inner}</div></div>")
@@ -2155,7 +2318,10 @@ def git_page():
       "<h3>Publish your reviews</h3>"
       "<p class=sub>Three steps, in order. Nothing leaves your machine until step 3.</p>"
       "<div class=whatsent><b>About to be sent</b>" + files + "</div>"
-      + step(1, "Put your work on your own copy",
+      # NOT "Save working copy", which was considered and rejected: this step runs
+      # `git switch -c` and saves nothing - saving is step 2 - so two adjacent steps would
+      # both have read as "save". Matches the button's verb instead.
+      + step(1, "Make your own copy",
              "A personal copy, so your changes cannot disturb anyone else's. Safe to click "
              "twice.",
              "<label>Name for your copy<span class=hint> — anything; a date is fine</span>"
@@ -2172,9 +2338,25 @@ def git_page():
              "<button class=sec onclick=\"gitDo('commit')\">Save my reviews</button>"
              "<button class=sec onclick=\"gitDo('diff')\">Show me exactly what changed</button>"
              "</div>")
-      + step(3, "Send them in for review",
-             "Opens a change request for someone to check before it becomes official. This is "
-             "the step that reaches the team, and you get a link back.",
+      + step(3, "Send them in — and on to Foundry",
+             "This is the step that reaches the team. What happens after it depends on what "
+             "you changed, so the stages below say exactly what is still owed.",
+             "<ol class=prog id=prog>"
+             "<li data-stage=push class=wait><b>Push your copy to GitHub</b>"
+             "<span>your branch, not the shared one</span></li>"
+             "<li data-stage=pr class=wait><b>Create the change request</b>"
+             "<span>someone checks it before it becomes official</span></li>"
+             "<li data-stage=merge class=wait><b>Merge</b>"
+             "<span>done by a reviewer, not from here</span></li>"
+             + ("<li data-stage=foundry class='wait fdry'><b>Upload to Foundry</b>"
+                f"<span>{html.escape(', '.join(fdry))} &mdash; only after the merge, and "
+                "only with your say-so. Nothing reaches the live agents before then.</span>"
+                "</li>"
+                if fdry else
+                "<li data-stage=foundry class=none><b>Upload to Foundry</b>"
+                "<span>not needed &mdash; this batch changes transcript reviews only, and "
+                "reviews are not agent knowledge</span></li>")
+             + "</ol>"
              "<div class=stepacts>"
              "<button onclick=\"gitDo('pr')\">Send my reviews in</button></div>")
       + "</div>"
@@ -2183,11 +2365,12 @@ def git_page():
       "<h3>What happened</h3>"
       "<p class=sub>Output from the last step. If something failed, paste this to your AI "
       "assistant.</p>"
-      "<pre class=out id=gitout>"
-      + html.escape("\n".join(changed) or "(nothing changed under transcripts/ yet)")
-      + "</pre></div>"
+      "<pre class=out id=gitout>" + diff_html(review_diff()) + "</pre></div>"
 
-      "<details class=card><summary><h3>Worth knowing</h3></summary>"
+      "<details class=card><summary>"
+      "<span class=info aria-hidden=true>i</span>"
+      "<h3>Worth knowing</h3>"
+      "<span class=chev aria-hidden=true></span></summary>"
       "<ul class=sub style='margin:10px 0 0 20px;padding:0'>"
       "<li>A review with nothing to fix is still worth sending.</li>"
       "<li>Writing what <i>should</i> have been said is the valuable part — a knowledge-file "
@@ -2387,7 +2570,10 @@ class H(BaseHTTPRequestHandler):
                     git("add", "--", "transcripts")
                     rc, out = git("commit", "-m", msg)
                 elif act == "diff":
-                    rc, out = git("diff", "--stat", "--", "transcripts")
+                    # Was `--stat`, which is a file-and-count summary. The button says "show
+                    # me exactly what changed" and a reviewer checking their own verdicts
+                    # needs the lines, not the count.
+                    rc, out = 0, review_diff()
                 elif act == "pr":
                     _, cur = git("rev-parse", "--abbrev-ref", "HEAD")
                     rc, out = git("push", "-u", "origin", cur, timeout=180)
@@ -2397,8 +2583,12 @@ class H(BaseHTTPRequestHandler):
                         rc, out = r.returncode, out + "\n" + r.stdout + r.stderr
                 else:
                     rc, out = 1, "unknown action"
-                return self._send(200, json.dumps({"ok": rc == 0, "output": out}),
-                                  "application/json")
+                return self._send(200, json.dumps(
+                    # `html` is pre-escaped by diff_html, so the browser can innerHTML it. It
+                    # is sent alongside `output` rather than instead of it, so a client that
+                    # ignores it still shows the plain text.
+                    {"ok": rc == 0, "output": out, "html": diff_html(out)}),
+                    "application/json")
             except FileNotFoundError as e:
                 return self._send(200, json.dumps({"ok": False, "output": f"missing tool: {e}"}),
                                   "application/json")
