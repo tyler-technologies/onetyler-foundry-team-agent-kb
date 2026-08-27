@@ -2124,7 +2124,7 @@ def detail_page(rel):
 
 
 def default_branch_name(current):
-    """The prefilled name for step 1's "copy".
+    """The prefilled name for step 1's lane.
 
     Step 1 runs `git switch -c <name>`, which is the ONE action on this page that can
     collide: the branch either does not exist (fine) or it does, and then the command fails
@@ -2209,8 +2209,12 @@ def review_diff():
     would render as one enormous addition and bury the three lines the reviewer typed. They
     still need to know it is there, hence the list.
     """
-    _, patch = git("diff", "--", "transcripts")
-    _, st = git("status", "--porcelain", "--", "transcripts")
+    # Same scope as step 2 stages, or the panel would show a reviewer less than the button
+    # is about to save - which is how the transcripts-only staging bug stayed invisible.
+    scope = ["transcripts"] + sorted(d.name for d in REPO.iterdir()
+                                     if d.is_dir() and d.name.startswith("Knowledge-"))
+    _, patch = git("diff", "--", *scope)
+    _, st = git("status", "--porcelain", "--", *scope)
     new = [porcelain_path(l) for l in st.splitlines() if l.strip().startswith("??")]
     parts = []
     if new:
@@ -2330,19 +2334,28 @@ def git_page():
       "<h3>Publish your reviews</h3>"
       "<p class=sub>Three steps, in order. Nothing leaves your machine until step 3.</p>"
       "<div class=whatsent><b>About to be sent</b>" + files + "</div>"
-      # NOT "Save working copy", which was considered and rejected: this step runs
-      # `git switch -c` and saves nothing - saving is step 2 - so two adjacent steps would
-      # both have read as "save". Matches the button's verb instead.
-      + step(1, "Make your own copy",
-             "A personal copy, so your changes cannot disturb anyone else's. Safe to click "
-             "twice.",
-             "<label>Name for your copy<span class=hint> — anything; a date is fine</span>"
+      # Naming this step took three tries, and the rejected ones are instructive because each
+      # promised something `git switch -c` does not do:
+      #   "Save working copy"  - it saves nothing. Saving is step 2.
+      #   "Backup progress"    - it backs nothing up. Nothing is stored, nothing duplicated;
+      #                          the files on disk do not move. The backup is step 2 (a
+      #                          snapshot you can return to) and step 3 (the first copy that
+      #                          exists off this laptop).
+      #   "Make your own copy" - nothing is copied either.
+      # What it actually does is give your edits their own lane so they do not land on the
+      # shared branch. So the title names the PURPOSE, which is the only part a
+      # non-technical reviewer needs, and claims nothing about saving.
+      + step(1, "Keep your work separate",
+             "Gives your edits their own lane, so they cannot disturb the shared copy everyone "
+             "else works from. Nothing is saved or backed up yet — that is step 2. Safe to "
+             "click twice.",
+             "<label>Name for your lane<span class=hint> — anything; a date is fine</span>"
              "</label>"
              f"<input id=branch value=\"{html.escape(default_branch_name(branch))}\">"
              "<div class=stepacts>"
-             "<button class=sec onclick=\"gitDo('branch')\">Make my own copy</button></div>")
+             "<button class=sec onclick=\"gitDo('branch')\">Keep my work separate</button></div>")
       + step(2, "Save your reviews",
-             "Records your reviews locally. Nothing is shared yet.",
+             "Records a snapshot you can go back to. Still only on this machine — if the laptop\n             died now, the work would go with it. Step 3 is what changes that.",
              "<label>What did you review?<span class=hint> — one line, for whoever reads it "
              "later</span></label>"
              f"<input id=cmsg value=\"{html.escape(default_commit_message())}\">"
@@ -2351,8 +2364,7 @@ def git_page():
              "<button class=sec onclick=\"gitDo('diff')\">Show me exactly what changed</button>"
              "</div>")
       + step(3, "Send them in — and on to Foundry",
-             "This is the step that reaches the team. What happens after it depends on what "
-             "you changed, so the stages below say exactly what is still owed.",
+             "The first point your work exists anywhere other than this laptop, and the step that\n             reaches the team. What follows depends on what you changed, so the stages below\n             say exactly what is still owed.",
              "<ol class=prog id=prog>"
              "<li data-stage=push class=wait><b>Push your copy to GitHub</b>"
              "<span>your branch, not the shared one</span></li>"
@@ -2584,8 +2596,30 @@ class H(BaseHTTPRequestHandler):
                 if act == "branch":
                     rc, out = git("switch", "-c", br)
                 elif act == "commit":
-                    git("add", "--", "transcripts")
+                    # Stage BOTH the things a contributor legitimately edits. Staging only
+                    # `transcripts` was a silent data-loss trap: a reviewer whose feedback
+                    # led them to fix a Knowledge-* file clicked "Save my reviews", got
+                    # "commit ok", and the knowledge edit was not in it - it stayed
+                    # uncommitted and would be lost by the next branch switch. Nothing on
+                    # the page said so, because the file list and the diff were also scoped
+                    # to transcripts.
+                    #
+                    # Deliberately NOT `git add -A`: scripts/, .github/ and CLAUDE.md are
+                    # admin-only (hard rule 6), and sweeping them into a review commit is
+                    # how a contributor accidentally ships an instruction change. Anything
+                    # dirty outside these two trees is reported, not staged.
+                    paths = ["transcripts"] + sorted(
+                        d.name for d in REPO.iterdir()
+                        if d.is_dir() and d.name.startswith("Knowledge-"))
+                    git("add", "--", *paths)
                     rc, out = git("commit", "-m", msg)
+                    _, left = git("status", "--porcelain")
+                    skipped = [porcelain_path(l) for l in left.splitlines()
+                               if l.strip() and not l.strip().startswith("??")]
+                    if skipped:
+                        out += ("\n\nNOT saved — outside transcripts/ and Knowledge-*/, so "
+                                "not part of a review:\n"
+                                + "\n".join(f"  {s}" for s in skipped))
                 elif act == "diff":
                     # Was `--stat`, which is a file-and-count summary. The button says "show
                     # me exactly what changed" and a reviewer checking their own verdicts
