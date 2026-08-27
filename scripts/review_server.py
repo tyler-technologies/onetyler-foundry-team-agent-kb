@@ -504,80 +504,230 @@ def git(*args, timeout=60):
 
 # ---------------------------------------------------------------- rendering
 CSS = """
-*{box-sizing:border-box}body{margin:0;font:14px/1.55 -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
-color:#1a1d21;background:#f5f6f8}
-a{color:#1c5fbf}header{background:#16203a;color:#fff;padding:12px 20px;display:flex;gap:18px;align-items:center;
-position:sticky;top:0;z-index:10}header b{font-size:15px}header a{color:#9fc4ff;text-decoration:none}
-.wrap{max-width:1180px;margin:0 auto;padding:20px}
-.bar{background:#fff;border:1px solid #dfe3e8;border-radius:8px;padding:12px 16px;margin-bottom:16px}
-table{width:100%;border-collapse:collapse;background:#fff;border:1px solid #dfe3e8;border-radius:8px;overflow:hidden}
-th,td{padding:8px 10px;text-align:left;border-bottom:1px solid #eef1f4;font-size:13px;white-space:nowrap}
-th{background:#f0f2f5;font-weight:600}tr:hover td{background:#fafbfc}
-.pill{display:inline-block;padding:1px 8px;border-radius:10px;font-size:11px;font-weight:600}
-.pending{background:#fff3d6;color:#8a5a00}.reviewed{background:#dcf5e4;color:#0f6b34}
-.excluded{background:#e8e9ec;color:#5b6470}
-.pushed{background:#dde8f7;color:#1c4f8f}
+/* ---------------------------------------------------------------------------------------
+   Tyler Forge light theme. Values lifted from the real forge.css light-theme block, not
+   guessed, so this matches Ops Center rather than merely resembling it.
+
+   Declared as --forge-* custom properties with the value inline. That way the names match
+   Forge (so anyone who knows the system recognises them) while the page stays a single
+   self-contained file with no build step and no library to import.
+   --------------------------------------------------------------------------------------- */
+:root{
+  --forge-theme-brand:#283593;
+  --forge-theme-primary:#3f51b5;
+  --forge-theme-primary-container:#d1d5ed;
+  --forge-theme-primary-container-low:#e8eaf6;
+  --forge-theme-primary-container-minimum:#f7f8fc;
+  --forge-theme-secondary:#ffc107;
+  --forge-theme-surface:#ffffff;
+  --forge-theme-surface-dim:#fafafa;
+  --forge-theme-surface-container:#e0e0e0;
+  --forge-theme-surface-container-low:#ebebeb;
+  --forge-theme-surface-container-minimum:#f5f5f5;
+  --forge-theme-text-high:rgba(0,0,0,.87);
+  --forge-theme-text-medium:rgba(0,0,0,.6);
+  --forge-theme-text-low:rgba(0,0,0,.38);
+  --forge-theme-outline:#e0e0e0;
+  --forge-theme-outline-low:#9e9e9e;
+  --forge-theme-outline-medium:#757575;
+  --forge-theme-success:#2e7d32;
+  --forge-theme-error:#b00020;
+  --forge-theme-warning:#d14900;
+  --forge-theme-info:#1565c0;
+  --forge-theme-info-container-low:#e3edf7;
+  --forge-theme-warning-container-low:#f9e9e0;
+  --forge-spacing-xsmall:4px; --forge-spacing-small:8px;
+  --forge-spacing-medium:16px; --forge-spacing-large:24px;
+  --nav-w:212px;
+}
+*{box-sizing:border-box}
+body{margin:0;font:14px/1.55 Roboto,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+color:var(--forge-theme-text-high);background:var(--forge-theme-surface-dim)}
+a{color:var(--forge-theme-primary)}
+
+/* --- app bar --- */
+header{background:var(--forge-theme-brand);color:#fff;padding:0 var(--forge-spacing-medium);
+height:56px;display:flex;gap:var(--forge-spacing-medium);align-items:center;
+position:sticky;top:0;z-index:30;box-shadow:0 1px 3px rgba(0,0,0,.24)}
+header b{font-size:16px;font-weight:500;letter-spacing:.01em}
+header .who{margin-left:auto;font-size:13px;opacity:.85}
+
+/* --- SIDE NAV. The old top-bar links read as prose and people did not know they were
+   navigation at all. A Forge-style rail with an icon, a label and a live count per item
+   makes each one obviously a place you can go. --- */
+.shell{display:flex;min-height:calc(100vh - 56px)}
+nav.side{width:var(--nav-w);flex:0 0 var(--nav-w);background:var(--forge-theme-surface);
+border-right:1px solid var(--forge-theme-outline);padding:var(--forge-spacing-small) 0;
+position:sticky;top:56px;align-self:flex-start;max-height:calc(100vh - 56px);overflow:auto}
+nav.side .grp{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;
+color:var(--forge-theme-text-low);padding:var(--forge-spacing-medium) var(--forge-spacing-medium) var(--forge-spacing-xsmall)}
+nav.side a{display:flex;align-items:center;gap:10px;padding:10px var(--forge-spacing-medium);
+color:var(--forge-theme-text-high);text-decoration:none;font-size:14px;
+border-left:3px solid transparent}
+nav.side a:hover{background:var(--forge-theme-primary-container-minimum)}
+nav.side a.on{background:var(--forge-theme-primary-container-low);
+border-left-color:var(--forge-theme-primary);color:var(--forge-theme-primary);font-weight:500}
+nav.side a .ic{width:20px;text-align:center;font-size:15px;opacity:.8}
+nav.side a .ct{margin-left:auto;font-size:12px;color:var(--forge-theme-text-medium);
+background:var(--forge-theme-surface-container-low);border-radius:10px;padding:0 7px}
+nav.side a.on .ct{background:#fff;color:var(--forge-theme-primary)}
+nav.side .hint{font-size:11px;color:var(--forge-theme-text-medium);line-height:1.45;
+padding:var(--forge-spacing-small) var(--forge-spacing-medium) var(--forge-spacing-medium)}
+main.wrap{flex:1;min-width:0;padding:var(--forge-spacing-large);max-width:1180px}
+/* the 12-column table scrolls INSIDE its card rather than stretching the page */
+.tblcard{overflow-x:auto}
+
+/* --- surfaces --- */
+.bar,.card{background:var(--forge-theme-surface);border:1px solid var(--forge-theme-outline);
+border-radius:4px;box-shadow:0 1px 2px rgba(0,0,0,.06)}
+.bar{padding:12px var(--forge-spacing-medium);margin-bottom:var(--forge-spacing-medium)}
+.card{padding:var(--forge-spacing-medium);margin-bottom:14px}
+h2.sec{font:500 20px/1.3 Roboto,sans-serif;margin:0 0 var(--forge-spacing-small)}
+/* Data table, matching the Ops Center Activity table: no outer frame, no header fill,
+   hairline row dividers, generous row height, grey sentence-case headers. The old dense
+   bordered grid read as a spreadsheet; this reads as a list you scan. */
+.tblcard{background:var(--forge-theme-surface);border:1px solid var(--forge-theme-outline);
+border-radius:4px;padding:var(--forge-spacing-medium) var(--forge-spacing-large) var(--forge-spacing-small);
+box-shadow:0 1px 2px rgba(0,0,0,.06)}
+table{width:100%;border-collapse:collapse;background:transparent}
+th,td{text-align:left;white-space:nowrap}
+th{padding:10px 14px 10px 0;font:500 13px/1.4 Roboto,sans-serif;
+color:var(--forge-theme-text-medium);background:none;
+border-bottom:1px solid var(--forge-theme-outline)}
+th .caret{color:var(--forge-theme-text-low);font-size:10px;margin-left:5px}
+td{padding:14px 14px 14px 0;font-size:14px;color:var(--forge-theme-text-high);
+border-bottom:1px solid #f0f0f0}
+tbody tr:last-child td,table tr:last-child td{border-bottom:0}
+tr.row:hover td{background:var(--forge-theme-primary-container-minimum)}
+/* search field above the table, Forge text-field shape */
+.searchwrap{position:relative;margin-bottom:6px}
+.searchwrap .mag{position:absolute;left:12px;top:50%;transform:translateY(-50%);
+color:var(--forge-theme-text-medium);font-size:15px;pointer-events:none}
+input.bigsearch{width:100%;padding:13px 14px 13px 38px;font-size:15px;
+border:1px solid var(--forge-theme-outline-medium);border-radius:4px;
+background:var(--forge-theme-surface)}
+input.bigsearch:focus{outline:2px solid var(--forge-theme-primary);outline-offset:-1px}
+.searchhelp{font-size:12px;color:var(--forge-theme-text-medium);margin:0 0 var(--forge-spacing-medium)}
+.searchhelp code{background:var(--forge-theme-surface-container-minimum);padding:1px 5px;border-radius:3px}
+#emptystate a{color:var(--forge-theme-primary);font-weight:500}
+.shown{font:italic 13px/1.4 Roboto,sans-serif;color:var(--forge-theme-text-medium);
+margin:0 0 var(--forge-spacing-small)}
+.pill{display:inline-block;padding:1px 8px;border-radius:10px;font-size:11px;font-weight:500}
+.pending{background:var(--forge-theme-warning-container-low);color:var(--forge-theme-warning)}
+.reviewed{background:#e6f2e7;color:var(--forge-theme-success)}
+.excluded{background:var(--forge-theme-surface-container-low);color:var(--forge-theme-text-medium)}
+.pushed{background:var(--forge-theme-info-container-low);color:var(--forge-theme-info)}
 .suggested{background:#ede4fb;color:#5b3ba8}
-.bad{background:#fde4e4;color:#a11}.warn{background:#ffeccc;color:#8a4b00}
-.card{background:#fff;border:1px solid #dfe3e8;border-radius:8px;padding:16px;margin-bottom:14px}
-.q{background:#eef4ff;border-left:3px solid #2b6cb0;padding:10px 12px;border-radius:4px;white-space:pre-wrap}
-.a{background:#fafbfc;border:1px solid #e8ebef;border-radius:4px;padding:10px 12px;max-height:340px;
-overflow:auto;white-space:pre-wrap;font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace}
-.tools{font-size:12px;color:#5b6470;margin:6px 0}
+.bad{background:#f6e0e4;color:var(--forge-theme-error)}
+.warn{background:var(--forge-theme-warning-container-low);color:var(--forge-theme-warning)}
+.q{background:var(--forge-theme-info-container-low);border-left:3px solid var(--forge-theme-info);
+padding:10px 12px;border-radius:4px;white-space:pre-wrap}
+.a{background:var(--forge-theme-surface-dim);border:1px solid var(--forge-theme-outline);
+border-radius:4px;padding:10px 12px;max-height:340px;overflow:auto;white-space:pre-wrap;
+font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace}
+.tools{font-size:12px;color:var(--forge-theme-text-medium);margin:6px 0}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:12px}
-label{display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:#4a5260;margin-bottom:3px}
-.hint{font-size:11px;color:#6b7280;font-weight:400;text-transform:none;letter-spacing:0}
-select,input,textarea{width:100%;padding:6px 8px;border:1px solid #cbd2da;border-radius:5px;font-size:13px;
-font-family:inherit;background:#fff}
+label{display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;
+color:var(--forge-theme-text-medium);margin-bottom:3px}
+.hint{font-size:11px;color:var(--forge-theme-text-medium);font-weight:400;text-transform:none;letter-spacing:0}
+select,input,textarea{width:100%;padding:7px 8px;border:1px solid var(--forge-theme-outline-medium);
+border-radius:4px;font-size:13px;font-family:inherit;background:var(--forge-theme-surface)}
+select:focus,input:focus,textarea:focus{outline:2px solid var(--forge-theme-primary);outline-offset:-1px}
 textarea{min-height:88px;resize:vertical}
-button{background:#1c5fbf;color:#fff;border:0;padding:8px 16px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer}
-button:hover{background:#174b98}button.sec{background:#e6e9ee;color:#26303d}button.sec:hover{background:#d7dce3}
-.toast{position:fixed;bottom:18px;right:18px;background:#0f6b34;color:#fff;padding:10px 16px;border-radius:6px;
-opacity:0;transition:.25s;z-index:50}.toast.on{opacity:1}
-.nav{display:flex;justify-content:space-between;margin:16px 0}
+button{background:var(--forge-theme-primary);color:#fff;border:0;padding:9px 16px;border-radius:4px;
+font-size:13px;font-weight:500;cursor:pointer;letter-spacing:.02em}
+button:hover{filter:brightness(.92)}
+button.sec{background:var(--forge-theme-surface);color:var(--forge-theme-primary);
+border:1px solid var(--forge-theme-outline-medium)}
+button.sec:hover{background:var(--forge-theme-primary-container-minimum);filter:none}
+.toast{position:fixed;bottom:18px;right:18px;background:#323232;color:#fff;padding:12px 18px;
+border-radius:4px;opacity:0;transition:.25s;z-index:50;box-shadow:0 3px 8px rgba(0,0,0,.3)}
+.toast.on{opacity:1}
+.nav{display:flex;justify-content:space-between;margin:var(--forge-spacing-medium) 0}
 td.qcell{white-space:normal;max-width:430px;min-width:300px}
-tr.filters th{background:#e9edf2;padding:5px 6px;font-weight:400}
-tr.filters input,tr.filters select{width:100%;padding:4px 6px;font-size:12px;border:1px solid #c3cbd5;border-radius:4px;background:#fff}
-tr.filters small{color:#6b7280;font-weight:400}
+tr.filters th{background:none;padding:0 14px 10px 0;font-weight:400;border-bottom:1px solid var(--forge-theme-outline)}
+tr.filters input,tr.filters select{width:100%;padding:5px 6px;font-size:12px;
+border-color:var(--forge-theme-outline);color:var(--forge-theme-text-medium)}
+tr.filters small{color:var(--forge-theme-text-low);font-weight:400}
 #fbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-#fbar input[type=date]{width:auto;padding:4px 6px;font-size:12px;border:1px solid #c3cbd5;border-radius:4px}
+#fbar input[type=date]{width:auto;padding:4px 6px;font-size:12px}
 td.nowrap,th.nowrap{white-space:nowrap}
 tr.row[data-status=excluded] td{opacity:.5}
-/* Two strengths of "this row is yours", deliberately different. Awaiting-you is a personal
-   hand-off and gets the strong treatment; your-area is ambient and must not shout, or a
-   contributor who owns four agents sees a wall of colour and stops noticing any of it. */
-tr.row.mine-area td{background:#fbfdff}
-tr.row.mine-area td:first-child{box-shadow:inset 3px 0 0 #9dc0e8}
-tr.row.mine-awaiting td{background:#fff8e6}
-tr.row.mine-awaiting td:first-child{box-shadow:inset 3px 0 0 #e0a92b}
-tr.row.mine-awaiting:hover td{background:#fff3d6}
-.pill.mineflag{background:#e0a92b;color:#fff;margin-left:5px}
-tr.row.mine-area .pill.mineflag{background:#9dc0e8;color:#14385e}
-span.owner{color:#8b95a3;font-size:12px}
-.deleg{font-size:11px;color:#7a5cbf;font-weight:600}
-pre.out{background:#10151f;color:#d6dde8;padding:10px;border-radius:6px;font-size:12px;overflow:auto;max-height:240px}
-/* Field help. .fld is the positioning context so the panel OVERLAYS rather than reflowing
-   the grid — otherwise opening one help panel shoves every other field down the page. */
+.deleg{font-size:11px;color:#5b3ba8;font-weight:500}
+pre.out{background:#263238;color:#eceff1;padding:12px;border-radius:4px;font-size:12px;
+overflow:auto;max-height:280px;line-height:1.5}
+tr.row.mine-area td{background:var(--forge-theme-primary-container-minimum)}
+tr.row.mine-area td:first-child{box-shadow:inset 3px 0 0 var(--forge-theme-primary)}
+tr.row.mine-awaiting td{background:var(--forge-theme-warning-container-low)}
+tr.row.mine-awaiting td:first-child{box-shadow:inset 3px 0 0 var(--forge-theme-warning)}
+.pill.mineflag{background:var(--forge-theme-warning);color:#fff;margin-left:5px}
+tr.row.mine-area .pill.mineflag{background:var(--forge-theme-primary);color:#fff}
+span.owner{color:var(--forge-theme-text-medium);font-size:12px}
 .fld{position:relative}
-button.info{background:#dbe4f0;color:#1c4f8f;border:0;border-radius:50%;width:15px;height:15px;
-padding:0;margin-left:5px;font:700 10px/15px Georgia,serif;cursor:pointer;vertical-align:middle;
+button.info{background:var(--forge-theme-primary-container);color:var(--forge-theme-primary);
+border:0;border-radius:50%;width:16px;height:16px;padding:0;margin-left:5px;
+font:700 11px/16px Roboto,sans-serif;cursor:pointer;vertical-align:middle;
 text-transform:none;letter-spacing:0}
-button.info:hover{background:#1c5fbf;color:#fff}
-.tip{position:absolute;z-index:40;top:100%;left:0;width:340px;max-width:78vw;background:#fff;
-border:1px solid #b9c3d0;border-radius:8px;box-shadow:0 6px 22px rgba(16,21,31,.18);
-padding:11px 13px;font-size:12px;font-weight:400;text-transform:none;letter-spacing:0;color:#1a1d21}
+button.info:hover{background:var(--forge-theme-primary);color:#fff;filter:none}
+.tip{position:absolute;z-index:40;top:100%;left:0;width:340px;max-width:78vw;
+background:var(--forge-theme-surface);border:1px solid var(--forge-theme-outline-low);
+border-radius:4px;box-shadow:0 4px 14px rgba(0,0,0,.18);padding:12px 14px;font-size:12px;
+font-weight:400;text-transform:none;letter-spacing:0;color:var(--forge-theme-text-high)}
 .tip[hidden]{display:none}
-.tip b{font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:#4a5260}
+.tip b{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--forge-theme-text-medium)}
 .tip p{margin:6px 0 8px}
-.flow{margin:7px 0 0;padding:5px 7px;background:#f4f6f9;border-radius:4px;
-font:11px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;color:#3d4655;white-space:nowrap;
-overflow:auto}
+.flow{margin:7px 0 0;padding:6px 8px;background:var(--forge-theme-surface-container-minimum);
+border-radius:4px;font:11px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;
+color:var(--forge-theme-text-medium);white-space:nowrap;overflow:auto}
 table.dvt{border:0;border-radius:0;margin:0 0 8px}
-table.dvt td{border-bottom:1px solid #f0f2f5;padding:3px 6px 3px 0;font-size:12px;
-white-space:normal;vertical-align:top}
+table.dvt td{border-bottom:1px solid var(--forge-theme-surface-container-low);
+padding:3px 6px 3px 0;font-size:12px;white-space:normal;vertical-align:top}
 td.dv{white-space:nowrap;width:1%}
-td.dv code{background:#eef1f5;padding:1px 5px;border-radius:3px;font-size:11px}
+td.dv code{background:var(--forge-theme-surface-container-minimum);padding:1px 5px;
+border-radius:3px;font-size:11px}
 button.tipclose{padding:3px 10px;font-size:11px}
+
+/* ---------------------------------------------------------------------------------------
+   720p (1280x720) and other small laptop screens.
+
+   The default layout needs about 1440px: a 212px rail, 24px padding either side and a
+   1180px content column. On a 1280-wide screen that overflows, and on a 720-tall one the
+   stacked search field, filter bar and count line push the first table row below the fold.
+   Both axes are handled: WIDTH by narrowing the rail and letting the table scroll inside
+   its own card, HEIGHT by tightening vertical rhythm rather than hiding anything.
+   Nothing is removed at any size - a reviewer on a small screen sees the same data.
+   --------------------------------------------------------------------------------------- */
+@media (max-width:1439px){
+  :root{--nav-w:184px}
+  main.wrap{padding:var(--forge-spacing-medium);max-width:none}
+  .tblcard{padding:var(--forge-spacing-small) var(--forge-spacing-medium) var(--forge-spacing-xsmall)}
+  th,td{padding-right:10px}
+}
+@media (max-width:1180px){
+  :root{--nav-w:156px}
+  nav.side a{padding:9px 10px;font-size:13px;gap:7px}
+  nav.side .grp{padding:10px 10px 2px}
+  nav.side .hint{display:none}          /* the nav explainer is the first thing to go */
+  main.wrap{padding:var(--forge-spacing-small)}
+  td{font-size:13px}
+}
+@media (max-height:820px){
+  header{height:48px}
+  nav.side{top:48px;max-height:calc(100vh - 48px)}
+  .shell{min-height:calc(100vh - 48px)}
+  input.bigsearch{padding:9px 12px 9px 36px;font-size:14px}
+  .searchhelp{margin-bottom:var(--forge-spacing-small);font-size:11px}
+  .bar{padding:8px var(--forge-spacing-medium);margin-bottom:var(--forge-spacing-small)}
+  .shown{margin-bottom:var(--forge-spacing-xsmall)}
+  th{padding-top:7px;padding-bottom:7px}
+  td{padding-top:9px;padding-bottom:9px}   /* still comfortable, ~14 rows visible at 720p */
+  .card{padding:12px;margin-bottom:10px}
+  h2.sec{font-size:18px;margin-bottom:4px}
+  .tip{max-height:60vh;overflow:auto}      /* help panels must not run off a short screen */
+}
+@media (max-height:700px){
+  .searchhelp{display:none}                /* keep the search box, drop its explainer */
+}
 """
 
 JS = """
@@ -629,6 +779,43 @@ const msg=(document.getElementById('cmsg')||{}).value||'';
 const r=await post('/git',{action,branch,message:msg});
 document.getElementById('gitout').textContent=r.output||'(no output)';toast(r.ok?action+' ok':action+' failed',r.ok)}
 
+// ---- multi-select + bulk mark reviewed -------------------------------------------------
+// The reviewer name comes from localStorage, set the first time you pick your name on any
+// transcript. Bulk marking without a name is refused server-side; this keeps that visible in
+// the UI rather than surfacing as an error after the click.
+function ckWho(){let w=null;try{w=localStorage.getItem('lastReviewer')}catch(e){}return w||''}
+function ckList(){return [...document.querySelectorAll('tr.row')].filter(tr=>
+  tr.style.display!=='none').map(tr=>tr.querySelector('input.ck')).filter(c=>c&&!c.disabled)}
+function ckSel(){return ckList().filter(c=>c.checked)}
+function ckSync(){const n=ckSel().length;
+ const bar=document.getElementById('bulkbar'); if(!bar) return;
+ bar.style.display = n ? '' : 'none';
+ document.getElementById('cknum').textContent=n;
+ const w=document.getElementById('ckwho'); if(w) w.textContent = ckWho() || 'nobody — pick your name on a transcript first';
+}
+function clearCk(){ckList().forEach(c=>c.checked=false);
+ const a=document.getElementById('ckall'); if(a)a.checked=false; ckSync()}
+async function bulkReview(){
+ const paths=ckSel().map(c=>c.value);
+ if(!paths.length) return;
+ const who=ckWho();
+ if(!who){toast('Open any transcript and pick your name first',false);return}
+ if(!confirm(`Mark ${paths.length} transcript(s) reviewed with NO changes needed, as ${who}?`)) return;
+ const r=await post('/bulk',{paths,reviewer:who});
+ if(!r.ok){toast(r.error||'failed',false);return}
+ let m=`${r.done.length} marked reviewed`;
+ if(r.skipped&&r.skipped.length){
+   m+=` — ${r.skipped.length} skipped`;
+   console.log('skipped:',r.skipped);
+   alert('Skipped:\n'+r.skipped.map(s=>`• ${s[0]}\n    ${s[1]}`).join('\n'));
+ }
+ toast(m); location.reload();
+}
+document.addEventListener('change',e=>{
+ if(e.target.id==='ckall'){const v=e.target.checked;ckList().forEach(c=>c.checked=v);ckSync()}
+ else if(e.target.classList&&e.target.classList.contains('ck')) ckSync();
+});
+
 const FKEYS=['agent','ex','fb','status','awaiting','routing','answer','diag','fix'];
 function fstate(){const g=i=>{const e=document.getElementById(i);return e?e.value:''};
 const o={q:g('f_q'),dfrom:g('dfrom'),dto:g('dto')};
@@ -649,7 +836,31 @@ document.querySelectorAll('tr.row').forEach(tr=>{let ok=true;
  if(f.dto && (!d || d>f.dto)) ok=false;
  tr.style.display = ok?'':'none'; if(ok) n++});
 const sh=document.getElementById('shown'); if(sh) sh.textContent=n;
-try{sessionStorage.setItem('tfilters',JSON.stringify(f))}catch(e){}}
+// Empty states, worded for the reason. "No results" alone leaves someone stuck wondering
+// whether the tool is broken, whether they filtered wrongly, or whether there is genuinely
+// nothing for them.
+const es=document.getElementById('emptystate'), em=document.getElementById('emptymsg'),
+      ea=document.getElementById('emptyact'), tb=document.getElementById('tbl');
+if(es&&em){
+ if(n===0){
+   es.style.display='';
+   const others=(f.q||f.dfrom||f.dto||FKEYS.some(k=>f[k]&&f[k]!=='__open__'));
+   if(mineOnly&&!others){
+     em.textContent='There is nothing that is yours to review.';
+     ea.innerHTML='<a href="/?all=1">Click on All transcripts to see all transcripts.</a>';
+   } else if(mineOnly){
+     em.textContent='Nothing of yours matches these filters.';
+     ea.innerHTML='<button class=sec onclick="clearFilters()">Clear the filters</button>'
+       +' &nbsp;<a href="/?all=1">or see all transcripts</a>';
+   } else {
+     em.textContent='No transcripts match these filters.';
+     ea.innerHTML='<button class=sec onclick="clearFilters()">Clear the filters</button>';
+   }
+   if(tb) tb.style.display='none';
+ } else { es.style.display='none'; if(tb) tb.style.display=''; }
+}
+try{sessionStorage.setItem('tfilters',JSON.stringify(f))}catch(e){}
+if(window.ckSync)ckSync();}
 function clearFilters(){['f_q','dfrom','dto'].forEach(i=>{const e=document.getElementById(i);if(e)e.value=''});
 FKEYS.forEach(k=>{const e=document.getElementById('f_'+k);if(e)e.value=''});
 applyFilters()}
@@ -659,6 +870,10 @@ const set=(id,v)=>{const e=document.getElementById(id); if(e&&v) e.value=v};
 if(saved){set('f_q',saved.q);set('dfrom',saved.dfrom);set('dto',saved.dto);
  FKEYS.forEach(k=>set('f_'+k,saved[k]));}
 else{set('f_status','__open__');}  // default view: everything still open (pending + suggested)
+// Mine is the default landing view. The server sets data-default-mine on <body>; honour it
+// unless the reviewer has already chosen otherwise in this browser session.
+if(!saved){const dm=document.body.dataset.defaultMine==='1';
+ const c=document.getElementById('f_mine'); if(c&&dm){c.checked=true}}
 ['f_q','dfrom','dto','f_mine'].concat(FKEYS.map(k=>'f_'+k)).forEach(id=>{
  const e=document.getElementById(id); if(!e)return;
  e.addEventListener((e.tagName==='SELECT'||e.type==='date'||e.type==='checkbox')?'change':'input',applyFilters)});
@@ -677,15 +892,58 @@ if(document.getElementById('tbl')) initFilters();
 """
 
 
-def page(title, inner):
+def nav_counts():
+    """Live counts for the side nav. Cheap enough to recompute per request, and a nav item
+    with a number on it is the difference between a link and a to-do list."""
+    open_n = mine_n = uncommitted = 0
+    for f in tfiles():
+        fm, _ = parse(f)
+        if fm is None:
+            continue
+        st = fm.get("review_status", "pending") or "pending"
+        if st in ("pending", "suggested"):
+            open_n += 1
+            if ME and (fm.get("awaiting") == ME
+                       or ME in {o for a in effective_agents(fm) for o in owners_of(a)}):
+                mine_n += 1
+    _, st = git("status", "--porcelain", "--", "transcripts")
+    uncommitted = len([l for l in st.splitlines() if l.strip()])
+    return open_n, mine_n, uncommitted
+
+
+def page(title, inner, active="", all_view=False):
+    """Shell with a Forge-style SIDE NAV.
+
+    The previous version put "All transcripts" and "Git & PR" as bare links in the app bar,
+    where they read as body text - people did not realise they were navigation. A left rail
+    with an icon, a label and a live count per item makes each one visibly a destination.
+    """
+    open_n, mine_n, uncommitted = nav_counts()
+
+    def item(href, icon, label, count=None, key=""):
+        on = " class=on" if key and key == active else ""
+        badge = f"<span class=ct>{count}</span>" if count else ""
+        return (f"<a href=\"{href}\"{on}><span class=ic>{icon}</span>"
+                f"<span>{label}</span>{badge}</a>")
+
+    who = (f"<span class=who>{html.escape(ME)}</span>" if ME
+           else "<span class=who>not identified</span>")
+    side = (
+        "<nav class=side>"
+        "<div class=grp>Review</div>"
+        + (item("/", "&#9873;", "Mine", mine_n or None, "mine") if ME else "")
+        + item("/?all=1", "&#9776;", "All transcripts", open_n or None, "all")
+        + "<div class=grp>Publish</div>"
+        + item("/git", "&#8593;", "Save &amp; share", uncommitted or None, "git")
+        + "</nav>")
     return f"""<!doctype html><meta charset=utf-8><title>{html.escape(title)}</title>
-<style>{CSS}</style><header><b>Transcript Review</b>
-<a href="/">All transcripts</a><a href="/git">Git &amp; PR</a>
-<span style="margin-left:auto;font-size:12px;opacity:.7">{html.escape(str(REPO.name))}</span></header>
-<div class=wrap>{inner}</div><div class=toast id=toast></div><script>{JS}</script>"""
+<style>{CSS}</style><header><b>Transcript Review</b>{who}</header>
+<body data-default-mine="{'1' if (ME and not all_view) else '0'}">
+<div class=shell>{side}<main class=wrap>{inner}</main></div>
+<div class=toast id=toast></div><script>{JS}</script>"""
 
 
-def list_page():
+def list_page(show_all=False):
     recs, counts = [], Counter()
     for f in tfiles():
         fm, body = parse(f)
@@ -769,6 +1027,8 @@ def list_page():
             f" data-eff=\"{html.escape(','.join(r['eff_agents']))}\""
             f" title=\"{html.escape(r.get('own_basis',''))}\""
             f" data-mine=\"{'awaiting' if r['mine_awaiting'] else ('area' if r['mine_area'] else '')}\">"
+            f"<td class=nowrap><input type=checkbox class=ck value=\"{html.escape(r['rel'])}\""
+            f"{' disabled' if r['status']!='pending' else ''}></td>"
             f"<td class=qcell title=\"{html.escape(r['qfull'])}\">"
             f"<a href='/t/{html.escape(r['rel'])}'>{html.escape(r['q'])}</a></td>"
             f"<td>{html.escape(r['agent'])}"
@@ -808,13 +1068,25 @@ def list_page():
            + f" &nbsp;·&nbsp; {excl} excluded (pre-go-live)"
            f" &nbsp;·&nbsp; {tot} total"
            f" &nbsp;·&nbsp; <a href='/git'>commit &amp; open a PR &rarr;</a></div>"
-           "<div class=bar id=fbar>Showing <b id=shown>0</b> of "
-           f"<b>{tot}</b> &nbsp;·&nbsp; date "
-           "<input type=date id=dfrom> to <input type=date id=dto>"
-           " &nbsp;<label style='display:inline;font-size:12px;text-transform:none;letter-spacing:0;font-weight:400'><input type=checkbox id=f_mine style='width:auto;margin-right:4px'>mine only</label>"" &nbsp;<button class=sec onclick='clearFilters()'>Clear all</button></div>")
+           ")")
+    search = ("<div class=searchwrap><span class=mag>&#128269;</span>"
+              "<input class=bigsearch id=f_q placeholder='Search transcripts&hellip;'></div>"
+              "<p class=searchhelp>Searches the question and filename. "
+              "Use the boxes under each heading to narrow further.</p>"
+              "<div class=bar id=fbar style='display:flex;gap:10px;align-items:center;flex-wrap:wrap'>"
+              "<span class=hint style='font-size:12px'>Date</span>"
+              "<input type=date id=dfrom style='width:auto'> to "
+              "<input type=date id=dto style='width:auto'>"
+              "<label style='display:inline-flex;align-items:center;gap:5px;font-size:12px;"
+              "text-transform:none;letter-spacing:0;font-weight:400;margin:0'>"
+              "<input type=checkbox id=f_mine style='width:auto;margin:0'>Only mine</label>"
+              "<button class=sec onclick='clearFilters()' style='margin-left:auto'>Clear all"
+              "</button></div>"
+              f"<p class=shown><b id=shown>0</b> of {tot} transcripts shown</p>")
 
     filt = ("<tr class=filters>"
-            "<th><input id=f_q placeholder='search question / filename'></th>"
+            "<th></th>"
+            "<th></th>"
             f"<th><select id=f_agent>{opts('agent')}</select></th>"
             "<th class=nowrap><small>use date range above</small></th>"
             f"<th><select id=f_ex>{opts('ex')}</select></th>"
@@ -827,10 +1099,29 @@ def list_page():
             f"<th><select id=f_diag>{opts('diag')}</select></th>"
             f"<th><select id=f_fix>{opts('fix')}</select></th></tr>")
 
-    return page("Transcripts", bar
-                + "<table id=tbl><tr><th>First question<th>Handled by<th>Date<th>Ex"
-                  "<th>Foundry FB<th>Status<th>Awaiting<th>Routing<th>Answer<th>Diagnosis<th>Fix target</tr>"
-                + filt + "".join(rows) + "</table>")
+    bulkbar = ("<div class=bar id=bulkbar style='display:none'>"
+               "<b><span id=cknum>0</span> selected</b> &nbsp;"
+               "<span class=hint>Pending rows only. Anything with a written correction is "
+               "skipped and reported.</span>"
+               "<div style='margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap'>"
+               "<button onclick='bulkReview()'>Mark selected reviewed &mdash; no change needed</button>"
+               "<button class=sec onclick='clearCk()'>Clear selection</button>"
+               "<span class=hint>as <b id=ckwho>?</b></span></div></div>")
+    return page("Transcripts", bulkbar + bar + search
+                + "<div class=tblcard><table id=tbl><tr>"
+                  "<th class=nowrap style='width:1%'>"
+                  "<input type=checkbox id=ckall title='select all shown'></th>"
+                  + "".join(f"<th>{h}<span class=caret>&#9662;</span></th>" for h in
+                     ["First question","Handled by","Date","Ex","Foundry FB","Status",
+                      "Awaiting","Routing","Answer","Diagnosis","Fix target"])
+                  + "</tr>"
+                + filt + "".join(rows) + "</table>"
+                  "<div id=emptystate style='display:none;padding:38px 8px 44px;text-align:center'>"
+                  "<div style='font-size:32px;opacity:.35;margin-bottom:10px'>&#9776;</div>"
+                  "<div id=emptymsg style='font-size:15px;color:var(--forge-theme-text-medium);"
+                  "max-width:430px;margin:0 auto;line-height:1.6'></div>"
+                  "<div id=emptyact style='margin-top:16px'></div>"
+                  "</div></div>", active=("all" if show_all else "mine"), all_view=show_all)
 
 
 def doc_popover(k):
@@ -993,29 +1284,85 @@ def detail_page(rel):
 
 
 def git_page():
+    """Send a finished batch of reviews in.
+
+    Rewritten as a numbered sequence after a reviewer said plainly they did not understand it.
+    The old version was four same-looking buttons with git vocabulary on them - "Create
+    branch", "Stage & commit", "Push & open PR" - which assumes you already know what those
+    do and in what order. It now reads as three steps, says what each will do BEFORE you
+    click, shows what is about to be sent, and disables steps that are not applicable yet.
+    """
     _, branch = git("rev-parse", "--abbrev-ref", "HEAD")
     _, st = git("status", "--porcelain", "--", "transcripts")
     changed = [l for l in st.splitlines() if l.strip()]
-    body = (f"<div class=bar>Branch: <b>{html.escape(branch)}</b> · "
-            f"{len(changed)} changed file(s) under transcripts/</div>"
-            "<div class=card><label>New branch name</label>"
-            f"<input id=branch value='review/{branch if branch.startswith('review/') else 'batch'}'>"
-            "<label style='margin-top:10px'>Commit message</label>"
-            "<input id=cmsg value='Review transcripts: verdicts and proposed fixes'>"
-            "<div style='margin-top:12px;display:flex;gap:8px;flex-wrap:wrap'>"
-            "<button class=sec onclick=\"gitDo('branch')\">Create branch</button>"
-            "<button class=sec onclick=\"gitDo('commit')\">Stage &amp; commit transcripts/</button>"
-            "<button onclick=\"gitDo('pr')\">Push &amp; open PR</button>"
-            "<button class=sec onclick=\"gitDo('diff')\">Show diff</button></div></div>"
-            "<div class=card><b>Output</b><pre class=out id=gitout>"
-            + html.escape("\n".join(changed) or "(no changes under transcripts/)")
-            + "</pre></div>"
-            "<div class=card><small>Reviews are committed even when no knowledge file changes — "
-            "a verdict of <code>fix_target: agent-instructions</code> with no <code>kb_files</code> "
-            "is a complete, mergeable contribution. The same applies to a "
-            "<code>review_status: suggested</code> handoff: commit and PR it so the area owner "
-            "picks it up on their next pull.</small></div>")
-    return page("Git & PR", body)
+    n = len(changed)
+    on_main = branch in ("main", "master")
+    _, ahead = git("rev-list", "--count", "@{u}..HEAD")
+    unpushed = (ahead.strip() or "0")
+
+    if n:
+        state = (f"<span class='pill pending'>{n} unsent</span> "
+                 f"You have <b>{n}</b> reviewed file(s) not yet sent in.")
+    elif unpushed != "0":
+        state = (f"<span class='pill reviewed'>saved</span> Your work is saved but "
+                 f"<b>{unpushed}</b> change(s) have not been shared yet — do step 3.")
+    else:
+        state = ("<span class='pill pushed'>all sent</span> Nothing waiting. "
+                 "Everything you have reviewed has been sent in.")
+
+    files = ("<ul style='margin:6px 0 0 18px;padding:0;font-size:13px'>"
+             + "".join(f"<li>{html.escape(l[3:])}</li>" for l in changed[:12])
+             + (f"<li>… and {n-12} more</li>" if n > 12 else "")
+             + "</ul>") if changed else \
+            "<div class=hint style='margin-top:6px'>Nothing changed under transcripts/ yet — " \
+            "review something on <b>All transcripts</b> first.</div>"
+
+    body = (
+      f"<h2 class=sec>Save &amp; share your reviews</h2>"
+      f"<div class=bar>{state}<br><span class=hint>You are working on "
+      f"<b>{html.escape(branch)}</b>." + (" That is the shared copy, so step 1 will move you "
+      "onto your own copy first." if on_main else "") + "</span></div>"
+
+      "<div class=card><b>What is about to be sent</b>" + files + "</div>"
+
+      "<div class=card><b>Step 1 — put your work on your own copy</b>"
+      "<p class=hint style='margin:6px 0 10px'>A personal copy, so your changes cannot disturb "
+      "anyone else's. Safe to click twice.</p>"
+      "<label>Name for your copy<span class=hint> — anything; a date is fine</span></label>"
+      f"<input id=branch value='review/{branch if branch.startswith('review/') else 'batch'}'>"
+      "<div style='margin-top:10px'>"
+      "<button class=sec onclick=\"gitDo('branch')\">1. Make my own copy</button></div></div>"
+
+      "<div class=card><b>Step 2 — save your reviews</b>"
+      "<p class=hint style='margin:6px 0 10px'>Records your reviews locally. Nothing is shared "
+      "yet.</p>"
+      "<label>What did you review?<span class=hint> — one line, for whoever reads it later</span></label>"
+      "<input id=cmsg value='Review transcripts: verdicts and proposed fixes'>"
+      "<div style='margin-top:10px;display:flex;gap:8px;flex-wrap:wrap'>"
+      "<button class=sec onclick=\"gitDo('commit')\">2. Save my reviews</button>"
+      "<button class=sec onclick=\"gitDo('diff')\">Show me exactly what changed</button>"
+      "</div></div>"
+
+      "<div class=card><b>Step 3 — send them in for review</b>"
+      "<p class=hint style='margin:6px 0 10px'>Opens a <b>change request</b> for someone to check "
+      "before it becomes official. This is the step that reaches the team. You get a link back.</p>"
+      "<button onclick=\"gitDo('pr')\">3. Send my reviews in</button></div>"
+
+      "<div class=card><b>What happened</b>"
+      "<p class=hint style='margin:6px 0 8px'>Output from the last step. If something failed, "
+      "paste this to your AI assistant.</p>"
+      "<pre class=out id=gitout>"
+      + html.escape("\n".join(changed) or "(nothing changed under transcripts/ yet)")
+      + "</pre></div>"
+
+      "<div class=card><b>Worth knowing</b><ul class=hint style='margin:6px 0 0 18px;padding:0'>"
+      "<li>A review with nothing to fix is still worth sending.</li>"
+      "<li>Writing what <i>should</i> have been said is the valuable part — a knowledge-file "
+      "change is not required.</li>"
+      "<li>Suggestions handed to someone else need sending in too; that is how they reach them.</li>"
+      "<li>Only step 3 shares anything.</li>"
+      "</ul></div>")
+    return page("Save & share", body, active="git")
 
 
 # ---------------------------------------------------------------- server
@@ -1034,8 +1381,8 @@ class H(BaseHTTPRequestHandler):
         self.wfile.write(b)
 
     def do_GET(self):
-        if self.path == "/":
-            return self._send(200, list_page())
+        if self.path == "/" or self.path.startswith("/?"):
+            return self._send(200, list_page(show_all=("all=1" in self.path)))
         if self.path == "/git":
             return self._send(200, git_page())
         if self.path.startswith("/t/"):
@@ -1103,6 +1450,54 @@ class H(BaseHTTPRequestHandler):
                     set_fields(p, upd)
                 refresh_index()
                 return self._send(200, json.dumps({"ok": True, "path": rel}), "application/json")
+            except Exception as e:
+                return self._send(200, json.dumps({"ok": False, "error": str(e)}),
+                                  "application/json")
+        if self.path == "/bulk":
+            # Mark several transcripts reviewed at once. For a batch of thumbs-up
+            # conversations that need no correction, one-at-a-time is pure friction.
+            #
+            # Refuses anything that is NOT a clean no-change review, rather than forcing it:
+            #   - already reviewed/pushed/excluded  -> skip, do not silently re-stamp
+            #   - pre-go-live                        -> skip, it must stay excluded
+            #   - carries WRITTEN feedback           -> skip. A correction someone typed needs
+            #     a real verdict, and bulk-stamping it "nothing wrong" would bury it.
+            # Every skip is reported with its reason; nothing fails silently.
+            try:
+                rels = data.get("paths") or []
+                who = (data.get("reviewer") or "").strip()
+                if not who:
+                    raise ValueError("pick your name first — the reviewer box on any "
+                                     "transcript, or the filter bar")
+                if who not in contributors():
+                    raise ValueError(f"'{who}' is not in contributors.json")
+                done, skipped = [], []
+                for rel in rels:
+                    f = (TDIR / rel).resolve()
+                    if not str(f).startswith(str(TDIR.resolve())) or not f.is_file():
+                        skipped.append((rel, "not found")); continue
+                    fm, body = parse(f)
+                    if fm is None:
+                        skipped.append((rel, "no frontmatter")); continue
+                    st = fm.get("review_status", "pending") or "pending"
+                    if st not in ("pending",):
+                        skipped.append((rel, f"already {st}")); continue
+                    if is_pre_go_live(fm.get("date", "")):
+                        skipped.append((rel, "pre-go-live — stays excluded")); continue
+                    if has_feedback(body or ""):
+                        skipped.append((rel, "has written feedback — review it properly")); continue
+                    upd = dict(NO_CHANGE_DEFAULTS)
+                    upd.update({"review_status": "reviewed", "reviewer": who,
+                                "review_round": fm.get("review_round") or "1"})
+                    note = fm.get("notes", "")
+                    mark = "bulk no-change review"
+                    if mark not in note:
+                        upd["notes"] = (note + " || " if note else "") + mark
+                    set_fields(f, upd)
+                    done.append(rel)
+                refresh_index()
+                return self._send(200, json.dumps({"ok": True, "done": done,
+                                                   "skipped": skipped}), "application/json")
             except Exception as e:
                 return self._send(200, json.dumps({"ok": False, "error": str(e)}),
                                   "application/json")
