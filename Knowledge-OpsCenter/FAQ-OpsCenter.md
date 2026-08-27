@@ -105,8 +105,12 @@ access.** Present both; do not send someone down the manager's-guide route when 
 ticket would do.
 
 **Occasional access to one customer's Admin Center** — use the **Client Admin Center access
-request** ticket:
-<https://help.center.tylertech.com/servicedesk/customer/portal/3168/group/3333/create/4165>
+request** ticket. **Give the user the Confluence page, not the raw form URL** — it carries the
+field-by-field instructions the form does not:
+<https://tylertech.atlassian.net/wiki/spaces/TTI/pages/386600308/Tyler+Cloud+Platform+TCP+Ops+Center+Related+Tickets+and+Permissions>
+
+(The underlying form is `.../portal/3168/group/3333/create/4165`, on the JSM portal. Mention it
+as supporting detail if asked, but lead with the Confluence page.)
 
 This is the normal path, and it is what most people asking this question want. Being granted
 it makes you an Org Admin for that one organization. Requirements: the org must already exist

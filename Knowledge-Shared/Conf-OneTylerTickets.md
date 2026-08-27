@@ -11,6 +11,19 @@ Reconciled from **three** upstream sources:
 | 2 | JSM — CorpDev Support portal (https://help.center.tylertech.com/servicedesk/customer/portal/3168) | Every request type across 6 groups, with each form's own help text | **Wins on WHICH forms exist** |
 | 3 | JSM — CorpDev Feature Requests portal (https://help.center.tylertech.com/servicedesk/customer/portal/3185) | All feature requests and enhancement ideas | Sole authority for feature requests |
 
+> **⚠ WHICH LINK YOU GIVE THE USER: the Confluence page, not the raw JSM form URL.** Every
+> `**Ticket:**` field below shows the underlying form so you know which one it is — that is
+> *identification*, not the link to hand over. If the request appears in this catalog, give
+> <https://tylertech.atlassian.net/wiki/spaces/TTI/pages/386600308/Tyler+Cloud+Platform+TCP+Ops+Center+Related+Tickets+and+Permissions>
+> and mention the form as supporting detail. Direct JSM links are for requests **not** covered
+> here. Full reasoning under *Which link to hand out* in the notes at the end of this file.
+>
+> This is repeated here on purpose. Retrievers chunk independently of headings, so a chunk
+> containing one ticket entry does not include the notes 300+ lines below — a rule stated only
+> once, at the bottom, is invisible to the agent answering a specific ticket question. Measured
+> 2026-08-27: with the rule in the notes alone, the agent still handed out only the bare form
+> URL.
+
 Domain: cross-domain (Ops Center · Identity · Support Access Center · Development/Infra · Forge/TCW · 3rd-party)
 Audience: Tyler product, deployment, implementation, identity-support and engineering staff who need to file a request against OneTyler.
 
