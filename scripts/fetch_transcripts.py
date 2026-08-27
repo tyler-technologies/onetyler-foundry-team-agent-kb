@@ -94,6 +94,75 @@ SAMPLE_PROMPTS = {
 }
 
 
+# Fields this script OWNS. Everything else in the frontmatter is a human's, and the marker
+# line in the file says so: `# ---- review fields: edit these ----`.
+#
+# Refreshing these matters because a conversation is not frozen when we first pull it. Someone
+# can give it a thumbs-down, add a comment, or carry on talking hours later - and the original
+# behaviour (skip any file that already exists) meant we would never see it. The thumbs signal
+# in particular now leads the review table, so a stale `none` there is actively misleading.
+FOUNDRY_OWNED = ("exchanges", "dropped_sample_prompts", "foundry_feedback", "user_comments",
+                 "delegated_to", "orchestration")
+
+
+def update_frontmatter(path, fresh, dry=False):
+    """Rewrite only the Foundry-owned frontmatter values. Returns a list of what changed.
+
+    FRONTMATTER ONLY, and only those keys. The body holds the reviewer's prose in
+    `<!-- review:N -->` blocks and the review fields hold their verdict; re-rendering either
+    from the API would destroy work that exists nowhere else. So this edits values in place and
+    touches nothing it does not own - the same reasoning as review_server.set_fields().
+    """
+    txt = path.read_text(encoding="utf-8")
+    m = re.match(r"^---\n(.*?)\n---\n", txt, re.S)
+    if not m:
+        return []
+    head, changed = m.group(1), []
+    lines = head.split("\n")
+    for i, line in enumerate(lines):
+        if ":" not in line or line.lstrip().startswith("#"):
+            continue
+        key = line.split(":", 1)[0].strip()
+        if key not in FOUNDRY_OWNED or key not in fresh:
+            continue
+        old = line.split(":", 1)[1].strip()
+        new = str(fresh[key]).strip()
+        if old != new:
+            lines[i] = f"{key}: {new}"
+            changed.append((key, old, new))
+    if not changed or dry:
+        # `dry` must return the diff WITHOUT writing. It did not, which made --dry-run write
+        # the very files it exists to leave alone - a dry run that mutates is worse than no dry
+        # run, because it is the thing people reach for when they are unsure.
+        return changed
+    path.write_text("---\n" + "\n".join(lines) + "\n---\n" + txt[m.end():],
+                    encoding="utf-8")
+    return changed
+
+
+def foundry_fields(meta, data, deleg=None):
+    """The Foundry-owned frontmatter values for a conversation, as the API reports them now."""
+    raw = data.get("conversation", []) or []
+    # Same filter render() uses, so `exchanges` here can never disagree with the body's count.
+    kept = [e for e in raw if keep_exchange(e)]
+    fb = "none"
+    comments = []
+    for e in raw:
+        f = (e.get("feedback") or "").upper()
+        if f in ("THUMBS_UP", "THUMBS_DOWN"):
+            fb = f
+        c = (e.get("thumbsDownTextFeedback") or "").strip()
+        if c:
+            comments.append(scrub(c))
+    out = {"exchanges": len(kept),
+           "dropped_sample_prompts": len(raw) - len(kept),
+           "foundry_feedback": fb,
+           "user_comments": json.dumps(comments) if comments else "[]"}
+    if deleg is not None:
+        out["delegated_to"] = deleg
+    return out
+
+
 def check_agents():
     """Warn if the team has a sub-agent this script does not fetch.
 
@@ -363,7 +432,8 @@ def main():
 
     targets = {a.agent: AGENTS[a.agent]} if a.agent in AGENTS else ({} if a.agent == "team" else dict(AGENTS))
     include_team = a.agent in (None, "team")
-    new = existing = skipped = 0
+    new = existing = skipped = updated = 0
+    changes = []
 
     for slug, aid in targets.items():
         lst = api(f"/api/transcripts/conversation_ids?agent_id={aid}&startDate={a.start}") or []
@@ -376,6 +446,14 @@ def main():
             p = OUT / slug / f"{(meta.get('conversationDate') or 'unknown')[:10]}--{cid[:8]}.md"
             if p.exists():
                 existing += 1
+                # Refresh the Foundry-owned fields rather than skipping outright. A
+                # conversation is not frozen when we first pull it: someone can rate it or
+                # keep talking, and the old behaviour meant we never noticed.
+                ch = update_frontmatter(p, foundry_fields(meta, d[0]), dry=a.dry_run)
+                if ch:
+                    updated += 1
+                    for k, o_, n_ in ch:
+                        changes.append(f"  {p.relative_to(OUT)}: {k} {o_ or '(blank)'} -> {n_}")
                 continue
             body = render(slug, meta, d[0])
             if body is None:
@@ -398,6 +476,11 @@ def main():
             p = OUT / "team" / f"{(meta.get('conversationDate') or 'unknown')[:10]}--{cid[:8]}.md"
             if p.exists():
                 existing += 1
+                ch = update_frontmatter(p, foundry_fields(meta, d[0]), dry=a.dry_run)
+                if ch:
+                    updated += 1
+                    for k, o_, n_ in ch:
+                        changes.append(f"  {p.relative_to(OUT)}: {k} {o_ or '(blank)'} -> {n_}")
                 continue
             body = render("team", meta, d[0], deleg.get(cid))
             if body is None:
@@ -409,8 +492,16 @@ def main():
                 p.write_text(body, encoding="utf-8")
 
     print(f"\n{'would add' if a.dry_run else 'added'}: {new} new"
-          f" | untouched (already present): {existing}"
+          f" | updated: {updated}"
+          f" | untouched (already present): {existing - updated}"
           f" | skipped (only canned prompts, nothing to review): {skipped}")
+    # Name every change. A count alone would leave "updated: 3" with no way to tell whether a
+    # thumbs-down just arrived on something already marked reviewed - which is exactly the case
+    # worth knowing about.
+    if changes:
+        print("\nFoundry-side changes picked up (review fields untouched):")
+        for c in changes:
+            print(c)
     if new and not a.dry_run:
         print("Next: python3 scripts/review_status.py")
 

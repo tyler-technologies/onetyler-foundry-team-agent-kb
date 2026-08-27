@@ -943,6 +943,11 @@ button.danger:hover{filter:brightness(.92)}
 /* Amber, matching "not finished yet" elsewhere on the page rather than red: an outstanding
    request is not an error, it is work in flight. */
 .prbadge{margin-top:3px;font-size:11px}
+/* Freshness readout. Quiet when the data is current, amber when it is not - the amber is the
+   whole point, because "stale" has to be noticeable without being read. */
+.fresh{font-size:12px;color:var(--forge-theme-text-medium);white-space:nowrap}
+.fresh.stale{background:var(--t-yellow-bg);border:1px solid var(--t-yellow-bd);
+color:var(--forge-theme-text-high);padding:2px 8px;border-radius:10px;font-weight:500}
 .prbadge a{display:inline-block;padding:1px 6px;border-radius:3px;
 background:var(--t-yellow-bg);border:1px solid var(--t-yellow-bd);
 color:var(--forge-theme-text-high);text-decoration:none;font-weight:500}
@@ -1683,58 +1688,105 @@ if(window.ckSync)ckSync(); if(window.fpopMarks)fpopMarks();}
 // Sync pulls new conversations from Foundry. Long-running (it walks every agent), so the
 // button reports progress rather than appearing dead, and the page only reloads on success -
 // a failure that reloaded away its own error message would be untraceable.
-// ---- hourly autorun ----------------------------------------------------------------------
-// Both syncs re-run on their own every hour. Deliberately narrow, for reasons that each
-// prevent a specific failure:
+// ---- freshness ---------------------------------------------------------------------------
+// THE GUARANTEE IS ABOUT WHAT YOU ARE LOOKING AT, not about a background schedule. Nobody
+// keeps this open all day, so the useful promise is "whatever is on screen was refreshed
+// within the last 30 minutes" - which means the check happens WHEN YOU ARRIVE, not 60 seconds after
+// a timer starts.
 //
-//   1. ONLY WHILE THE PAGE IS OPEN. This is a browser timer, not cron. The server is started
-//      when someone sits down to review and stopped when they finish, so a scheduler that
-//      outlived the session would be pulling from Foundry against a closed laptop.
-//   2. PAUSED WHILE HIDDEN. A tab left open for a week should not make 168 API calls nobody
-//      will read. It catches up on the next foreground tick.
-//   3. NEVER MID-ACTION. If a sync is already running the tick is skipped, not queued: two
-//      `fetch_transcripts.py` runs at once would race on the same files, and it does not
-//      write atomically.
+// So: on load, and again whenever the tab comes back to the foreground, if the data is older
+// than an hour it syncs immediately. The interval only matters for a tab that stays open.
 //
-// Safe to automate at all only because the transcript sync ONLY ADDS files and never
-// overwrites - an unattended run cannot lose review work. The PR refresh is read-only.
-const AUTO_MS = 60*60*1000;
+// The first cut had this backwards - it waited for a timer tick and paused while hidden, which
+// saved API calls but left you looking at possibly-stale data with nothing on screen saying
+// so. Being hidden is now only a reason not to sync WHILE hidden; it never delays the sync you
+// need on arrival.
+// 30 minutes, at the owner's call. Cheap: one `gh`-free HTTP round trip to Foundry per
+// window, per open tab. If it ever feels slow, this is the single number to raise.
+const AUTO_MS = 30*60*1000;
 let autoBusy = false;
 
-// Persisted, so a reload does not restart the clock and a page opened 59 minutes into the
-// hour still fires on schedule.
-function autoDue(key){
- try{ return (Date.now() - (parseInt(localStorage.getItem(key)||'0',10)||0)) >= AUTO_MS }
- catch(e){ return false }        // storage blocked -> no autorun, rather than one per tick
-}
-function autoStamp(key){ try{localStorage.setItem(key,String(Date.now()))}catch(e){} }
+// The server owns the timestamp, so every tab agrees and a reload does not lose it. Held as
+// (age-at-a-known-instant, that instant) rather than a single number, because the age has to
+// keep ticking between updates AND reset cleanly when a sync reports a new one. Adding
+// "elapsed since page load" to a freshly-reported age would double-count the time the page
+// had already been open - which is what the first version did.
+let ageBaseSec = null;
+let ageBaseAt = Date.now();
 
-async function autoTick(){
- if(document.hidden || autoBusy) return;
- if(document.getElementById('syncbtn') && autoDue('auto:sync')){
-   autoBusy=true; autoStamp('auto:sync');
+function setAge(sec){ ageBaseSec = (typeof sec==='number' && sec>=0) ? sec : null;
+                      ageBaseAt = Date.now(); }
+function dataAgeMs(){
+ if(ageBaseSec===null) return null;
+ return ageBaseSec*1000 + (Date.now()-ageBaseAt);
+}
+
+function paintFreshness(){
+ const el=document.getElementById('freshness'); if(!el) return;
+ const ms=dataAgeMs();
+ if(ms===null){ el.textContent='never synced here'; el.classList.add('stale'); return }
+ const min=Math.floor(ms/60000);
+ el.textContent = min<1 ? 'up to date — synced just now'
+                : min===1 ? 'synced 1 minute ago'
+                : min<60 ? `synced ${min} minutes ago`
+                : `synced ${Math.floor(min/60)}h ${min%60}m ago`;
+ el.classList.toggle('stale', ms >= AUTO_MS);
+}
+
+async function autoTick(reason){
+ paintFreshness();
+ if(autoBusy) return;
+ // Do not START a sync while hidden - but arriving at the tab is not "hidden", so this never
+ // delays the on-arrival check.
+ if(document.hidden && reason!=='arrive') return;
+ const ms=dataAgeMs();
+ if(document.getElementById('syncbtn') && (ms===null || ms>=AUTO_MS)){
+   autoBusy=true;
    try{ await syncNow(true) } finally { autoBusy=false }
-   return;                       // one job per tick; the other waits for the next minute
+   return;
  }
- if(document.querySelector('a[href="/prs?refresh=1"]') && autoDue('auto:prs')){
-   autoStamp('auto:prs');
-   location.href='/prs?refresh=1';
+ if(document.querySelector('a[href="/prs?refresh=1"]') && prsDue()){
+   stampPrs(); location.href='/prs?refresh=1';
  }
 }
-setInterval(autoTick, 60*1000);   // check every minute, act at most hourly
-document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) autoTick() });
+// The PRs page has no server-side stamp (it is read-only and cheap), so its own hourly clock
+// stays in localStorage.
+function prsDue(){
+ try{ return (Date.now()-(parseInt(localStorage.getItem('auto:prs')||'0',10)||0))>=AUTO_MS }
+ catch(e){ return false }
+}
+function stampPrs(){ try{localStorage.setItem('auto:prs',String(Date.now()))}catch(e){} }
+
+setInterval(paintFreshness, 30*1000);       // keep the readout honest as time passes
+setInterval(()=>autoTick('interval'), 60*1000);
+document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) autoTick('arrive') });
+// Seed from what the server rendered, then keep it ticking client-side.
+(function(){
+ const el=document.getElementById('freshness');
+ const s = el ? parseInt(el.dataset.age||'-1',10) : -1;
+ setAge(s >= 0 ? s : null);
+})();
+
+// ON ARRIVAL. This is the line that makes the promise true for someone who opens the page
+// once a day rather than leaving it open.
+autoTick('arrive');
 
 // RETURNS the promise, so autoTick can await it and the busy guard actually holds.
 function syncNow(auto){const b=document.getElementById('syncbtn'),m=document.getElementById('syncmsg');
  if(!b||b.disabled)return Promise.resolve(); b.disabled=true; b.textContent='Syncing\u2026';
- // A manual click resets the hourly clock, so pressing the button does not leave an automatic
- // run due a minute later.
- if(!auto) autoStamp('auto:sync');
- m.textContent = auto ? 'hourly check \u2014 pulling from Foundry'
+ m.textContent = auto ? 'data was over 30 minutes old \u2014 refreshing'
                       : 'pulling from Foundry, this can take a minute';
  return fetch('/sync',{method:'POST'}).then(r=>r.json()).then(d=>{
-  if(d.ok){m.textContent=d.added?('added '+d.added+' new \u2014 reloading'):'no new transcripts';
-   if(d.added){location.reload();return}
+  if(d.ok){
+   setAge(typeof d.age==='number' ? d.age : 0);
+   paintFreshness();
+   const ch=(d.added||0)+(d.updated||0);
+   m.textContent = !ch ? 'no changes'
+     : ((d.added?d.added+' new':'') + (d.added&&d.updated?', ':'')
+        + (d.updated?d.updated+' updated':'') + ' \u2014 reloading');
+   // Reload on ANY change. Reloading only for new files left corrected states - a thumbs-down
+   // that arrived on an existing transcript - sitting invisible until the next navigation.
+   if(ch){location.reload();return}
    b.disabled=false;b.innerHTML='\u21bb Sync transcripts';
   } else {m.innerHTML='<span style="color:var(--danger-fg)">sync failed: '
     +(d.error||'see the terminal for details').replace(/</g,'&lt;')+'</span>';
@@ -2298,13 +2350,18 @@ def list_page(show_all=False):
     ]
     # Sync sits at the top of both list views: it is the first thing you want when you sit
     # down, and burying it behind the terminal defeats the point of a UI.
+    age = last_sync_age()
     title = "My Transcripts" if (ME and not show_all) else "All Transcripts"
     head = ("<div style='display:flex;align-items:center;gap:12px;flex-wrap:wrap;"
             "margin-bottom:var(--forge-spacing-medium)'>"
             f"<h2 class=sec style='margin:0'>{title}</h2>"
             "<button class=sec id=syncbtn onclick='syncNow()' style='margin-left:auto' "
-            "title='Also runs by itself once an hour while this page is open'>"
+            "title='Runs by itself when the data is more than 30 minutes old'>"
             "&#8635; Sync transcripts</button>"
+            # The reassurance itself. Without this the page could be an hour stale or five
+            # minutes stale and look identical, which is the actual problem - nobody should
+            # have to keep the tool open to trust what it is showing them.
+            f"<span class=fresh id=freshness data-age='{age if age is not None else -1}'></span>"
             "<span class=hint id=syncmsg style='font-size:12px'></span></div>")
     bar = head + youline + "<div class=kpis>" + "".join(tiles) + "</div>"
 
@@ -2988,6 +3045,32 @@ def saved_state():
     return dirty, ahead - dirty
 
 
+# When the transcript sync last actually ran, as an epoch second. SERVER-side on purpose: it
+# is a fact about the DATA, not about this browser. Two tabs, or a reload, must not disagree
+# about how fresh the transcripts are, and localStorage would give a per-browser answer to a
+# question about the repo.
+#
+# Written to a file so it survives a server restart - the whole point is to be able to say "the
+# data you are looking at is N minutes old", and a number that resets to "unknown" every time
+# the server bounces cannot say that.
+SYNC_STAMP = REPO / ".last-transcript-sync"
+
+
+def last_sync_age():
+    """Seconds since the transcript sync last ran, or None if it never has here."""
+    try:
+        return max(0, int(time.time() - float(SYNC_STAMP.read_text().strip())))
+    except Exception:                                          # noqa: BLE001
+        return None
+
+
+def note_sync():
+    try:
+        SYNC_STAMP.write_text(str(time.time()))
+    except OSError:
+        pass                        # a read-only checkout should not break the sync itself
+
+
 def git_fragments():
     """The parts of Save & Share that go stale the moment you click something.
 
@@ -3259,8 +3342,8 @@ def pr_page(force=False):
             "<a href='/prs?refresh=1' style='margin-left:auto;text-decoration:none' "
             "title='Also runs by itself once an hour while this page is open'>"
             "<button class=sec>&#8635; Refresh PRs</button></a></div>"
-            "<p class=sub style='margin:-14px 0 20px'>Refreshes by itself once an hour while "
-            "this tab is open.</p>"]
+            "<p class=sub style='margin:-14px 0 20px'>Refreshes by itself when it is more "
+            "than 30 minutes stale, and whenever you come back to this tab.</p>"]
     if err:
         body.append(f"<div class='bar bnr-done'>{html.escape(err)}</div>")
     if not prs and not err:
@@ -3637,13 +3720,24 @@ class H(BaseHTTPRequestHandler):
                 out = (r.stdout or "") + (r.stderr or "")
                 # The line is "added: 2 new | untouched (already present): 56 | ...", so take
                 # the first integer after the label - not the whole field, which is "2 new".
-                added = 0
+                added = updated = 0
                 m = re.search(r"^added:\s*(\d+)", out, re.M)
                 if m:
                     added = int(m.group(1))
+                # A sync can change nothing, add files, OR correct the Foundry-owned fields on
+                # files we already had - a thumbs-down arriving on something already reviewed
+                # is the case that matters, and it adds no files at all.
+                mu = re.search(r"\|\s*updated:\s*(\d+)", out)
+                if mu:
+                    updated = int(mu.group(1))
                 refresh_index()
+                if r.returncode == 0:
+                    note_sync()
                 return self._send(200, json.dumps({"ok": r.returncode == 0, "added": added,
-                                                   "output": out[-4000:]}), "application/json")
+                                                   "updated": updated,
+                                                   "output": out[-4000:],
+                                                   "age": last_sync_age()}),
+                                  "application/json")
             except Exception as e:
                 return self._send(200, json.dumps({"ok": False, "error": str(e)}),
                                   "application/json")
