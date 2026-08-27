@@ -921,7 +921,9 @@ details.saves>summary .chev{margin-left:auto}
 .saves td.swhen{white-space:nowrap;color:var(--forge-theme-text-medium);
 font-variant-numeric:tabular-nums;padding-right:12px;width:1%}
 .saves td.sstate{text-align:right;white-space:nowrap;width:1%}
-.saves .hint{margin-top:8px}
+/* DIRECT child only. As a descendant selector this also hit the hint inside <summary>,
+   pushing it 8px down so the count sat below the heading's baseline instead of on it. */
+.saves>.hint{margin-top:8px}
 /* Stage list for step 3. Each stage carries a STATE, because the useful information is not
    "here are four things" but "which of them is still owed, and which is not mine to do".
    Merge and Upload are deliberately shown as stages even though neither happens from this
@@ -2522,9 +2524,9 @@ def git_page():
       # WITH the reviews. Optional, too - step 2 saves first, so nobody is stuck by skipping
       # this.
       + step(1, "Save progress",
-             "A checkpoint on this machine you can go back to. Optional — sending them in "
-             "saves first anyway. Nothing is shared yet; if the laptop died now, the work "
-             "would go with it.",
+             "A checkpoint on this machine (local git commit) you can go back to. Optional — "
+             "sending them in saves first anyway. Nothing is shared yet; if the laptop died "
+             "now, the work would go with it.",
              # Empty by DEFAULT, not prefilled. A prefilled box asks to be read, edited and
              # worried about; an empty one labelled "optional" asks for nothing. Blank is
              # handled server-side by auto_commit_message().
@@ -2537,15 +2539,17 @@ def git_page():
              "</div>" + saves_html)
       + step(2, "Send them in — and on to Foundry",
              "The first point your work exists anywhere other than this laptop, and the step "
-             "that reaches the team. What follows depends on what you changed, so the stages "
-             "below say exactly what is still owed.",
+             "that reaches the team (PR into Repo). What follows depends on what you changed, "
+             "so the stages below say exactly what is still owed.",
              "<ol class=prog id=prog>"
              "<li data-stage=push class=wait><b>Upload to GitHub</b>"
-             "<span>your work, kept apart from everyone else's until it is checked</span></li>"
+             "<span>your work, kept apart from everyone else's until it is checked "
+             "(git push of your own branch)</span></li>"
              "<li data-stage=pr class=wait><b>Create the change request</b>"
-             "<span>someone checks it before it becomes official</span></li>"
+             "<span>someone checks it before it becomes official (a GitHub pull "
+             "request)</span></li>"
              "<li data-stage=merge class=wait><b>Merge</b>"
-             "<span>done by a reviewer, not from here</span></li>"
+             "<span>done by a reviewer, not from here (merged into main)</span></li>"
              + ("<li data-stage=foundry class='wait fdry'><b>Upload to Foundry</b>"
                 f"<span>{html.escape(', '.join(fdry))} &mdash; only after the merge, and "
                 "only with your say-so. Nothing reaches the live agents before then.</span>"
