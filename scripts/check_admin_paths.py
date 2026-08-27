@@ -58,7 +58,7 @@ EXPECTED = {
     r"^contributor-initial-prompt\.md$": "/contributor-initial-prompt.md",
     r"^contributor-update-prompt\.md$":  "/contributor-update-prompt.md",
     r"^contributor-prompting-guide\.md$": "/contributor-prompting-guide.md",
-    r"^RUNNING-WITHOUT-AI\.md$":          "/RUNNING-WITHOUT-AI.md",
+    r"^DAILY-WORKFLOW\.md$":          "/DAILY-WORKFLOW.md",
     r"^transcripts/README\.md$":         "/transcripts/README.md",
     r"^transcripts/ONBOARDING\.md$":     "/transcripts/ONBOARDING.md",
     r"^scripts/":                        "/scripts/",

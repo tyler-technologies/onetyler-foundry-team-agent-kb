@@ -1,11 +1,24 @@
-# Running this without an AI assistant
+# The daily workflow
 
 **Reviewing transcripts needs no assistant.** Start the tool, read conversations, write what
-the answer should have said, send it in. This page is the whole thing.
+the answer should have said, save, send it in. All buttons.
 
-You need an assistant for exactly one job, and it is at the end: turning your feedback into the
-right words in the right knowledge file. That is writing, and it is the part nobody has found a
-way to automate. Everything before and after it is a script or a button.
+**Updating the knowledge files does need one, and that is the actual goal.** A verdict is not
+the deliverable — the knowledge file that stops the agent repeating that answer is. Deciding
+which file, where in it, and how to word it so the retriever finds it is judgement and writing,
+and there is no button for it.
+
+So the split is:
+
+| | Who |
+|---|---|
+| Start the tool, review, save, send in | You. No assistant. |
+| **Update the knowledge files from your feedback** | **An assistant.** This is the job. |
+| Merge the change request | A reviewer, on GitHub. |
+| Upload to Foundry, close out the transcripts | You, one command each. |
+
+This page covers everything except the assistant step, which is one copy-and-paste — the Save &
+Publish page generates the prompt for you.
 
 ---
 
@@ -116,14 +129,19 @@ This reads GitHub team membership; it does not *add* anyone to a team. Adding so
 
 ---
 
-## What still needs an assistant
+## The assistant step, in detail
 
-Being straight about this, because a list of scripts can imply more coverage than exists:
+On **Save & Publish**, Part 2 begins with *Update the knowledge files*. It tells you how many
+reviewed transcripts are waiting on it and gives you a **Copy the prompt for my assistant**
+button. Paste that to your AI, and it will read all your feedback as one body, make the changes,
+and summarise them per transcript so you can follow your own feedback through.
 
-- **Turning feedback into knowledge-file changes.** The judgement call about *which* file, and
-  the writing that makes a retriever find it. This is the job.
-- **Changing the team router**, agent prompts, or anything in `team-config/`. Admin-only, high
-  blast radius, and it needs verifying by behaviour rather than by diff.
+Read the summary it gives you. That is where you find out whether it misunderstood you.
+
+Two other things still need an assistant, both admin-only and both rare:
+
+- **Changing the team router**, agent prompts, or anything in `team-config/`. High blast radius,
+  and it has to be verified by behaviour rather than by diff.
 - **New features in this tooling.**
 
 Everything else on this page is a double-click or one command.
