@@ -65,6 +65,7 @@ EXPECTED = {
     r"^\.github/":                       "/.github/",
     r"^\.gitignore$":                     "/.gitignore",
     r"^contributors\.json$":             "/contributors.json",
+    r"^agent-owners\.json$":             "/agent-owners.json",
 }
 
 

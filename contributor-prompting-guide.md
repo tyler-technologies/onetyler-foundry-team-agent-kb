@@ -152,6 +152,16 @@ the valuable bit. The AI works out the rest from what you wrote.
 If you are unsure whether an answer is right, say so in your note rather than guessing. A
 "not sure, but this looks off to me" is genuinely useful. A confident wrong verdict is not.
 
+**Your own rows are highlighted.** You do not have to hunt for them:
+
+- **Amber** with a *you* badge — somebody handed this one to you specifically.
+- **Blue** with a *your area* badge — it is one of the subjects you look after.
+- The **mine only** tickbox at the top hides everything else.
+
+If nothing is highlighted, the screen could not work out who you are — say **"the review screen
+isn't highlighting my rows"** and it will sort it out. Which subjects belong to whom is
+something an admin sets; ask if yours look wrong.
+
 **Three things on that screen worth knowing:**
 
 - **A good answer is one click.** If the chatbot got it right, change nothing and click
