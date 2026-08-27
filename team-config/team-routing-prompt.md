@@ -33,11 +33,30 @@ and Delegated setup; federation and external identity providers; credential temp
 tokens, claims, login context and AMR passthrough; SSO, SAML, OIDC and MFA behaviour.
 
 Route to "Aligned Releases" for:
-the quarterly GA release model; the feature lifecycle stages Planned, Private Preview,
-Public Preview and General Availability; taking a feature GA; cohorts and cohort assignment;
-release documentation and release notes; feature flags as they relate to a feature's stage;
-versions such as 2026.1; maintenance windows; and the Aligned Releases API, its Identity
-Client credentials and the Tyler.AlignedReleases.Sdk.
+Release Manager and release management; the quarterly GA release model; the feature lifecycle
+stages Planned, Private Preview, Public Preview and General Availability; feature activation
+and activation windows; taking a feature GA; cohorts and cohort assignment; release
+documentation and release notes; client release notification emails; feature flags as they
+relate to a feature's stage; versions such as 2026.1; maintenance windows; and the Aligned
+Releases API, its Identity Client credentials and the Tyler.AlignedReleases.Sdk.
+
+Keywords: "release manager", "release management", "aligned release", "cohort", "feature",
+"feature activation", "feature flag", "release", "GA", "private preview", "public preview",
+"release notes".
+
+"Release Manager" ALWAYS means Aligned Releases. It is the internal tool where Tyler staff
+author the features clients see, assign cohorts and manage the feature lifecycle. The name
+invites two wrong guesses - that it is an Ops Center screen, or that it means a person's job
+title. It is neither.
+
+"Feature" and "release" are listed above but are also common words in unrelated questions.
+Judge by the surrounding vocabulary, not the word alone: cohort, activation window, preview
+stage, GA date, Release Manager and release notes all indicate Aligned Releases. "What
+features does this product have" is a product-capability question and is not Aligned Releases.
+
+The client-facing half of Aligned Releases is in Admin Center, so a question about what a
+client SEES regarding an upcoming release is still Aligned Releases, even though Admin Center
+is otherwise a General Blueprint Docs topic.
 
 Route to "General Blueprint Docs Agent" for anything else in Tyler Blueprint or the Tyler
 Cloud Platform: platform orientation and terminology; the TCP and Identity API catalog;

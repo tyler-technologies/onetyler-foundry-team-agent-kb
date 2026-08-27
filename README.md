@@ -73,7 +73,7 @@ Route on the **user's intent**, not on incidental keyword matches. A question th
 | **Ops Center** | Org/workspace lifecycle, product licensing & activation, org import/create, CRM customer identifiers, Ops Center permissions & telemetry, environments & allow-listing, TCP webhooks, WM→WD migration | "Ops Center", org key, workspace, licensing, availability, product registration, CRM identifier, allow-list |
 | **Support Access Center** | Time-bound Tyler-staff access to customer installations, SAC groups, access request/approval/extension/revocation, SAC product integration (Security API + revoked webhook), access history & auditing | "SAC", "Support Access Center", support request, access approval, extend access, Support Council |
 | **Tyler Identity Assistant** | Identity Workforce/Community, Gateway, Workforce Direct/Managed/Delegated configuration, federation, credential templates, login & token flows | "Identity", "Gateway", Workforce Direct/Managed/Delegated, federation, IdP, OIDC, SSO |
-| **Aligned Releases** | Quarterly GA release model, feature lifecycle (Planned/Private Preview/Public Preview/GA), taking a feature GA, cohorts and cohort assignment, release documentation and notes, versions like 2026.1, maintenance windows, the Aligned Releases API and SDK | "aligned release", "cohort", "feature flag", "GA", "preview", "2026.1", release notes |
+| **Aligned Releases** | **Release Manager** (the internal tool for authoring client-facing features), quarterly GA release model, feature lifecycle (Planned/Private Preview/Public Preview/GA), taking a feature GA, cohorts and cohort assignment, feature activation windows, release documentation and notes, versions like 2026.1, maintenance windows, the Aligned Releases API and SDK, client release notification emails | **"release manager"**, **"release management"**, "aligned release", "cohort", "feature", "feature activation", "feature flag", "release", "GA", **"private preview"**, **"public preview"**, "2026.1", release notes |
 | **General Blueprint Docs Agent** | Everything else in Tyler Blueprint / TCP: platform orientation & glossary, client & ops applications, TCP/TID API catalog, service architecture, DevOps, platform security, Status Page & SLA | "Blueprint", `docs.tylerdev.io`, glossary/terminology, Admin Center, architecture, SLA |
 
 ### Routing rules
@@ -95,6 +95,31 @@ Route on the **user's intent**, not on incidental keyword matches. A question th
 4. **Aligned Releases vs Ops Center.** Aligned Releases refers to `productRegistrationId`
    and `workspaceKey` constantly but does not own them. "What is a product registration" →
    Ops Center. "Assign this workspace to cohort 3" → Aligned Releases.
+
+   **"Release Manager" is ALWAYS Aligned Releases.** It is the internal tool where Tyler staff
+   author the features clients see, assign cohorts, and manage the feature lifecycle. The name
+   invites two wrong guesses — that it is an Ops Center screen, or that "release manager" means
+   a person's job title. Neither. Any question naming it, however phrased, goes to Aligned
+   Releases. Same for "release management".
+
+   Note the client-facing half lives in **Admin Center**, so a question about *what a client
+   sees* about an upcoming release is still Aligned Releases even though Admin Center is
+   normally a BP-General topic. Release Manager is internal; Admin Center is where clients see
+   the result.
+
+4a. **Disambiguating the broad keywords: "feature" and "release".** Both are Aligned Releases
+   triggers and both appear constantly in unrelated questions, so use the sense, not the word:
+
+   | Ask | Route |
+   |---|---|
+   | "What features does Ops Center have?" / "does this product support X?" | **not** Aligned Releases — product capability, so Ops Center or BP-General |
+   | "How do I add a feature / take a feature GA / put it in public preview?" | Aligned Releases |
+   | "When is the next release / which cohort activates when?" | Aligned Releases |
+   | "How do I release my product to a new customer?" (licensing/activation) | Ops Center |
+
+   The tell for Aligned Releases is the **release-train vocabulary** around the word —
+   cohort, activation window, preview stage, GA date, Release Manager, release notes. Bare
+   "feature" or "release" with none of that is usually somebody else's question.
 5. **Ops Center vs Identity.** Ops Center covers what an operator *does in the Ops Center
    UI* (including retargeting a workspace's gateway). Identity covers how the identity
    system itself is configured and how tokens/federation work.
