@@ -27,10 +27,15 @@ REPO = Path(__file__).resolve().parent.parent
 OUT = REPO / "transcripts"
 
 AGENTS = {
-    "ops-center": "5b3efdff-921a-4131-be81-b7a4be427d9b",
-    "bp-general": "bd1c5d91-8234-486e-9f5a-2f1b7a947426",
-    "sac":        "55444576-1fa3-4d12-a738-6ba83b17e6a7",
-    "identity":   "3f5e586f-0d0f-4638-9839-bebe45a6cb47",
+    "ops-center":       "5b3efdff-921a-4131-be81-b7a4be427d9b",
+    "bp-general":       "bd1c5d91-8234-486e-9f5a-2f1b7a947426",
+    "sac":              "55444576-1fa3-4d12-a738-6ba83b17e6a7",
+    "identity":         "3f5e586f-0d0f-4638-9839-bebe45a6cb47",
+    # Added 2026-08-27. It had been missing since the agent was created on 2026-08-23, so no
+    # Aligned Releases conversation had EVER been pulled - and the failure was silent, because
+    # a missing agent looks exactly like an agent nobody has talked to. It surfaced only when
+    # that corpus got an owner and his review queue was inexplicably empty. See check_agents().
+    "aligned-releases": "b0544224-b120-469a-8f39-c4a7b14c17c0",
 }
 TEAM_ID = "e92bd437-cb84-4e18-88e6-757370b39c90"
 
@@ -87,6 +92,35 @@ SAMPLE_PROMPTS = {
     "What token types does Tyler Identity support?",
     "How does MFA work in Tyler Identity?",
 }
+
+
+def check_agents():
+    """Warn if the team has a sub-agent this script does not fetch.
+
+    The dict above is hand-maintained, and the cost of it going stale is invisible: an agent
+    absent from AGENTS produces no error, no zero-row line, nothing - its conversations simply
+    never exist. That happened for four days with Aligned Releases. This turns a silent gap
+    into a printed warning by asking the team which agents it actually has.
+    """
+    team = api(f"/api/teams/{TEAM_ID}") or {}
+    team = team.get("team", team)
+    ids = set(team.get("agent_ids") or [])
+    if not ids:
+        return
+    unknown = ids - set(AGENTS.values())
+    if unknown:
+        names = {}
+        for aid in unknown:
+            a = api(f"/api/configurable-agents/{aid}") or {}
+            names[aid] = a.get("name") or a.get("agent", {}).get("name") or "?"
+        print("WARNING: the team has agent(s) this script does not fetch — their "
+              "conversations are being missed entirely:", file=sys.stderr)
+        for aid, nm in sorted(names.items(), key=lambda x: x[1]):
+            print(f"  {nm}  {aid}   <- add to AGENTS in this file", file=sys.stderr)
+    stale = set(AGENTS.values()) - ids
+    if stale:
+        print(f"note: {len(stale)} agent id(s) in AGENTS are not on the team any more "
+              "(recreated or removed?)", file=sys.stderr)
 
 
 def live_sample_prompts():
@@ -294,6 +328,8 @@ def main():
 
     if not KEY:
         sys.exit("FOUNDRY_API_KEY is not set. Source your env file first.")
+
+    check_agents()
 
     # Prefer the live chips over the hardcoded list — see live_sample_prompts().
     global SAMPLE_NORM

@@ -14,7 +14,7 @@ Stdlib only — no pip install, no build step. Binds to loopback only.
 Everything it writes lands in transcripts/*.md. Commit and open a PR as normal,
 or use the Git panel in the UI.
 """
-import argparse, html, json, re, subprocess, sys, webbrowser
+import argparse, html, json, os, re, subprocess, sys, webbrowser
 from collections import Counter
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -38,6 +38,58 @@ def contributors():
         return [c["github"] for c in d.get("contributors", []) if c.get("github")]
     except Exception:
         return []
+
+
+def contributor_map():
+    """Full contributor records by github login, for avatars and display names."""
+    try:
+        d = json.loads(CONTRIB.read_text(encoding="utf-8"))
+        return {c["github"]: c for c in d.get("contributors", []) if c.get("github")}
+    except Exception:
+        return {}
+
+
+def avatar(login, size=22):
+    """A round avatar for a github login: Gravatar when they have one, GitHub otherwise.
+
+    Two sources, in that order, because neither covers everyone:
+      - Gravatar needs an email, and most GitHub emails are private (2 of 3 here).
+      - GitHub's avatar needs only the numeric id, which is always known.
+
+    `d=404` makes Gravatar 404 rather than serving its generic fallback, which is what lets
+    the `onerror` hand off to GitHub instead of silently showing a default for someone who
+    does have a real GitHub picture. Initials are the last resort so a row is never blank.
+
+    NOTE: these are remote images, so the browser fetches gravatar.com /
+    avatars.githubusercontent.com. Nothing about the transcripts leaves the machine - the
+    request carries only an avatar hash or a public user id - but this page is not fully
+    offline while avatars are on. Start with --no-avatars to keep it strictly local.
+    """
+    if not login:
+        return ""
+    ini = html.escape(login[:2].upper())
+    box = (f"width:{size}px;height:{size}px;border-radius:50%;flex:0 0 auto;"
+           f"vertical-align:middle;object-fit:cover")
+    fallback = (f"<span class=av style=\"{box};display:inline-flex;align-items:center;"
+                f"justify-content:center;background:#d8dbe0;color:#41474e;"
+                f"font-size:{max(8, size // 2 - 2)}px;font-weight:600\">{ini}</span>")
+    if NO_AVATARS:
+        return fallback
+    c = contributor_map().get(login) or {}
+    gid, gh_hash = c.get("gh_id"), c.get("gravatar")
+    urls = []
+    if gh_hash:
+        urls.append(f"https://www.gravatar.com/avatar/{gh_hash}?s={size * 2}&d=404")
+    if gid:
+        urls.append(f"https://avatars.githubusercontent.com/u/{gid}?s={size * 2}&v=4")
+    if not urls:
+        return fallback
+    # Chain the sources through onerror so a dead first choice degrades instead of breaking.
+    nxt = urls[1] if len(urls) > 1 else ""
+    onerr = (f"this.onerror=null;this.src='{nxt}'" if nxt
+             else "this.onerror=null;this.style.display='none'")
+    return (f"<img class=av src=\"{urls[0]}\" alt=\"\" loading=lazy "
+            f"title=\"{html.escape(login)}\" style=\"{box}\" onerror=\"{onerr}\">")
 
 
 OWNERS = REPO / "agent-owners.json"
@@ -131,6 +183,9 @@ def git_cmd(*args):
 
 
 ME = None          # resolved once at startup; see main()
+# Avatars are the one thing on this page that talks to the internet. Off-switch provided
+# so "loopback-only, nothing leaves the machine" stays literally true when it matters.
+NO_AVATARS = False
 
 # Ordered so rewritten frontmatter keeps a stable, diff-friendly shape.
 SOURCE_KEYS = ["conversation_id", "answered_by", "date", "exchanges",
@@ -642,6 +697,10 @@ input.bigsearch:focus{outline:2px solid var(--forge-theme-primary);outline-offse
    pass every check. `excluded` is deliberately neutral grey - not a categorical slot. */
 .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(126px,1fr));
 gap:10px;margin-bottom:var(--forge-spacing-medium)}
+.kpi[title]{cursor:help}
+.who{display:inline-flex;align-items:center;gap:7px}
+.whocell{display:inline-flex;align-items:center;gap:6px}
+.whocell .av+.av{margin-left:-7px;box-shadow:0 0 0 2px var(--forge-theme-surface)}
 .kpi{background:var(--forge-theme-surface);border:1px solid var(--forge-theme-outline);
 border-radius:4px;padding:12px 14px;box-shadow:0 1px 2px rgba(0,0,0,.06);
 border-top:3px solid var(--kc,var(--forge-theme-outline-low))}
@@ -936,13 +995,15 @@ document.addEventListener('click',e=>{
 document.addEventListener('keydown',e=>{if(e.key==='Escape')fpopAll().forEach(o=>o.hidden=true)});
 
 const FKEYS=['agent','ex','fb','status','awaiting','routing','answer','diag','fix'];
+const FKEY_STORE='tfilters:'+(document.body.dataset.defaultMine==='1'?'mine':'all');
 function fstate(){const g=i=>{const e=document.getElementById(i);return e?e.value:''};
 const o={q:g('f_q'),dfrom:g('dfrom'),dto:g('dto')};
 FKEYS.forEach(k=>o[k]=g('f_'+k));return o}
 function applyFilters(){const f=fstate();let n=0;
-const mineOnly=(document.getElementById('f_mine')||{}).checked;
+// The server already removed everyone else's rows on the My Transcripts view, so there is no
+// row-level mine test left to do here. This flag only picks the right empty-state wording.
+const mineOnly=document.body.dataset.defaultMine==='1';
 document.querySelectorAll('tr.row').forEach(tr=>{let ok=true;
- if(mineOnly && !tr.dataset.mine) ok=false;
  if(f.q && !tr.dataset.q.includes(f.q.toLowerCase())) ok=false;
  FKEYS.forEach(k=>{const want=f[k]; if(!want) return;
   const have=tr.dataset[k]||'';
@@ -966,11 +1027,11 @@ if(es&&em){
    const others=(f.q||f.dfrom||f.dto||FKEYS.some(k=>f[k]&&f[k]!=='__open__'));
    if(mineOnly&&!others){
      em.textContent='There is nothing that is yours to review.';
-     ea.innerHTML='<a href="/?all=1">Click on All transcripts to see all transcripts.</a>';
+     ea.innerHTML='<a href="/?all=1">Click on All Transcripts to see all transcripts.</a>';
    } else if(mineOnly){
      em.textContent='Nothing of yours matches these filters.';
      ea.innerHTML='<button class=sec onclick="clearFilters()">Clear the filters</button>'
-       +' &nbsp;<a href="/?all=1">or see all transcripts</a>';
+       +' &nbsp;<a href="/?all=1">or see All Transcripts</a>';
    } else {
      em.textContent='No transcripts match these filters.';
      ea.innerHTML='<button class=sec onclick="clearFilters()">Clear the filters</button>';
@@ -978,22 +1039,33 @@ if(es&&em){
    if(tb) tb.style.display='none';
  } else { es.style.display='none'; if(tb) tb.style.display=''; }
 }
-try{sessionStorage.setItem('tfilters',JSON.stringify(f))}catch(e){}
+try{sessionStorage.setItem(FKEY_STORE,JSON.stringify(f))}catch(e){}
 if(window.ckSync)ckSync(); if(window.fpopMarks)fpopMarks();}
+// Sync pulls new conversations from Foundry. Long-running (it walks every agent), so the
+// button reports progress rather than appearing dead, and the page only reloads on success -
+// a failure that reloaded away its own error message would be untraceable.
+function syncNow(){const b=document.getElementById('syncbtn'),m=document.getElementById('syncmsg');
+ if(!b||b.disabled)return; b.disabled=true; b.textContent='Syncing\u2026';
+ m.textContent='pulling from Foundry, this can take a minute';
+ fetch('/sync',{method:'POST'}).then(r=>r.json()).then(d=>{
+  if(d.ok){m.textContent=d.added?('added '+d.added+' new \u2014 reloading'):'no new transcripts';
+   if(d.added){location.reload();return}
+   b.disabled=false;b.innerHTML='\u21bb Sync transcripts';
+  } else {m.innerHTML='<span style="color:#a11">sync failed: '
+    +(d.error||'see the terminal for details').replace(/</g,'&lt;')+'</span>';
+   b.disabled=false;b.innerHTML='\u21bb Sync transcripts';}
+ }).catch(e=>{m.innerHTML='<span style="color:#a11">sync failed: '+e+'</span>';
+  b.disabled=false;b.innerHTML='\u21bb Sync transcripts';});}
 function clearFilters(){['f_q','dfrom','dto'].forEach(i=>{const e=document.getElementById(i);if(e)e.value=''});
 FKEYS.forEach(k=>{const e=document.getElementById('f_'+k);if(e)e.value=''});
 applyFilters()}
 function initFilters(){let saved=null;
-try{saved=JSON.parse(sessionStorage.getItem('tfilters'))}catch(e){}
+try{saved=JSON.parse(sessionStorage.getItem(FKEY_STORE))}catch(e){}
 const set=(id,v)=>{const e=document.getElementById(id); if(e&&v) e.value=v};
 if(saved){set('f_q',saved.q);set('dfrom',saved.dfrom);set('dto',saved.dto);
  FKEYS.forEach(k=>set('f_'+k,saved[k]));}
 else{set('f_status','__open__');}  // default view: everything still open (pending + suggested)
-// Mine is the default landing view. The server sets data-default-mine on <body>; honour it
-// unless the reviewer has already chosen otherwise in this browser session.
-if(!saved){const dm=document.body.dataset.defaultMine==='1';
- const c=document.getElementById('f_mine'); if(c&&dm){c.checked=true}}
-['f_q','dfrom','dto','f_mine'].concat(FKEYS.map(k=>'f_'+k)).forEach(id=>{
+['f_q','dfrom','dto'].concat(FKEYS.map(k=>'f_'+k)).forEach(id=>{
  const e=document.getElementById(id); if(!e)return;
  e.addEventListener((e.tagName==='SELECT'||e.type==='date'||e.type==='checkbox')?'change':'input',applyFilters)});
 applyFilters()}
@@ -1045,15 +1117,15 @@ def page(title, inner, active="", all_view=False):
         return (f"<a href=\"{href}\"{on}><span class=ic>{icon}</span>"
                 f"<span>{label}</span>{badge}</a>")
 
-    who = (f"<span class=who>{html.escape(ME)}</span>" if ME
+    who = (f"<span class=who>{avatar(ME, 24)}<span>{html.escape(ME)}</span></span>" if ME
            else "<span class=who>not identified</span>")
     side = (
         "<nav class=side>"
         "<div class=grp>Review</div>"
-        + (item("/", "&#9873;", "Mine", mine_n or None, "mine") if ME else "")
-        + item("/?all=1", "&#9776;", "All transcripts", open_n or None, "all")
+        + (item("/", "&#9873;", "My Transcripts", mine_n or None, "mine") if ME else "")
+        + item("/?all=1", "&#9776;", "All Transcripts", open_n or None, "all")
         + "<div class=grp>Publish</div>"
-        + item("/git", "&#8593;", "Save &amp; share", uncommitted or None, "git")
+        + item("/git", "&#8593;", "Save &amp; Share", uncommitted or None, "git")
         + "</nav>")
     return f"""<!doctype html><meta charset=utf-8><title>{html.escape(title)}</title>
 <meta name=viewport content="width=device-width,initial-scale=1">
@@ -1065,14 +1137,12 @@ def page(title, inner, active="", all_view=False):
 
 
 def list_page(show_all=False):
-    recs, counts = [], Counter()
+    recs = []
     for f in tfiles():
         fm, body = parse(f)
         if fm is None:
             continue
         st = fm.get("review_status", "pending") or "pending"
-        counts[st] += 1
-        counts["total"] += 1
         deleg = fm.get("delegated_to", "")
         recs.append({
             "rel": f.relative_to(TDIR).as_posix(),
@@ -1120,6 +1190,21 @@ def list_page(show_all=False):
         # Collapsing them would hide the difference between "waiting on me" and "my patch".
         r["mine_awaiting"] = bool(ME and r["awaiting"] == ME)
         r["mine_area"] = bool(ME and ME in owners and not r["mine_awaiting"])
+
+    # My Transcripts is a HARD filter, applied here rather than by a checkbox in the browser.
+    # The nav item IS the filter: two views that differ only by a tickbox you have to find are
+    # two views that look identical, which is exactly how this read before. So under My
+    # Transcripts the other rows are not present at all - clearing the column filters widens
+    # the view within your own rows and never reveals someone else's.
+    mine_only = bool(ME) and not show_all
+    total_all = len(recs)
+    if mine_only:
+        recs = [r for r in recs if r["mine_awaiting"] or r["mine_area"]]
+
+    counts = Counter()
+    for r in recs:
+        counts[r["status"]] += 1
+        counts["total"] += 1
 
     # newest first — reviewers work the recent tail
     recs.sort(key=lambda r: (r["date"], r["rel"]), reverse=True)
@@ -1169,7 +1254,9 @@ def list_page(show_all=False):
 
     tot = counts["total"]
     excl = counts["excluded"]
-    done = counts["reviewed"]
+    # "Reviewed" here means "a human has ruled on it" - which a closed-out transcript also
+    # satisfies. Counting only `reviewed` made a fully-processed queue read as 0% done.
+    done = counts["reviewed"] + counts["pushed"]
     scope = tot - excl
     pct = (100 * done // scope) if scope else 0
     mine_a = sum(1 for r in recs if r["mine_awaiting"])
@@ -1225,28 +1312,60 @@ def list_page(show_all=False):
                 "<button type=button onclick='fpopUpdate(this)'>Update</button>"
                 "</div></div></th>")
 
-    def kpi(label, value, colour=None, span=False, meter=None):
+    def kpi(label, value, colour=None, span=False, meter=None, why=""):
         style = f" style='--kc:{colour}'" if colour else ""
         cls = "kpi progress" if span else "kpi"
         bar = (f"<div class=meter><i style='width:{meter}%'></i></div>"
                if meter is not None else "")
-        return (f"<div class='{cls}'{style}><div class=v>{value}</div>"
+        tip = f" title=\"{html.escape(why)}\"" if why else ""
+        return (f"<div class='{cls}'{style}{tip}><div class=v>{value}</div>"
                 f"<div class=l>{label}</div>{bar}</div>")
 
     # Lifecycle states only, in lifecycle order. Ownership is deliberately absent - see the
     # CSS comment. No links on any tile.
-    tiles = [kpi("Reviewed of in-scope", f"{done}/{scope}", "#2e7d32", span=True, meter=pct)]
+    # The progress tile is deliberately wider than the rest: it is the only one carrying a
+    # bar, and a 2px-tall bar in a 150px tile is unreadable. It spans two columns to earn the
+    # bar its width. When there is nothing in scope there is no progress to draw, so it drops
+    # to a plain tile rather than rendering an empty trough.
+    tiles = [kpi("Reviewed of in-scope" + (" (yours)" if mine_only else ""),
+                 f"{done}/{scope}", "#2e7d32", span=bool(scope),
+                 meter=pct if scope else None,
+                 why=("Of the transcripts in this view that are in scope, how many carry a "
+                      "human verdict. In scope means everything except pre-go-live testing. "
+                      "Wider than the other tiles because it is the only one with a bar."
+                      + (" This view is filtered to your rows only." if mine_only else "")))]
     if counts["pending"]:
-        tiles.append(kpi("Pending", counts["pending"], "#d14900"))
+        tiles.append(kpi("Awaiting review", counts["pending"], "#d14900",
+                         why="Nobody has looked at these yet."))
     if counts["suggested"]:
-        tiles.append(kpi("Suggested", counts["suggested"], "#5b3ba8"))
+        tiles.append(kpi("Suggested", counts["suggested"], "#5b3ba8",
+                         why="Someone worked these up but left the decision to the area "
+                             "owner. Not yet a verdict."))
     if counts["reviewed"]:
-        tiles.append(kpi("Awaiting processing", counts["reviewed"], "#2e7d32"))
+        tiles.append(kpi("Reviewed, not yet actioned", counts["reviewed"], "#2e7d32",
+                         why="A human verdict is recorded and Claude has not yet processed "
+                             "it. This is the queue work comes from."))
     if counts["pushed"]:
-        tiles.append(kpi("Live in Foundry", counts["pushed"], "#1565c0"))
-    tiles.append(kpi("Excluded (pre-go-live)", excl))
-    tiles.append(kpi("Transcripts", tot))
-    bar = youline + "<div class=kpis>" + "".join(tiles) + "</div>"
+        # "Live in Foundry" read as though the TRANSCRIPTS were in Foundry. They are not - the
+        # knowledge-file changes they caused are. Renamed to describe the transcript's own
+        # state, with the Foundry part explained in the tooltip.
+        tiles.append(kpi("Closed out", counts["pushed"], "#1565c0",
+                         why="Fully done: reviewed, processed, and any resulting knowledge "
+                             "change is live in Foundry and verified. Nothing further owed."))
+    tiles.append(kpi("Excluded", excl,
+                     why="Pre-go-live internal testing - conversations from before the chatbot "
+                         "shipped on 2026-08-19. Not real user feedback, so out of scope."))
+    tiles.append(kpi("Transcripts", tot, why="Every conversation collected, in scope or not."))
+    # Sync sits at the top of both list views: it is the first thing you want when you sit
+    # down, and burying it behind the terminal defeats the point of a UI.
+    title = "My Transcripts" if (ME and not show_all) else "All Transcripts"
+    head = ("<div style='display:flex;align-items:center;gap:12px;flex-wrap:wrap;"
+            "margin-bottom:var(--forge-spacing-medium)'>"
+            f"<h2 class=sec style='margin:0'>{title}</h2>"
+            "<button class=sec id=syncbtn onclick='syncNow()' style='margin-left:auto'>"
+            "&#8635; Sync transcripts</button>"
+            "<span class=hint id=syncmsg style='font-size:12px'></span></div>")
+    bar = head + youline + "<div class=kpis>" + "".join(tiles) + "</div>"
 
     # Search and the narrowing controls on ONE row. Previously the search field, its helper
     # paragraph, the date/mine/clear bar and the count line were four stacked blocks before
@@ -1257,11 +1376,11 @@ def list_page(show_all=False):
               "<span class=mag>&#128269;</span>"
               "<input class=bigsearch id=f_q placeholder='Search question or filename&hellip;'>"
               "</div>"
-              "<label style='display:inline-flex;align-items:center;gap:5px;font-size:13px;"
-              "text-transform:none;letter-spacing:0;font-weight:400;margin:0;white-space:nowrap'>"
-              "<input type=checkbox id=f_mine style='width:auto;margin:0'>Only mine</label>"
               "<button class=sec onclick='clearFilters()'>Clear</button></div>"
-              f"<p class=shown><b id=shown>0</b> of {tot} shown</p>")
+              f"<p class=shown><b id=shown>0</b> of {tot} shown"
+              + (f" &middot; <span class=hint>{total_all - tot} other row(s) hidden &mdash; "
+                 "this view is only yours</span>" if mine_only and total_all > tot else "")
+              + "</p>")
 
 
     bulkbar = ("<div class=bar id=bulkbar style='display:none'>"
@@ -1317,11 +1436,13 @@ def awaiting_cell(r):
     """
     if r["awaiting"]:
         badge = " <span class='pill mineflag'>you</span>" if r["mine_awaiting"] else ""
-        return f"<b>{html.escape(r['awaiting'])}</b>{badge}"
+        return (f"<span class=whocell>{avatar(r['awaiting'], 20)}"
+                f"<b>{html.escape(r['awaiting'])}</b></span>{badge}")
     if r["owners"]:
-        who = ", ".join(r["owners"])
+        faces = "".join(avatar(o, 20) for o in r["owners"])
         tag = " <span class='pill mineflag'>your area</span>" if r["mine_area"] else ""
-        return f"<span class=owner>{html.escape(who)}</span>{tag}"
+        return (f"<span class=whocell>{faces}"
+                f"<span class=owner>{html.escape(', '.join(r['owners']))}</span></span>{tag}")
     return "<span class=owner>—</span>"
 
 
@@ -1481,7 +1602,7 @@ def git_page():
             "review something on <b>All transcripts</b> first.</div>"
 
     body = (
-      f"<h2 class=sec>Save &amp; share your reviews</h2>"
+      f"<h2 class=sec>Save &amp; Share your reviews</h2>"
       f"<div class=bar>{state}<br><span class=hint>You are working on "
       f"<b>{html.escape(branch)}</b>." + (" That is the shared copy, so step 1 will move you "
       "onto your own copy first." if on_main else "") + "</span></div>"
@@ -1525,7 +1646,7 @@ def git_page():
       "<li>Suggestions handed to someone else need sending in too; that is how they reach them.</li>"
       "<li>Only step 3 shares anything.</li>"
       "</ul></div>")
-    return page("Save & share", body, active="git")
+    return page("Save & Share", body, active="git")
 
 
 # ---------------------------------------------------------------- server
@@ -1616,6 +1737,30 @@ class H(BaseHTTPRequestHandler):
             except Exception as e:
                 return self._send(200, json.dumps({"ok": False, "error": str(e)}),
                                   "application/json")
+        if self.path == "/sync":
+            # Pull new conversations from Foundry. Read-only against Foundry; it only ever
+            # ADDS transcript files and never overwrites an existing one, so a stray click
+            # cannot lose review work.
+            try:
+                if not os.environ.get("FOUNDRY_API_KEY"):
+                    raise ValueError("FOUNDRY_API_KEY is not set in the environment this "
+                                     "server was started from — start it from a shell where "
+                                     "the key is available, then try again")
+                r = subprocess.run([sys.executable, str(REPO / "scripts" / "fetch_transcripts.py")],
+                                   cwd=REPO, capture_output=True, text=True, timeout=600)
+                out = (r.stdout or "") + (r.stderr or "")
+                # The line is "added: 2 new | untouched (already present): 56 | ...", so take
+                # the first integer after the label - not the whole field, which is "2 new".
+                added = 0
+                m = re.search(r"^added:\s*(\d+)", out, re.M)
+                if m:
+                    added = int(m.group(1))
+                refresh_index()
+                return self._send(200, json.dumps({"ok": r.returncode == 0, "added": added,
+                                                   "output": out[-4000:]}), "application/json")
+            except Exception as e:
+                return self._send(200, json.dumps({"ok": False, "error": str(e)}),
+                                  "application/json")
         if self.path == "/bulk":
             # Mark several transcripts reviewed at once. For a batch of thumbs-up
             # conversations that need no correction, one-at-a-time is pure friction.
@@ -1703,7 +1848,12 @@ def main():
     ap.add_argument("--me", help="your GitHub username, for highlighting your own rows; "
                                  "defaults to whatever `gh api user` reports")
     ap.add_argument("--no-browser", action="store_true")
+    ap.add_argument("--no-avatars", action="store_true",
+                    help="draw initials instead of fetching faces from gravatar.com / "
+                         "github.com — keeps the page fully offline")
     a = ap.parse_args()
+    global NO_AVATARS
+    NO_AVATARS = a.no_avatars
     ME = whoami(a.me)
     known = contributors()
     if ME and known and ME not in known:

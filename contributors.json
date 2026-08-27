@@ -22,19 +22,25 @@
       "github": "jayexprs",
       "name": "Jay McCormick",
       "role": "reviewer",
-      "team": "onetyler-tcp-pm-contributors"
+      "team": "onetyler-tcp-pm-contributors",
+      "gravatar": "17efc457e3909f414158aa57e9402f50",
+      "gh_id": 70276450
     },
     {
       "github": "jon-olson-tylertech",
       "name": "Jon Olson",
       "role": "reviewer",
-      "team": "onetyler-tcp-pm-contributors"
+      "team": "onetyler-tcp-pm-contributors",
+      "gravatar": "",
+      "gh_id": 130397687
     },
     {
       "github": "vijay-tylertech",
       "name": "Vijay Venkataraman",
       "role": "maintainer",
-      "team": "onetyler-tcp-pm-admins"
+      "team": "onetyler-tcp-pm-admins",
+      "gravatar": "",
+      "gh_id": 79479729
     }
   ]
 }

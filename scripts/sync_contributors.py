@@ -15,7 +15,7 @@ Requires the `gh` CLI authenticated with an account that can read org team membe
 A team that does not exist yet is skipped with a warning rather than treated as empty —
 otherwise a transient 404 would silently wipe every reviewer from the file.
 """
-import argparse, json, subprocess, sys
+import argparse, hashlib, json, subprocess, sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
@@ -46,6 +46,17 @@ COMMENT = [
     "commit the result. Do not add an entry by hand - it would be overwritten, and it would",
     "not give them repo access anyway.",
 ]
+
+
+def gravatar_hash(email):
+    """Gravatar's identifier: md5 of the trimmed, lower-cased address. '' when unknown.
+
+    md5 here is Gravatar's published scheme, not a security choice - it is an addressing
+    function, and nothing is being protected by it.
+    """
+    if not email:
+        return ""
+    return hashlib.md5(email.strip().lower().encode("utf-8")).hexdigest()
 
 
 def gh(path):
@@ -82,6 +93,19 @@ def collect():
                 "name": u.get("name") or login,
                 "role": role,
                 "team": team,
+                # Avatar identity, cached here so the review UI never has to call GitHub.
+                #
+                # We store the Gravatar HASH, not the address it came from. The hash is all
+                # Gravatar needs, and this file is committed - putting a colleague's personal
+                # email address into a git history that cannot be rewritten is a disclosure
+                # nobody asked for, and it would still be there after they left the team.
+                #
+                # `gh_id` is the fallback, and the reason there is one: most GitHub emails are
+                # private. Measured 2026-08-27, 2 of 3 contributors returned `email: null`, so
+                # Gravatar alone would have left the majority with no avatar. The numeric id
+                # is always present and drives avatars.githubusercontent.com.
+                "gravatar": gravatar_hash(u.get("email")),
+                "gh_id": u.get("id"),
             }
     return [people[k] for k in sorted(people)], missing
 
