@@ -11,6 +11,31 @@ this file to pick a sub-agent; the sub-agent reads its own `_START_HERE.md` to p
 
 ---
 
+## Running the review tool
+
+**No AI assistant needed for this.** Reviewing transcripts is a double-click.
+
+| | |
+|---|---|
+| **macOS** | double-click **`Start-reviewing.command`** |
+| **Windows** | double-click **`Start-reviewing.bat`** |
+| **Any terminal** | `python3 scripts/start.py`  (Windows: `python scripts\start.py`) |
+
+It brings the repo up to date, pulls new conversations from Foundry, starts the review UI on
+**http://127.0.0.1:7777** and opens your browser. Leave the window open while you review;
+Ctrl-C stops it.
+
+Loopback only — the address works on your machine and nowhere else.
+
+- If 7777 is taken, add `--port 7778`.
+- If `FOUNDRY_API_KEY` is not set it skips the fetch and you review what is already here.
+- **It never discards your work.** With unsaved reviews it leaves the branch alone and says so.
+
+Full walkthrough, including what to do after you send reviews in and the admin-only Foundry
+steps: [`RUNNING-WITHOUT-AI.md`](RUNNING-WITHOUT-AI.md).
+
+---
+
 ## New here?
 
 | You are | Start with |
