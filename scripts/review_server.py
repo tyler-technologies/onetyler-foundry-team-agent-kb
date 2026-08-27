@@ -1652,7 +1652,7 @@ def page(title, inner, active="", all_view=False):
         # because with no `me` there is no "mine" to fall back to and an empty app is worse.
         + (item("/?all=1", "&#9776;", "All Transcripts", open_n or None, "all")
            if (is_admin() or not ME) else "")
-        + "<div class=grp>Publish</div>"
+        + "<div class=grp>Save &amp; Publish</div>"
         + item("/git", "&#8593;", "Save &amp; Share", uncommitted or None, "git")
         + "</nav>")
     return f"""<!doctype html><meta charset=utf-8><title>{html.escape(title)}</title>
