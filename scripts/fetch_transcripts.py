@@ -16,7 +16,7 @@ Usage:
     python3 scripts/fetch_transcripts.py --start 06/01/2026
     python3 scripts/fetch_transcripts.py --dry-run
 """
-import argparse, json, os, re, subprocess, sys
+import argparse, html, json, os, re, subprocess, sys
 from pathlib import Path
 from golive import GO_LIVE, EXCLUDE_NOTE, is_pre_go_live
 
@@ -153,7 +153,7 @@ SAMPLE_NORM = {norm(p) for p in SAMPLE_PROMPTS}   # replaced with the live set i
 
 def keep_exchange(e):
     """Keep only real user turns: a genuine prompt AND a response, not a canned chip."""
-    q = (e.get("question") or "").strip()
+    q = unescape_question(e.get("question")).strip()
     r = (e.get("response") or "").strip()
     if not q or not r:
         return False
@@ -240,6 +240,24 @@ def team_delegation():
     return out
 
 
+def unescape_question(q):
+    """Undo HTML-entity escaping that FOUNDRY applied to a user's question.
+
+    Foundry stores some questions HTML-escaped - measured 2026-08-27, conversation
+    96879dc0 holds `Federation &amp; SSO` where the user's actual words were
+    `Federation & SSO`. The review UI then escapes it again on render, so the column
+    reads `Federation &amp; SSO` on screen: a double-escape whose visible symptom looks
+    like a bug in our own template.
+
+    Scoped to QUESTIONS on purpose. Responses are left byte-exact: an agent answer can
+    legitimately contain `&lt;tag&gt;` as escaped example code, and unescaping that would
+    turn documentation into markup and silently change what the answer said. Verified the
+    same day that no response in the corpus carries an entity, so there is nothing to gain
+    there and something to lose.
+    """
+    return html.unescape(q or "")
+
+
 def scrub(text):
     t = text or ""
     for pat, repl in REDACTIONS:
@@ -307,7 +325,7 @@ def render(slug, meta, data, deleg=None):
             L += [f"**Tools called:** {', '.join(tools) if tools else '_none — answered without searching_'}", ""]
         else:
             L += ["**Tools called:** _not recorded for team conversations — see Delegation above_", ""]
-        L += ["**Q:**", "", "> " + scrub(e.get("question") or "").replace("\n", "\n> "), ""]
+        L += ["**Q:**", "", "> " + scrub(unescape_question(e.get("question"))).replace("\n", "\n> "), ""]
         L += ["**A:**", "", "```markdown", scrub(e.get("response") or ""), "```", ""]
         L += [f"<!-- review:{i} -->",
               "**Review —** _verdict:_ · _should have said:_", "",

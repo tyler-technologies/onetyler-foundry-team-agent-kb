@@ -85,6 +85,9 @@ jobs:
       - name: Review UI JavaScript parses
         run: python3 scripts/check_ui_js.py
 
+      - name: Review UI contrast holds in light and dark
+        run: python3 scripts/check_contrast.py
+
       - name: No two first-reviews of the same transcript
         run: python3 scripts/validate_reviews.py --base "origin/${{ github.base_ref }}"
 
