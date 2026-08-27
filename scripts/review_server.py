@@ -3183,7 +3183,7 @@ def pr_checks(pr):
     return "passing", f"All {len(rows)} check(s) passed."
 
 
-def pr_page():
+def pr_page(force=False):
     """Approve and merge change requests without leaving the tool. ADMINS ONLY.
 
     Exists because merging was the one step in the loop that always meant leaving for GitHub,
@@ -3194,12 +3194,23 @@ def pr_page():
     change request itself is one click away for all of that. What is here is the decision:
     what is open, is it safe, and merge it.
     """
+    if force:
+        # A merge or an approval done elsewhere (the GitHub UI, a teammate) is invisible until
+        # something re-asks. `open_prs()` is uncached so it is always current, but the nav
+        # badge and the transcript badges are cached for 60s - this drops both so the whole
+        # page agrees rather than the cards being fresh and the badges a minute behind.
+        transcript_pr_map(force=True)
+        pr_count(force=True)
     prs, err = open_prs()
     if not err:
         # Seed the badge from the list we just fetched, so merging something updates the nav
         # on the next render instead of up to a minute later.
         _PR_CACHE.update(at=time.monotonic(), n=len(prs), ok=True)
-    body = ["<h2 class=sec>Change Requests</h2>"]
+    body = ["<div style='display:flex;align-items:center;gap:12px;flex-wrap:wrap;"
+            "margin-bottom:22px'>"
+            "<h2 class=sec style='margin:0'>Change Requests</h2>"
+            "<a href='/prs?refresh=1' style='margin-left:auto;text-decoration:none'>"
+            "<button class=sec>&#8635; Refresh PRs</button></a></div>"]
     if err:
         body.append(f"<div class='bar bnr-done'>{html.escape(err)}</div>")
     if not prs and not err:
@@ -3482,7 +3493,7 @@ class H(BaseHTTPRequestHandler):
             self.send_header("Cache-Control", "public, max-age=86400")
             self.end_headers()
             return self.wfile.write(body)
-        if self.path == "/prs":
+        if self.path == "/prs" or self.path.startswith("/prs?"):
             # Same gate as All Transcripts, and for the same reason: a contributor cannot
             # merge, so every button here would refuse. Not a security boundary - the page
             # only shows what `gh` would tell them anyway.
@@ -3491,7 +3502,7 @@ class H(BaseHTTPRequestHandler):
                     "<div class=card><h3>Admins only</h3><p class=sub>Merging is an admin "
                     "action. Send your reviews in from <b>Save &amp; Share</b> and an admin "
                     "will merge them.</p></div>", active="git"))
-            return self._send(200, pr_page())
+            return self._send(200, pr_page(force="refresh=1" in self.path))
         if self.path == "/git":
             return self._send(200, git_page())
         if self.path.startswith("/t/"):
