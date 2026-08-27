@@ -1683,10 +1683,56 @@ if(window.ckSync)ckSync(); if(window.fpopMarks)fpopMarks();}
 // Sync pulls new conversations from Foundry. Long-running (it walks every agent), so the
 // button reports progress rather than appearing dead, and the page only reloads on success -
 // a failure that reloaded away its own error message would be untraceable.
-function syncNow(){const b=document.getElementById('syncbtn'),m=document.getElementById('syncmsg');
- if(!b||b.disabled)return; b.disabled=true; b.textContent='Syncing\u2026';
- m.textContent='pulling from Foundry, this can take a minute';
- fetch('/sync',{method:'POST'}).then(r=>r.json()).then(d=>{
+// ---- hourly autorun ----------------------------------------------------------------------
+// Both syncs re-run on their own every hour. Deliberately narrow, for reasons that each
+// prevent a specific failure:
+//
+//   1. ONLY WHILE THE PAGE IS OPEN. This is a browser timer, not cron. The server is started
+//      when someone sits down to review and stopped when they finish, so a scheduler that
+//      outlived the session would be pulling from Foundry against a closed laptop.
+//   2. PAUSED WHILE HIDDEN. A tab left open for a week should not make 168 API calls nobody
+//      will read. It catches up on the next foreground tick.
+//   3. NEVER MID-ACTION. If a sync is already running the tick is skipped, not queued: two
+//      `fetch_transcripts.py` runs at once would race on the same files, and it does not
+//      write atomically.
+//
+// Safe to automate at all only because the transcript sync ONLY ADDS files and never
+// overwrites - an unattended run cannot lose review work. The PR refresh is read-only.
+const AUTO_MS = 60*60*1000;
+let autoBusy = false;
+
+// Persisted, so a reload does not restart the clock and a page opened 59 minutes into the
+// hour still fires on schedule.
+function autoDue(key){
+ try{ return (Date.now() - (parseInt(localStorage.getItem(key)||'0',10)||0)) >= AUTO_MS }
+ catch(e){ return false }        // storage blocked -> no autorun, rather than one per tick
+}
+function autoStamp(key){ try{localStorage.setItem(key,String(Date.now()))}catch(e){} }
+
+async function autoTick(){
+ if(document.hidden || autoBusy) return;
+ if(document.getElementById('syncbtn') && autoDue('auto:sync')){
+   autoBusy=true; autoStamp('auto:sync');
+   try{ await syncNow(true) } finally { autoBusy=false }
+   return;                       // one job per tick; the other waits for the next minute
+ }
+ if(document.querySelector('a[href="/prs?refresh=1"]') && autoDue('auto:prs')){
+   autoStamp('auto:prs');
+   location.href='/prs?refresh=1';
+ }
+}
+setInterval(autoTick, 60*1000);   // check every minute, act at most hourly
+document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) autoTick() });
+
+// RETURNS the promise, so autoTick can await it and the busy guard actually holds.
+function syncNow(auto){const b=document.getElementById('syncbtn'),m=document.getElementById('syncmsg');
+ if(!b||b.disabled)return Promise.resolve(); b.disabled=true; b.textContent='Syncing\u2026';
+ // A manual click resets the hourly clock, so pressing the button does not leave an automatic
+ // run due a minute later.
+ if(!auto) autoStamp('auto:sync');
+ m.textContent = auto ? 'hourly check \u2014 pulling from Foundry'
+                      : 'pulling from Foundry, this can take a minute';
+ return fetch('/sync',{method:'POST'}).then(r=>r.json()).then(d=>{
   if(d.ok){m.textContent=d.added?('added '+d.added+' new \u2014 reloading'):'no new transcripts';
    if(d.added){location.reload();return}
    b.disabled=false;b.innerHTML='\u21bb Sync transcripts';
@@ -2256,7 +2302,8 @@ def list_page(show_all=False):
     head = ("<div style='display:flex;align-items:center;gap:12px;flex-wrap:wrap;"
             "margin-bottom:var(--forge-spacing-medium)'>"
             f"<h2 class=sec style='margin:0'>{title}</h2>"
-            "<button class=sec id=syncbtn onclick='syncNow()' style='margin-left:auto'>"
+            "<button class=sec id=syncbtn onclick='syncNow()' style='margin-left:auto' "
+            "title='Also runs by itself once an hour while this page is open'>"
             "&#8635; Sync transcripts</button>"
             "<span class=hint id=syncmsg style='font-size:12px'></span></div>")
     bar = head + youline + "<div class=kpis>" + "".join(tiles) + "</div>"
@@ -3209,8 +3256,11 @@ def pr_page(force=False):
     body = ["<div style='display:flex;align-items:center;gap:12px;flex-wrap:wrap;"
             "margin-bottom:22px'>"
             "<h2 class=sec style='margin:0'>Change Requests</h2>"
-            "<a href='/prs?refresh=1' style='margin-left:auto;text-decoration:none'>"
-            "<button class=sec>&#8635; Refresh PRs</button></a></div>"]
+            "<a href='/prs?refresh=1' style='margin-left:auto;text-decoration:none' "
+            "title='Also runs by itself once an hour while this page is open'>"
+            "<button class=sec>&#8635; Refresh PRs</button></a></div>"
+            "<p class=sub style='margin:-14px 0 20px'>Refreshes by itself once an hour while "
+            "this tab is open.</p>"]
     if err:
         body.append(f"<div class='bar bnr-done'>{html.escape(err)}</div>")
     if not prs and not err:
