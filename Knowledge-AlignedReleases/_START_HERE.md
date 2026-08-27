@@ -22,7 +22,7 @@ plus product and release managers who need to understand the model.
 | File | One-liner — what's in it |
 |---|---|
 | `Docusaurus-AlignedReleases.md` | **The substance.** Glossary of the business objects, key concepts, the feature lifecycle with five worked scenarios, how to request API credentials (Identity Client ticket + the exact permission set), the integration guide end to end, the API reference, and the integration checklist. |
-| `FAQ-AlignedReleases.md` | **Authored answers with no upstream source** — verbal SME guidance, observed behaviour, corrections upstream owners have not yet made. |
+| `FAQ-AlignedReleases.md` | **Authored answers with no upstream source.** 13 entries distilled from the Release Manager Tool Walkthrough recording, all real questions asked by divisional staff: the per-feature documentation link rule, cohort assignment being durable rather than per-release, the three permission levels, the client email cadence, what modules / "requires setup" / capability sharing are for, and several "no, that does not exist" answers. **Reach here first for Release Manager UI, permissions, policy and client-communication questions** — the Docusaurus file is far deeper on the API but silent on all of these. |
 
 ---
 
@@ -67,6 +67,10 @@ Two supporting distinctions worth stating early:
 | "Is there an SDK?" | `Tyler.AlignedReleases.Sdk` (C#, on Artifactory) — see *Requesting API Access* |
 | "Which ticket do I file?" | `Knowledge-Shared/Conf-OneTylerTickets.md` — the authoritative catalog for every domain |
 | Something no document states | `FAQ-AlignedReleases.md` |
+| **Release Manager** — the tool, its screens, permissions, who can do what | `FAQ-AlignedReleases.md` first, then `Docusaurus-AlignedReleases.md` for the API equivalent |
+| When/what clients are emailed about a release | `FAQ-AlignedReleases.md` |
+| What a client sees about an upcoming release (Admin Center) | `FAQ-AlignedReleases.md` |
+| Can Release Manager do X? (import, screenshots, per-client views) | `FAQ-AlignedReleases.md` — several are explicit "no" answers |
 
 ---
 
