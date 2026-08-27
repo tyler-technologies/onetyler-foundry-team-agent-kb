@@ -399,7 +399,7 @@ The cadence per quarterly release:
 **Maximum five emails per quarterly release** — the four-week notice plus up to four
 day-before notices, if a client has workspaces in all four cohorts.
 
-Emails go to the **org admins as identified in Admin Center**. Separately, an
+Emails go to the **org admins as identified in Admin Center** — **not** to a CRM contact field; see *Who receives the release emails, and which CRM field supplies the address?* for what an Org Admin is and what to check when emails go astray. Separately, an
 Aligned-Releases-wide message from marketing and communications was being prepared to precede
 the first window so clients know to expect these.
 
@@ -409,6 +409,61 @@ the first window so clients know to expect these.
 - **Confidence:** confirmed by owner
 - **Promote when:** the notification schedule is published. Verify before repeating: the
   Admin Center screens the emails link to were still being built.
+
+### Q: Who receives the release emails, and which CRM field supplies the address?
+
+**A:** **None of them — the address does not come from CRM at all.** That is the assumption
+worth correcting first, because CRM is where most customer contact data lives and it is the
+natural place to look.
+
+Release notifications go to the **Org Admins recorded on the organization in Admin Center**.
+If the wrong people are receiving release notes, or nobody is, the fix is the organization's
+Org Admin list in **Admin Center** — not a CRM contact field, and not anything in Release
+Manager.
+
+**What an Org Admin is.** Org Admins are **client back-office users** with access to their
+organization's Admin Center, holding a role with **full access to all functionality** available
+within it. That gives them access to every Tyler solution participating in centralized
+administration. So they are the customer's own administrators — the people who would act on a
+release — rather than a Tyler-side distribution list.
+
+**One consequence that surprises people:** **Tyler staff can also hold Org Admin permissions on
+a customer's org.** When they do, they are functioning *in a client Org Admin capacity*, and
+they will receive that customer's release emails alongside the customer's own administrators.
+So a Tyler employee who requested Admin Center access for support purposes is now on the
+release-notification list for that org. Worth knowing before someone reports it as a bug.
+
+**Practical checks when release emails go astray:**
+
+| Symptom | Where to look |
+|---|---|
+| Nobody at the client received anything | The org has no Org Admins recorded in Admin Center |
+| The wrong person received it | That person is an Org Admin on the org — remove them there |
+| A Tyler colleague received a client's release notes | They hold Org Admin on that org, likely from a support-access request |
+| You expected it to follow a CRM contact | It never does — CRM is not the source |
+
+Getting the Org Admin list right was flagged as pre-launch work: the intent was to confirm,
+with each division's Future Activation Council representative, who the Org Admins actually are
+for participating customers before the first activation window.
+
+**Depth on Org Admins belongs to Ops Center**, not this corpus — see
+`Knowledge-OpsCenter/Docusaurus-OrgAdminInfo.md` for what makes a good Org Admin and how to
+source the right contact, and `Knowledge-OpsCenter/FAQ-OpsCenter.md` for the two routes to
+*getting* Admin Center access. This entry covers only who the release emails reach.
+
+**See also** the entry on *when* clients are emailed and how many emails they get.
+
+- **Source:** Nate Hanna, 2026-08-27, answering "when an email is sent to cohorts, which field
+  in CRM is it using as the email address?" — "It's not in CRM, it comes from Admin Center."
+  Recipients confirmed as the Admin-Center-identified Org Admins in the Release Manager
+  walkthrough. The Org Admin definition is quoted from
+  `Knowledge-OpsCenter/Docusaurus-OrgAdminInfo.md`, which is the canonical source.
+- **Added:** 2026-08-27 by vijay-tylertech
+- **Confidence:** confirmed by owner
+- **Promote when:** Blueprint documents the notification recipients. Note that the existing
+  entry on email timing already said "org admins as identified in Admin Center"; what was
+  missing was the explicit correction that CRM is not involved, and any explanation of what an
+  Org Admin is.
 
 ### Q: Where do clients actually see this? Is Release Manager client-facing?
 
