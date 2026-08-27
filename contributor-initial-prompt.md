@@ -10,6 +10,22 @@ first — the repo is public and every script is stdlib-only Python.
 You only need this once per machine. After that, start each session with
 `./scripts/start_review_session.sh`.
 
+## Also read — but do not paste — the phrasebook
+
+[`contributor-prompting-guide.md`](contributor-prompting-guide.md) is a plain-English guide to
+what to *say* once you are running. No technical background assumed.
+
+**Keep the two straight:**
+
+| | |
+|---|---|
+| **This page** | Has ONE block to paste, marked `COPY FROM HERE` / `COPY TO HERE`. Used once, to set your computer up. |
+| **The phrasebook** | Is only ever **read**. Nothing on it gets pasted anywhere. |
+
+If you have never used an AI assistant for work, read the phrasebook first — this page gets
+your computer ready, that one tells you how to use it. The agent is asked at the end of setup to
+summarise it for you, so you do not have to go looking.
+
 ---
 
 ## The prompt — copy everything between the lines
@@ -122,6 +138,14 @@ Then, in this order:
          Transcript review UI:  http://127.0.0.1:7777
          4 pending · 1 suggestion awaiting you
        ────────────────────────────────────────────
+
+8. Finally, read `contributor-prompting-guide.md` yourself and give me a **short** summary —
+   five or six of the phrases I am most likely to need, in your own words. **Do not paste the
+   page back at me**, and tell me plainly that it is a page to read rather than anything I paste
+   into a terminal. I want to know what to say to you, not to be handed a document.
+
+   In particular tell me the phrase that puts my work live, because nothing reaches my
+   colleagues until I say it.
 
 Then stop and wait. Don't start reviewing transcripts for me — reviewing is a human
 judgement and your verdict isn't mine. Once I've reviewed some, I'll ask you to process them.

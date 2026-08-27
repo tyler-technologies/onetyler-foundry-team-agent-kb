@@ -40,6 +40,7 @@
 ^CLAUDE\.md$
 ^contributor-initial-prompt\.md$
 ^contributor-update-prompt\.md$
+^contributor-prompting-guide\.md$
 ^transcripts/README\.md$
 ^transcripts/ONBOARDING\.md$
 # Tooling and the checks that gate everyone's contributions.

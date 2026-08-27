@@ -15,6 +15,7 @@ this file to pick a sub-agent; the sub-agent reads its own `_START_HERE.md` to p
 
 | You are | Start with |
 |---|---|
+| **New to using AI assistants at all** | [`contributor-prompting-guide.md`](contributor-prompting-guide.md) — a plain-English phrasebook: what to say to get what you want. No technical background needed. |
 | A contributor setting up for the first time | [`contributor-initial-prompt.md`](contributor-initial-prompt.md) — the first prompt to give your AI agent. Clones the repo, orients the agent, starts the review UI. |
 | A reviewer wanting the walkthrough | [`transcripts/ONBOARDING.md`](transcripts/ONBOARDING.md) |
 | Looking for the process and field definitions | [`transcripts/README.md`](transcripts/README.md) |
