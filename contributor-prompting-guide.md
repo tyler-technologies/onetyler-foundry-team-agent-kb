@@ -1,23 +1,100 @@
 # Talking to your AI helper — a quick start
 
-> ## 📖 READ THIS PAGE. DO NOT PASTE IT.
+> ## 📖 This page is to READ. There is nothing here to copy.
 >
-> **Nothing on this page goes into your terminal.** There is no copy-paste block here.
+> There is exactly **one** thing you ever paste, and it is a different file —
+> [`contributor-initial-prompt.md`](contributor-initial-prompt.md).
 >
-> You are looking for a phrase to *type in your own words* — the quoted phrases below are
-> examples of what to say, one line at a time, as part of a normal conversation.
+> **That whole file is the thing you paste.** Open it, select everything, copy it, paste it to
+> your AI. You do not have to find the right part; there is no wrong part. You use it once,
+> when setting up a new computer.
 >
-> The page with something to paste is a **different** page:
-> [`contributor-initial-prompt.md`](contributor-initial-prompt.md). It has one block, marked
-> with `COPY FROM HERE` / `COPY TO HERE`, and you use it **once** to get your computer set up.
-> If you find yourself pasting several paragraphs from *this* page, stop — that is not how it
-> is meant to be used.
+> This page explains what to say *after* that.
 
 **Who this is for:** anyone who has never used an AI assistant to do work before. No technical
 background needed, and you will not have to learn any commands.
 
 **When to read it:** at the start, once your computer is set up, and then again any time you are
 unsure what to say. It is meant to be re-read, not memorised.
+
+---
+
+## Setting up, the first time
+
+One file, one paste, once per computer.
+
+1. Open [`contributor-initial-prompt.md`](contributor-initial-prompt.md).
+2. Select **all** of it and copy it.
+3. Open your AI assistant in a terminal, in whatever folder you keep work in.
+4. Paste, and send.
+
+That file contains nothing but the instructions themselves, so copying too much is not
+possible. Everything explanatory lives here instead.
+
+### What a correct setup looks like
+
+When it finishes you should have:
+
+- The shared files downloaded to your computer.
+- Your AI having read the house rules, and able to tell you what you may and may not change.
+- **Your name in the reviewer list.** Check this — it is the one thing that quietly stops
+  everything else working. If your name is missing you are not on the team list yet; ask an
+  admin.
+- The review screen answering at a web address it gives you.
+- A short summary of the phrases you will need, and a note about what is waiting to be
+  reviewed.
+
+Nothing saved, nothing published, no conversation reviewed. That part is yours.
+
+### If setup goes wrong
+
+| What you see | What to say or do |
+|---|---|
+| Your name is missing from the reviewer list | **"My name isn't in the reviewer list."** You are probably not on the team yet — an admin has to add you, then it can be refreshed. |
+| It complains about permissions when checking the reviewer list | Tell it the exact message. There is a one-line fix it knows. |
+| The review screen address will not open | **"The review screen isn't loading — can you restart it?"** |
+| It starts changing the house rules or the tooling | **"Stop — leave those alone and tell me what you think is wrong instead."** Those files are for admins. |
+| It starts filling in review verdicts for you | **"Stop. I'll do the reviewing."** An AI-written verdict is exactly the input that produces a confidently wrong change. |
+| Anything else fails | **"Which step failed, and what was the error?"** Do not let it work around a failure silently. |
+
+---
+
+## After setup: every other day
+
+You do not normally paste anything again. Just say:
+
+> **"Get me set up for reviewing."**
+
+That brings things up to date, fetches new conversations, and opens the review screen.
+
+**The one exception.** When an admin tells you the process itself has changed, paste
+[`contributor-update-prompt.md`](contributor-update-prompt.md) — again, **the whole file**, same
+as the setup one. It makes your AI re-read the house rules rather than working from what it
+remembers, which matters because those rules do change.
+
+Signs it is working from stale rules: it insists you must fill in the dropdown boxes, it wants
+to publish something before it has been approved, or it does not know what it may and may not
+change. If you see any of those, paste the update page.
+
+### What a good update run looks like
+
+- **Nothing of yours thrown away.** It should check for unsaved work *before* updating and keep
+  it. If it ever offers to discard your changes to get a clean start, say **"no — keep my
+  work."**
+- It can tell you, in its own words, what changed since last time: what you may edit, whether
+  you have to fill in the boxes, and what has to happen before anything goes live. If it just
+  repeats your question back, say **"re-read the files properly."**
+- The review screen back up, running the new version.
+
+### If it goes wrong during an update
+
+| What you see | What to say |
+|---|---|
+| It offers to throw away your unsaved work | **"No — keep my work. Save it somewhere first."** |
+| It starts editing the house rules or the tooling | **"Stop. Those are admin-only — tell me what you think is wrong instead."** |
+| It says you must fill in the dropdowns before it can act | It has not read the current rules. **"Re-read the review instructions — I don't have to fill those in."** |
+| It wants to publish something not yet approved | **"Not yet — that has to be approved first."** |
+| The review screen looks unchanged after updating | An old copy is still running. **"Restart the review screen."** |
 
 ---
 
@@ -74,6 +151,20 @@ the valuable bit. The AI works out the rest from what you wrote.
 
 If you are unsure whether an answer is right, say so in your note rather than guessing. A
 "not sure, but this looks off to me" is genuinely useful. A confident wrong verdict is not.
+
+**Three things on that screen worth knowing:**
+
+- **A good answer is one click.** If the chatbot got it right, change nothing and click
+  **Mark reviewed & next**. The form already says "nothing wrong" — you are just confirming.
+  Most conversations are like this, so a batch goes quickly.
+- **The little ⓘ next to every box explains it.** Click it for what the box means and what each
+  option commits you to. Use it rather than guessing — nobody expects you to know these from
+  memory, and the explanations were written for exactly this moment.
+- **Not your area? Use "Suggest & next" instead of "Mark reviewed".** It records your opinion
+  under your name and hands the decision to whoever owns that subject — set the *awaiting* box
+  to them. Your reasoning is kept either way. This is the right move when you can see something
+  is off but it is not your call to make; you do not have to stay silent, and you do not have to
+  pretend to authority you do not have.
 
 ### Getting your feedback acted on
 

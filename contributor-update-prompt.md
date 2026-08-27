@@ -1,23 +1,3 @@
-# Contributor update prompt
-
-For a contributor who has **already** set the repo up and needs to pull changes and re-read
-the instructions. For a first-time setup use
-[`contributor-initial-prompt.md`](contributor-initial-prompt.md) instead.
-
-**New to this, or unsure what to say?** [`contributor-prompting-guide.md`](contributor-prompting-guide.md) is the plain-English
-phrasebook.
-
-Use this whenever the process or tooling has moved — the boundary of what you may edit, the
-review lifecycle, or the review UI itself. Re-reading matters more than pulling: an agent
-carrying yesterday's understanding of the rules will confidently apply rules that no longer
-hold.
-
----
-
-## The prompt — copy everything between the lines
-
----8<--- COPY FROM HERE ---8<---
-
 The OneTyler Foundry knowledge-base repo has been updated. Bring my checkout up to date and
 re-read the instructions before doing anything else.
 
@@ -90,29 +70,3 @@ Then:
 
 Then stop. Don't review transcripts for me, don't edit knowledge files unprompted, and don't
 "tidy up" any instruction file — if you think one is wrong, tell me and leave it alone.
-
----8<--- COPY TO HERE ---8<---
-
----
-
-## What a correct run looks like
-
-- Nothing of mine discarded — `git status` was checked before pulling, and anything modified
-  was committed or stashed.
-- On `main`, up to date.
-- The agent can state the current boundary without being prompted: knowledge **content** in
-  `Knowledge-<Domain>/` is mine; `_START_HERE.md`, `README.md`, `team-config/`, `scripts/`,
-  `.github/` and the instruction docs are not.
-- It knows I do **not** have to set the header fields — writing the correction is enough.
-- It knows nothing reaches Foundry until it is **merged** to `main`.
-- The review UI answering on http://127.0.0.1:7777, running the current code.
-
-## If the agent gets it wrong
-
-| Symptom | What to do |
-|---|---|
-| It offers to `reset --hard` or discard local changes | Stop it. Re-paste the "Protect my work first" paragraph. |
-| It starts editing `CLAUDE.md`, `scripts/`, or a `_START_HERE.md` | Stop it. Those are admin-only; `git checkout origin/main -- <file>` to revert. |
-| It says I must fill in `diagnosis` / `fix_target` before it can act | It hasn't read the current `transcripts/README.md`. Point it at the *"You do not have to touch the dropdowns"* section. |
-| It wants to upload to Foundry from a branch | Wrong. Content must be merged to `main` first; `scripts/preflight_upload.py` enforces it. |
-| The UI looks unchanged after restarting | An old process is still on 7777. Find and stop it, then start again. |
