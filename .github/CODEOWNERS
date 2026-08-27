@@ -1,88 +1,51 @@
-# Ownership, and therefore who must approve a pull request.
+# GENERATED FILE - do not hand-edit.
+#   python3 scripts/gen_codeowners.py          rewrite
+#   python3 scripts/gen_codeowners.py --check  CI: fails if this has drifted
 #
-# LAST MATCHING RULE WINS in CODEOWNERS. The `*` line comes first so it is the fallback;
-# every rule below it is more specific and overrides it for those paths.
+# Ownership comes from agent-owners.json. Editing this file by hand does not change who
+# owns an agent - it just makes the two disagree until CI says so.
 #
-# Branch protection is configured "Require review from Code Owners" with 1 approval, and
-# "Do not allow bypassing" is deliberately OFF. Because a PR author can never approve their
-# own PR, the sole code owner would otherwise be permanently blocked on his own changes. So:
-#
-#   @tyler-technologies/onetyler-tcp-pm-admins        admin  -> can merge without review
-#   @tyler-technologies/onetyler-tcp-pm-contributors  write  -> PRs need approval
-#
-# Put reviewers on the CONTRIBUTORS team. Adding someone to the admins team silently removes
-# the review requirement from them, which is the opposite of the intent.
+# LAST MATCH WINS in CODEOWNERS, so the order here is load-bearing:
+#   1. `*` is the floor: anything unnamed needs an admin.
+#   2. each corpus goes to its owner AND the admins.
+#   3. admin-only paths come LAST so they win inside a folder a contributor owns.
 
-*                               @vijay-tylertech
+*                               @tyler-technologies/onetyler-tcp-pm-admins
 
-# =======================================================================================
-# ADMIN-ONLY — team-level routing, and how the repo operates
-# =======================================================================================
-# Mirrors .github/admin-only-paths.txt, which CI and the session script read. The two
-# CANNOT share a file (this is GitHub's own format), so scripts/check_admin_paths.py
-# asserts they agree and CI runs it. If you change one, change both.
-#
-# The boundary: contributors own subject-matter content; admins own anything that decides
-# WHICH AGENT answers. A bad knowledge edit gives one wrong answer. A bad routing edit
-# misroutes every conversation, and the transcript that reveals it looks like a content
-# problem.
+# ---- one corpus per owner -------------------------------------------------------------
+# A contributor may edit any file and open a change request for it; only the owner of
+# that corpus, or an admin, can approve it through. Feedback stays open to everyone.
+/Knowledge-AlignedReleases/     @jayexprs @tyler-technologies/onetyler-tcp-pm-admins
+/Knowledge-BP-General/          @vijay-tylertech @tyler-technologies/onetyler-tcp-pm-admins
+/Knowledge-TylerIdentity/       @jon-olson-tylertech @tyler-technologies/onetyler-tcp-pm-admins
+/Knowledge-OpsCenter/           @vijay-tylertech @tyler-technologies/onetyler-tcp-pm-admins
+/Knowledge-SupportAccessCenter/ @vijay-tylertech @tyler-technologies/onetyler-tcp-pm-admins
+/Knowledge-StatusPageAndSLA/    @vijay-tylertech @tyler-technologies/onetyler-tcp-pm-admins
 
-# --- team-level routing ---
-/README.md                      @vijay-tylertech
-/team-config/                   @vijay-tylertech
-# Per-corpus start pages look like within-corpus routing, and partly are. But they also
-# carry CROSS-AGENT hand-off rules — Knowledge-BP-General/_START_HERE.md opens by telling
-# the agent to decide whether a question belongs to one of the four specialized agents, and
-# routes to Identity / Ops Center / SAC by name. CODEOWNERS cannot own half a file, so the
-# whole file is admin-owned.
-/Knowledge-*/_START_HERE.md     @vijay-tylertech
+# Shared corpus: uploads to ALL five collections, so a change here alters what every
+# agent says. Admin-owned for the same reason routing is.
+/Knowledge-Shared/              @tyler-technologies/onetyler-tcp-pm-admins
 
-# --- how the repo operates ---
-/CLAUDE.md                      @vijay-tylertech
-/contributor-initial-prompt.md  @vijay-tylertech
-/contributor-update-prompt.md   @vijay-tylertech
-/contributor-prompting-guide.md @vijay-tylertech
-/DAILY-WORKFLOW.md          @vijay-tylertech
-/transcripts/README.md          @vijay-tylertech
-/transcripts/ONBOARDING.md      @vijay-tylertech
-/scripts/                       @vijay-tylertech
-/Start-reviewing.command        @vijay-tylertech
-/Start-reviewing.bat            @vijay-tylertech
-/templates/                     @vijay-tylertech
-/.github/                       @vijay-tylertech
-/.gitignore                     @vijay-tylertech
-/contributors.json              @vijay-tylertech
-/agent-owners.json              @vijay-tylertech
+# ---- transcripts ---------------------------------------------------------------------
+# Reviews are the contributors' own work, and any of them may review any transcript -
+# the per-agent split is about corpus CONTENT, not about who may record a verdict.
+/transcripts/                   @tyler-technologies/onetyler-tcp-pm-contributors @tyler-technologies/onetyler-tcp-pm-admins
 
-# =======================================================================================
-# CONTRIBUTOR-EDITABLE
-# =======================================================================================
-# Knowledge CONTENT in each corpus — the Conf-, Docusaurus-, FAQ-, Misc-, Training- and
-# GitHub- files — is where contributors are expected to work. That is the point of having
-# them: they know the subject matter.
-#
-# These paths are still owned (so every PR gets an approval — branch protection requires one
-# regardless), but ownership is recorded here as the contributors team to say plainly that
-# this is their ground. The `_START_HERE.md` rule above is MORE specific than these folder
-# rules, so it still wins for that one file in each folder.
-#
-# NOTE the limit of path-based enforcement: nothing here stops a contributor putting
-# team-level routing advice INSIDE a knowledge file — "for identity questions use the
-# Identity agent" in an FAQ is routing content in a file they may edit. No tool catches
-# that. Human review is the only control, so read content edits for routing claims.
-/Knowledge-OpsCenter/           @tyler-technologies/onetyler-tcp-pm-contributors
-/Knowledge-BP-General/          @tyler-technologies/onetyler-tcp-pm-contributors
-/Knowledge-SupportAccessCenter/ @tyler-technologies/onetyler-tcp-pm-contributors
-/Knowledge-TylerIdentity/       @tyler-technologies/onetyler-tcp-pm-contributors
-/Knowledge-AlignedReleases/     @tyler-technologies/onetyler-tcp-pm-contributors
-/Knowledge-StatusPageAndSLA/    @tyler-technologies/onetyler-tcp-pm-contributors
-/Knowledge-Shared/              @tyler-technologies/onetyler-tcp-pm-contributors
-
-# Re-stated AFTER the folder rules because last-match-wins: without these, the folder rules
-# above would hand the start pages back to the contributors team.
-/Knowledge-*/_START_HERE.md     @vijay-tylertech
-
-# Transcripts — review verdicts. The contributor's primary output.
-/transcripts/                   @tyler-technologies/onetyler-tcp-pm-contributors
-/transcripts/README.md          @vijay-tylertech
-/transcripts/ONBOARDING.md      @vijay-tylertech
+# ---- admin-only, LAST so these win --------------------------------------------------
+/README.md                      @tyler-technologies/onetyler-tcp-pm-admins
+/team-config/                   @tyler-technologies/onetyler-tcp-pm-admins
+/CLAUDE.md                      @tyler-technologies/onetyler-tcp-pm-admins
+/contributor-initial-prompt.md  @tyler-technologies/onetyler-tcp-pm-admins
+/contributor-update-prompt.md   @tyler-technologies/onetyler-tcp-pm-admins
+/contributor-prompting-guide.md @tyler-technologies/onetyler-tcp-pm-admins
+/DAILY-WORKFLOW.md              @tyler-technologies/onetyler-tcp-pm-admins
+/transcripts/README.md          @tyler-technologies/onetyler-tcp-pm-admins
+/transcripts/ONBOARDING.md      @tyler-technologies/onetyler-tcp-pm-admins
+/scripts/                       @tyler-technologies/onetyler-tcp-pm-admins
+/Start-reviewing.command        @tyler-technologies/onetyler-tcp-pm-admins
+/Start-reviewing.bat            @tyler-technologies/onetyler-tcp-pm-admins
+/templates/                     @tyler-technologies/onetyler-tcp-pm-admins
+/.github/                       @tyler-technologies/onetyler-tcp-pm-admins
+/.gitignore                     @tyler-technologies/onetyler-tcp-pm-admins
+/contributors.json              @tyler-technologies/onetyler-tcp-pm-admins
+/agent-owners.json              @tyler-technologies/onetyler-tcp-pm-admins

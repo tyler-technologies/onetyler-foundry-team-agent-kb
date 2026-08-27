@@ -1740,22 +1740,19 @@ async function autoTick(reason){
  // delays the on-arrival check.
  if(document.hidden && reason!=='arrive') return;
  const ms=dataAgeMs();
- if(document.getElementById('syncbtn') && (ms===null || ms>=AUTO_MS)){
+ if(ms!==null && ms<AUTO_MS) return;              // already fresh enough
+ // ONE mechanism, two pages. Which action to take is decided by what is on the page, and the
+ // timer for both is driven by the SERVER-side age of that page's own data - not by a
+ // per-tab clock, which would reset every time the PRs page navigated to refresh itself.
+ const el=document.getElementById('freshness');
+ const kind = el ? (el.dataset.kind||'transcripts') : null;
+ if(kind==='transcripts' && document.getElementById('syncbtn')){
    autoBusy=true;
    try{ await syncNow(true) } finally { autoBusy=false }
-   return;
- }
- if(document.querySelector('a[href="/prs?refresh=1"]') && prsDue()){
-   stampPrs(); location.href='/prs?refresh=1';
+ } else if(kind==='prs'){
+   location.href='/prs?refresh=1';
  }
 }
-// The PRs page has no server-side stamp (it is read-only and cheap), so its own hourly clock
-// stays in localStorage.
-function prsDue(){
- try{ return (Date.now()-(parseInt(localStorage.getItem('auto:prs')||'0',10)||0))>=AUTO_MS }
- catch(e){ return false }
-}
-function stampPrs(){ try{localStorage.setItem('auto:prs',String(Date.now()))}catch(e){} }
 
 setInterval(paintFreshness, 30*1000);       // keep the readout honest as time passes
 setInterval(()=>autoTick('interval'), 60*1000);
@@ -3053,20 +3050,24 @@ def saved_state():
 # Written to a file so it survives a server restart - the whole point is to be able to say "the
 # data you are looking at is N minutes old", and a number that resets to "unknown" every time
 # the server bounces cannot say that.
-SYNC_STAMP = REPO / ".last-transcript-sync"
+# One stamp per sync kind. SERVER-side, because these are facts about the DATA rather than
+# about a browser: two tabs and a reload must agree, and the PRs page navigates on refresh so a
+# per-tab clock would reset every time it did its job.
+SYNC_STAMPS = {"transcripts": REPO / ".last-transcript-sync",
+               "prs": REPO / ".last-pr-sync"}
 
 
-def last_sync_age():
-    """Seconds since the transcript sync last ran, or None if it never has here."""
+def last_sync_age(kind="transcripts"):
+    """Seconds since that sync last ran, or None if it never has in this checkout."""
     try:
-        return max(0, int(time.time() - float(SYNC_STAMP.read_text().strip())))
+        return max(0, int(time.time() - float(SYNC_STAMPS[kind].read_text().strip())))
     except Exception:                                          # noqa: BLE001
         return None
 
 
-def note_sync():
+def note_sync(kind="transcripts"):
     try:
-        SYNC_STAMP.write_text(str(time.time()))
+        SYNC_STAMPS[kind].write_text(str(time.time()))
     except OSError:
         pass                        # a read-only checkout should not break the sync itself
 
@@ -3324,6 +3325,9 @@ def pr_page(force=False):
     change request itself is one click away for all of that. What is here is the decision:
     what is open, is it safe, and merge it.
     """
+    # Every render of this page IS a PR fetch - open_prs() is uncached - so the age shown here
+    # is the age of what you are looking at, not of some earlier background job.
+    note_sync("prs")
     if force:
         # A merge or an approval done elsewhere (the GitHub UI, a teammate) is invisible until
         # something re-asks. `open_prs()` is uncached so it is always current, but the nav
@@ -3331,6 +3335,7 @@ def pr_page(force=False):
         # page agrees rather than the cards being fresh and the badges a minute behind.
         transcript_pr_map(force=True)
         pr_count(force=True)
+    prs_age = last_sync_age("prs") or 0
     prs, err = open_prs()
     if not err:
         # Seed the badge from the list we just fetched, so merging something updates the nav
@@ -3340,8 +3345,9 @@ def pr_page(force=False):
             "margin-bottom:22px'>"
             "<h2 class=sec style='margin:0'>Change Requests</h2>"
             "<a href='/prs?refresh=1' style='margin-left:auto;text-decoration:none' "
-            "title='Also runs by itself once an hour while this page is open'>"
-            "<button class=sec>&#8635; Refresh PRs</button></a></div>"
+            "title='Runs by itself when this is more than 30 minutes old'>"
+            "<button class=sec>&#8635; Refresh PRs</button></a>"
+            f"<span class=fresh id=freshness data-age='{prs_age}' data-kind=prs></span></div>"
             "<p class=sub style='margin:-14px 0 20px'>Refreshes by itself when it is more "
             "than 30 minutes stale, and whenever you come back to this tab.</p>"]
     if err:

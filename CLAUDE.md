@@ -48,22 +48,46 @@ depth, but never assume they are present.)
    edit misroutes every conversation — and the transcript that reveals it looks like a
    content problem, so it gets misdiagnosed.
 
+   **OWNERSHIP IS PER CORPUS.** Each `Knowledge-<Domain>/` folder belongs to one contributor,
+   and `agent-owners.json` says who. A contributor owns **everything under their own folder**,
+   `_START_HERE.md` included.
+
+   `.github/CODEOWNERS` is **generated** from that file — `python3 scripts/gen_codeowners.py`,
+   with `--check` in CI. Do not hand-edit it. Ownership used to be recorded in
+   `agent-owners.json` and enforced by a CODEOWNERS that gave every corpus to the whole
+   contributors team, so the intent and the permission disagreed and nothing noticed.
+
    **Contributors MAY change**, and are expected to:
-   - knowledge content in any `Knowledge-<Domain>/` folder — the `Conf-`, `Docusaurus-`,
-     `FAQ-`, `Misc-`, `Training-` and `GitHub-` files
+   - anything inside the `Knowledge-<Domain>/` folder they own, `_START_HERE.md` included
    - their review verdicts under `transcripts/`
+
+   **They MAY ALSO edit another agent's corpus and open a change request for it** — that is
+   how feedback reaches an owner, and it is supposed to work. It simply cannot merge without
+   that owner approving. `scripts/check_folder_ownership.py` says so on the request rather than
+   letting the reviewer discover it at approval time.
 
    **ADMIN-ONLY.** The list is `.github/admin-only-paths.txt` — read it rather than
    remembering it. In summary: `README.md` (the team routing table), `team-config/`,
-   **every `Knowledge-*/_START_HERE.md`**, and the machinery — `CLAUDE.md`,
-   `contributor-initial-prompt.md`, `transcripts/README.md`, `transcripts/ONBOARDING.md`,
-   `scripts/`, `templates/`, `.github/`, `.gitignore`, `contributors.json`.
+   `Knowledge-Shared/`, and the machinery — `CLAUDE.md`, `contributor-initial-prompt.md`,
+   `transcripts/README.md`, `transcripts/ONBOARDING.md`, `scripts/`, `templates/`,
+   `.github/`, `.gitignore`, `contributors.json`, `agent-owners.json`.
 
-   `_START_HERE.md` catches people out. It reads like within-corpus routing and partly is,
-   but it also carries **cross-agent hand-off rules** — `Knowledge-BP-General/_START_HERE.md`
-   opens by telling the agent to decide whether the question belongs to one of the four
-   specialized agents, and routes to Identity / Ops Center / SAC by name. That is team-level
-   routing, and a path-based rule cannot own half a file, so the whole file is admin-only.
+   `Knowledge-Shared/` is admin-only because its files upload to **all five collections**: a
+   change there alters what every agent says, which is the blast radius of a routing change
+   with none of the visibility.
+
+   **`_START_HERE.md` IS NOT ADMIN-ONLY, and the reason it used to be was wrong.** This file
+   claimed the cross-agent hand-off rules in it were "team-level routing". Verified false on
+   2026-08-27: the team router has `toolIds: []`, `mcpServers: []` and **no knowledge base at
+   all** — it decides purely from its `system_prompt`, so it never reads `_START_HERE.md` and
+   that file cannot influence team-level routing. What it actually carries is within-corpus
+   routing plus **sub-agent** hand-off advice, which is the same kind of content as the corpus
+   around it.
+
+   Keeping it admin-only also created an instruction nobody could satisfy: this file tells
+   contributors to update `_START_HERE.md` whenever they add or remove a corpus file, while the
+   admin-only list denied them the permission to do it. A contributor could not complete a
+   compliant change.
 
    **If you are running for a contributor, do not touch the admin-only paths.** The reason is
    specific to you: an agent that edits its own instructions then follows the edited version
