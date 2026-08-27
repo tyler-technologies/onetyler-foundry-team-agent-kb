@@ -59,6 +59,57 @@ gap.
 loaded, the spring 2027 activation dates were 4 / 11 / 18 / 25 February, and a November pilot
 was being prepared. The client-facing Admin Center view was still being built.
 
+### Q: If I set a feature's stage to Private or Public Preview, what is that actually controlling?
+
+**A:** **Nothing about activation. Feature stage and activation are independent states, by
+design.**
+
+- **Feature (lifecycle) stage** — `Planned`, `Private Preview`, `Public Preview`, `GA` — is a
+  **communication and awareness signal**. It tells users of Aligned Releases where the feature
+  sits in its release lifecycle, for the benefit of Support, Client Success, customers and
+  anyone else who needs to know what is coming. That is all it does.
+- **Activation** — whether the feature is actually switched on — is tracked **at the workspace
+  level** and is a separate thing entirely.
+
+**Aligned Releases does not orchestrate or control the underlying feature flag.** That belongs
+to the product team. The product team activates the feature through their own feature-flag
+platform, then **reflects that activation state back into Release Manager** — either by hand or
+through the optional API integration.
+
+So setting a stage does not turn anything on, and turning something on does not move the stage.
+
+**In one line:** *feature stage = lifecycle/communication status; activation = whether it is
+actually on for a workspace.*
+
+**The one exception, and it is still not activation.** Setting a feature to **Public Preview**
+does have a customer-facing effect: it makes the feature visible in the **Admin Center**
+experience, where customers can indicate that they are interested in opting in early. Even
+then, **Tyler or the product team performs the actual activation** — the customer is raising a
+hand, not enabling anything. (The Admin Center experience was still being built when this was
+recorded.)
+
+**Why this is worth being careful about.** The stage names describe audiences, so they read like
+switches — "Public Preview" sounds like it exposes the feature to the public, and "GA" sounds
+like it turns it on for everyone. `Docusaurus-AlignedReleases.md`'s *Feature Lifecycle* table
+reinforces that reading with an "Audience" column ("GA — All clients by cohort assignment"),
+which describes **who the stage is communicating about**, not who has it switched on. Read
+literally as activation, it is wrong.
+
+A feature can sit at `GA` with no workspace activated, and a feature can be live in a workspace
+while its stage still says `Planned`. Neither is a bug.
+
+- **Source:** Nate Hanna, 2026-08-27, answering "to me 'stage' comes across as a feature
+  activation stage per cohort and not a feature level setting — if I set it to Private or Public
+  Preview what is it really controlling?" Consistent with Kyle Hall's Release Manager
+  walkthrough on the Public Preview / Admin Center behaviour.
+- **Added:** 2026-08-27 by vijay-tylertech
+- **Confidence:** confirmed by owner
+- **Promote when:** Blueprint states the stage/activation independence explicitly. The closest
+  existing statement is in `Docusaurus-AlignedReleases.md` — "AR provides visibility but does
+  not drive preview activation" — which is narrower: it covers preview only, and does not say
+  that stage never drives activation, that activation is tracked per workspace, or that the
+  product team owns the flag and reports back.
+
 ### Q: Does the documentation link have to be added per feature, or can I add it once per release?
 
 **A:** **Per feature.** If every feature in your release points at the same release-notes URL,
