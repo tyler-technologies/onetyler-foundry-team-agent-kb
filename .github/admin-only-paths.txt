@@ -41,10 +41,14 @@
 ^contributor-initial-prompt\.md$
 ^contributor-update-prompt\.md$
 ^contributor-prompting-guide\.md$
+^RUNNING-WITHOUT-AI\.md$
 ^transcripts/README\.md$
 ^transcripts/ONBOARDING\.md$
 # Tooling and the checks that gate everyone's contributions.
 ^scripts/
+# The double-click launchers. Same class as scripts/ - they are how everyone starts the tool,
+# and named without spaces because CODEOWNERS cannot escape a space in a path.
+^Start-reviewing\.(command|bat)$
 ^templates/
 ^\.github/
 ^\.gitignore$

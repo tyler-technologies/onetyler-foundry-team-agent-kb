@@ -58,9 +58,13 @@ EXPECTED = {
     r"^contributor-initial-prompt\.md$": "/contributor-initial-prompt.md",
     r"^contributor-update-prompt\.md$":  "/contributor-update-prompt.md",
     r"^contributor-prompting-guide\.md$": "/contributor-prompting-guide.md",
+    r"^RUNNING-WITHOUT-AI\.md$":          "/RUNNING-WITHOUT-AI.md",
     r"^transcripts/README\.md$":         "/transcripts/README.md",
     r"^transcripts/ONBOARDING\.md$":     "/transcripts/ONBOARDING.md",
     r"^scripts/":                        "/scripts/",
+    # One regex, two CODEOWNERS lines - CODEOWNERS has no alternation, so the pair is
+    # listed and only the first is asserted here. Both are present in the file.
+    r"^Start-reviewing\.(command|bat)$": "/Start-reviewing.command",
     r"^templates/":                      "/templates/",
     r"^\.github/":                       "/.github/",
     r"^\.gitignore$":                     "/.gitignore",
