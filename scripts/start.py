@@ -222,18 +222,35 @@ def main():
         cmd += ["--me", a.me]
     proc = subprocess.Popen(cmd, cwd=REPO)
     if not a.no_browser:
-        # After the server is up, not before: opening the tab first shows a connection error
-        # and teaches people the tool is broken.
-        for _ in range(40):
+        # Wait for the port to answer BEFORE opening the tab. Opening it first shows a
+        # connection error, and someone who sees that on their first run concludes the tool is
+        # broken - the server takes a couple of seconds to bind because it reads git state on
+        # startup.
+        say("  Opening your browser…")
+        up = False
+        for _ in range(60):
             if not port_free(port):
+                up = True
                 break
             try:
                 proc.wait(timeout=0.25)
                 break                    # it exited; do not open a tab at a dead port
             except subprocess.TimeoutExpired:
                 pass
-        if not port_free(port):
-            webbrowser.open(f"http://127.0.0.1:{port}")
+        if up:
+            opened = False
+            try:
+                opened = webbrowser.open(f"http://127.0.0.1:{port}")
+            except Exception:            # noqa: BLE001
+                opened = False
+            if not opened:
+                # webbrowser returns False on a headless box or when no handler is
+                # registered. Say so plainly instead of leaving them waiting for a tab that
+                # is never coming - the URL above is all they need.
+                say("  Could not open a browser automatically — paste the address above "
+                    "into one.")
+        else:
+            say("  The server did not start. Nothing was opened; see the messages above.")
     try:
         return proc.wait()
     except KeyboardInterrupt:

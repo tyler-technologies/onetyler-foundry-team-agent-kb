@@ -190,13 +190,31 @@ is only useful to the next person if it lands in the repo.
 
 ### 2. Start the review server
 
+**Use the launcher, not the server directly.** It also updates the repo, refreshes the
+reviewer list and fetches new transcripts, which are steps 1 and 3 of this list:
+
 ```bash
-python3 scripts/review_server.py     # http://127.0.0.1:7777
+python3 scripts/start.py             # http://127.0.0.1:7777, opens the browser
+python  scripts\start.py             # Windows
 ```
 
-Run it in the background so it survives the session, and confirm it answers before you tell
-anyone it is up. Loopback-only; nothing leaves the machine. If 7777 is taken, use
-`--port 7778` and quote the port you actually used.
+Humans double-click `Start-reviewing.command` (macOS) or `Start-reviewing.bat` (Windows) and
+never need you for this — say so rather than offering to run it for them. See
+`RUNNING-WITHOUT-AI.md`, which is the page to point a contributor at.
+
+Run the bare server only when you need it detached from a session or on a different port:
+
+```bash
+python3 scripts/review_server.py --port 7778 --no-browser
+```
+
+Either way, **confirm it answers before telling anyone it is up**, and quote the port you
+actually used. Loopback-only; nothing leaves the machine except avatar images (`--no-avatars`
+turns even those off).
+
+⚠ A harness-tracked background task gets reaped when the turn ends. Launch it detached
+(`nohup … & disown`, then check `ppid` is 1) or it will be dead by the time they click the
+link.
 
 ### 3. Check Foundry still matches the repo
 

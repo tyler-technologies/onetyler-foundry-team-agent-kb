@@ -1331,6 +1331,26 @@ const el=document.getElementById('gitout');
 // Prefer the server's tinted markup (escaped in diff_html) so a diff shown by the
 // button reads the same as the one rendered on load; fall back to text.
 setOutHead(action);
+// Patch the parts that just went stale. Reloading would be simpler and wrong: it would throw
+// away the output the reviewer clicked for.
+if(r.refresh){
+ const put=(id,v)=>{const e=document.getElementById(id); if(e&&v!=null)e.innerHTML=v};
+ put('gitstate', r.refresh.state);
+ put('gitfiles', r.refresh.files);
+ const hist=document.getElementById('githist');
+ if(hist&&r.refresh.saves!=null){
+   // Keep it CLOSED unless the reviewer had opened it themselves. A section that pops open
+   // on every save moves the buttons under the cursor.
+   const wasOpen=!!hist.querySelector('details[open]');
+   hist.innerHTML=r.refresh.saves;
+   const d=hist.querySelector('details');
+   if(d&&wasOpen)d.open=true;
+ }
+ // The nav badge counts the same thing as the status line, so it has to move with it.
+ const badge=document.querySelector('nav.side a[href="/git"] .ct');
+ if(badge){const n=r.refresh.unsent;
+   if(n){badge.textContent=n;badge.style.display=''}else{badge.style.display='none'}}
+}
 if(r.html){el.innerHTML=r.html}else{el.textContent=r.output||'(no output)'}
 el.scrollTop=0;toast(r.ok?action+' ok':action+' failed',r.ok)}
 
@@ -2301,37 +2321,32 @@ def save_reviews(msg):
 
 
 def unsent_saves():
-    """Saves that have NOT been sent in yet - nothing else.
+    """Saves that have NOT been sent anywhere yet - nothing else.
 
-    Deliberately not "every save since the last request". Once a save is inside a change
-    request there is no longer an action attached to it, so listing it is history for its own
-    sake; the only reason to read this list is to answer "is there anything of mine still
-    sitting on this laptop?" Filtering to that makes the list short enough to be read at a
-    glance and makes an EMPTY list meaningful.
+    `git log HEAD --not --remotes`, which is the exact question: commits on HEAD that no remote
+    ref can reach. Everything else is an approximation of it and each one has a hole:
 
-    No fetch here: this runs on every page render and a network call would make the page hang
-    on a bad connection. It compares against the last-known origin/main, which is what the
-    rest of the page does too.
+      - `origin/main..HEAD` counts commits that ARE already pushed, just under a different
+        branch name. Measured 2026-08-27: a reviewer's lane sat on top of 18 pushed commits and
+        the page reported 19 unsent saves when the true answer was 1.
+      - `@{u}..HEAD` needs an upstream, and a lane created locally has none, so it errors.
+      - comparing against `origin/<current branch>` fails for the same reason, and silently -
+        the missing ref just makes the "already sent" set empty and everything looks unsent.
+
+    Deliberately not filtered to this branch either. If a save was made on one lane and the
+    reviewer has since moved, it is still their unsent work and still needs sending.
+
+    No fetch: this runs on every page render, and a network call would hang the page on a bad
+    connection. It uses the last-known remote state, like the rest of the page.
     """
-    _, cur = git("rev-parse", "--abbrev-ref", "HEAD")
-    cur = cur.strip()
-    rc, _ = git("rev-parse", "--verify", "--quiet", "origin/main")
-    if rc != 0:
-        return []
     rc, out = git("log", "--format=%h%x09%ad%x09%s", "--date=format:%m/%d %H:%M",
-                  "origin/main..HEAD")
+                  "HEAD", "--not", "--remotes")
     if rc != 0 or not out.strip():
         return []
-    # Which of them are already on the remote, i.e. already inside a change request.
-    sent = set()
-    rc2, _ = git("rev-parse", "--verify", "--quiet", f"origin/{cur}")
-    if rc2 == 0:
-        _, pushed = git("log", "--format=%h", f"origin/main..origin/{cur}")
-        sent = {l.strip() for l in pushed.splitlines() if l.strip()}
     rows = []
     for line in out.splitlines():
         parts = line.split("\t")
-        if len(parts) == 3 and parts[0] not in sent:
+        if len(parts) == 3:
             rows.append({"h": parts[0], "when": parts[1], "subject": parts[2]})
     return rows
 
@@ -2466,6 +2481,73 @@ def pending_foundry_uploads():
     return cols
 
 
+def review_scope():
+    """The trees a save covers: transcripts plus every knowledge corpus.
+
+    Used by the file list, the diff and the staging itself. They MUST agree - when the list
+    was scoped to `transcripts` and the staging to both, the page showed a reviewer less than
+    the button was about to save.
+    """
+    return ["transcripts"] + sorted(d.name for d in REPO.iterdir()
+                                    if d.is_dir() and d.name.startswith("Knowledge-"))
+
+
+def git_fragments():
+    """The parts of Save & Share that go stale the moment you click something.
+
+    Returned to the browser after every action so it can patch them in place. The alternative -
+    reloading the page - would throw away the output panel the reviewer just asked for, which
+    is the one thing they are looking at.
+    """
+    _, st = git("status", "--porcelain", "--", *review_scope())
+    changed = [l for l in st.splitlines() if l.strip()]
+    n = len(changed)
+    # NOT `@{u}..HEAD`. A lane created locally has no upstream, so that errors with
+    # "fatal: no upstream configured" - and the raw git error was being interpolated straight
+    # into the status line the reviewer reads. Same primitive as unsent_saves(): commits no
+    # remote can reach.
+    unpushed = str(len(unsent_saves()))
+
+    if n:
+        state = (f"<span class='pill pending'>{n} unsent</span> "
+                 f"You have <b>{n}</b> edited file(s) not yet saved.")
+    elif unpushed != "0":
+        state = (f"<span class='pill reviewed'>saved</span> Saved, but "
+                 f"<b>{unpushed}</b> change(s) have not been sent in yet — do step 2.")
+    else:
+        state = ("<span class='pill pushed'>all sent</span> Nothing waiting. "
+                 "Everything you have reviewed has been sent in.")
+
+    files = ("<ul style='margin:6px 0 0 18px;padding:0'>"
+             + "".join(f"<li>{html.escape(porcelain_path(l))}</li>" for l in changed[:12])
+             + (f"<li>… and {n - 12} more</li>" if n > 12 else "")
+             + "</ul>") if changed else \
+            "<div class=hint style='margin-top:6px'>Nothing edited yet — review something on " \
+            "<b>My Transcripts</b> first.</div>"
+
+    saves = unsent_saves()
+    if saves:
+        # Collapsed. It is a record of what already happened, so it is the last thing anyone
+        # needs on arrival, and left open it pushes the two actual buttons down the page. The
+        # count sits in the summary so the section answers its own question unopened. The
+        # browser re-applies the reviewer's own open/closed state after a refresh.
+        saves_html = (
+            "<details class=saves><summary>See progress history"
+            f"<span class=hint> &mdash; <b>{len(saves)}</b> save(s) not sent in yet</span>"
+            "<span class=chev aria-hidden=true></span></summary>"
+            "<table>" + "".join(
+                f"<tr><td class=swhen>{html.escape(s['when'])}</td>"
+                f"<td>{html.escape(s['subject'])}</td></tr>" for s in saves)
+            + "</table>"
+            "<div class=hint>Sending them in covers all of these at once. A save drops off "
+            "this list as soon as it has been sent.</div></details>")
+    else:
+        saves_html = ("<div class=saves><span class=hint>Nothing saved and unsent — either "
+                      "you have not saved yet this sitting, or everything is already sent "
+                      "in.</span></div>")
+    return {"state": state, "files": files, "saves": saves_html, "unsent": n}
+
+
 def git_page():
     """Send a finished batch of reviews in.
 
@@ -2475,70 +2557,10 @@ def git_page():
     do and in what order. It now reads as three steps, says what each will do BEFORE you
     click, shows what is about to be sent, and disables steps that are not applicable yet.
     """
-    _, branch = git("rev-parse", "--abbrev-ref", "HEAD")
-    _, st = git("status", "--porcelain", "--", "transcripts")
-    changed = [l for l in st.splitlines() if l.strip()]
-    n = len(changed)
-    on_main = branch in ("main", "master")
-    _, ahead = git("rev-list", "--count", "@{u}..HEAD")
-    unpushed = (ahead.strip() or "0")
+    frag = git_fragments()
+    state, files, saves_html = frag["state"], frag["files"], frag["saves"]
 
-    if n:
-        state = (f"<span class='pill pending'>{n} unsent</span> "
-                 f"You have <b>{n}</b> reviewed file(s) not yet sent in.")
-    elif unpushed != "0":
-        state = (f"<span class='pill reviewed'>saved</span> Your work is saved but "
-                 f"<b>{unpushed}</b> change(s) have not been shared yet — do step 3.")
-    else:
-        state = ("<span class='pill pushed'>all sent</span> Nothing waiting. "
-                 "Everything you have reviewed has been sent in.")
-
-    files = ("<ul style='margin:6px 0 0 18px;padding:0;font-size:13px'>"
-             + "".join(f"<li>{html.escape(porcelain_path(l))}</li>" for l in changed[:12])
-             + (f"<li>… and {n-12} more</li>" if n > 12 else "")
-             + "</ul>") if changed else \
-            "<div class=hint style='margin-top:6px'>Nothing changed under transcripts/ yet — " \
-            "review something on <b>All transcripts</b> first.</div>"
-
-    # SEVEN stacked cards of identical weight is what made this page read as busy: every block
-    # had the same border, the same 14px bold heading and the same padding, so nothing looked
-    # more important than anything else and the eye had no entry point. Restructured to three
-    # cards, matching how Foundry's own pages group content - a card is a CATEGORY, and the
-    # steps within it are steps, not peers of it.
-    #
-    #   before                                  after
-    #   status bar                              status bar  (absorbs "about to be sent")
-    #   What is about to be sent   -----------> Publish your reviews
-    #   Step 1  ------------------------------>   step 1 / 2 / 3 inside it
-    #   Step 2  ------------------------------>
-    #   Step 3  ------------------------------>
-    #   What happened             -----------> What happened
-    #   Worth knowing             -----------> Worth knowing  (collapsed <details>)
-    #
-    # "Worth knowing" is now collapsed: it is reference material that was competing with the
-    # controls every single visit.
     fdry = pending_foundry_uploads()
-    saves = unsent_saves()
-    if saves:
-        # COLLAPSED by default. It is a record of what already happened, so it is the last
-        # thing anyone needs on arrival - and left open it pushes the two actual buttons down
-        # the page, which is the "busy" problem this page was rewritten to fix. The count sits
-        # in the summary so the section answers its own question without being opened.
-        saves_html = (
-            "<details class=saves><summary>See progress history"
-            f"<span class=hint> &mdash; <b>{len(saves)}</b> save(s) not sent in yet</span>"
-            "<span class=chev aria-hidden=true></span></summary>"
-            "<table>" + "".join(
-                f"<tr><td class=swhen>{html.escape(s['when'])}</td>"
-                f"<td>{html.escape(s['subject'])}</td></tr>"
-                for s in saves)
-            + "</table>"
-            "<div class=hint>Sending them in covers all of these at once. A save drops off "
-            "this list as soon as it has been sent.</div></details>")
-    else:
-        saves_html = ("<div class=saves><span class=hint>Nothing saved and unsent — either "
-                      "you have not saved yet this sitting, or everything is already sent "
-                      "in.</span></div>")
 
     def step(num, title, desc, inner):
         return (f"<div class=step><div class=stepnum>{num}</div><div class=stepbody>"
@@ -2549,13 +2571,13 @@ def git_page():
       # NO BRANCH NAME HERE, deliberately. This line used to read "You are working on
       # feature/owner-highlighting", which is git vocabulary a reviewer has no use for and
       # cannot act on. The branch is handled entirely server-side now - see ensure_lane().
-      f"<div class=bar>{state}</div>"
+      f"<div class=bar id=gitstate>{state}</div>"
 
       "<div class=card>"
       "<h3>Publish your reviews</h3>"
       "<p class=sub>Nothing leaves your machine until you send it in. The first step is "
       "optional.</p>"
-      "<div class=whatsent><b>About to be sent</b>" + files + "</div>"
+      "<div class=whatsent><b>About to be sent</b><div id=gitfiles>" + files + "</div></div>"
       # There used to be a step before these two: name a branch and click a button to create
       # it. It is gone. It was just a git branch, there was no decision in it - the name was
       # generated, the timing forced, and the answer always "yes" - and the owner of this repo
@@ -2566,8 +2588,11 @@ def git_page():
       # checkpoint, and it is not finished. "Save your reviews" sounded like it did something
       # WITH the reviews. Optional, too - step 2 saves first, so nobody is stuck by skipping
       # this.
-      + step(1, "Save progress",
-             "A checkpoint on this machine (local git commit) you can go back to. Optional — "
+      # "(recommended)", not "(optional)". Both are true - step 2 saves first, so skipping this
+      # breaks nothing - but "optional" invites skipping, and a reviewer who never saves has
+      # no checkpoint to go back to if they change their mind mid-batch.
+      + step(1, "Save progress (recommended)",
+             "A checkpoint on this machine (local git commit) you can go back to. "
              "sending them in saves first anyway. Nothing is shared yet; if the laptop died "
              "now, the work would go with it.",
              # Empty by DEFAULT, not prefilled. A prefilled box asks to be read, edited and
@@ -2579,7 +2604,7 @@ def git_page():
              "<div class=stepacts>"
              "<button class=sec onclick=\"gitDo('commit')\">Save progress</button>"
              "<button class=sec onclick=\"gitDo('diff')\">Show me exactly what changed</button>"
-             "</div>" + saves_html)
+             "</div>" + "<div id=githist>" + saves_html + "</div>")
       + step(2, "Send them in — and on to Foundry",
              "The first point your work exists anywhere other than this laptop, and the step "
              "that reaches the team (PR into Repo). What follows depends on what you changed, "
@@ -2846,7 +2871,11 @@ class H(BaseHTTPRequestHandler):
                     # NOTHING_TO_SAVE means "already saved", which is a fine thing to have happened -
                     # reporting it as a failure would train people to ignore the toast.
                     {"ok": rc in (0, NOTHING_TO_SAVE), "output": out,
-                     "html": diff_html(out)}),
+                     "html": diff_html(out),
+                     # The page's live parts, rebuilt AFTER the action - the file list, the
+                     # status line and the progress history all go stale the instant you save,
+                     # and reloading to fix that would discard the output above.
+                     "refresh": git_fragments()}),
                     "application/json")
             except FileNotFoundError as e:
                 return self._send(200, json.dumps({"ok": False, "output": f"missing tool: {e}"}),
