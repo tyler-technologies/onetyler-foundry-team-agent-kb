@@ -940,6 +940,12 @@ button.danger:hover{filter:brightness(.92)}
 .dzrow .sub{margin-top:3px}
 .dzact{flex:0 0 auto}
 .prpills{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+/* Amber, because it is an obligation rather than a warning: this one is not finished when it
+   merges. */
+.fdrynote{margin-top:8px;padding:8px 12px;border-radius:4px;
+background:var(--t-yellow-bg);border:1px solid var(--t-yellow-bd);
+color:var(--forge-theme-text-high)}
+.fdrynote code{font-size:12px}
 .card>h3 a{text-decoration:none}
 #prout{margin-top:20px}
 /* Hand-off line at the end of a step: where responsibility passes to someone else. */
@@ -2802,13 +2808,19 @@ def review_diff():
 # Which corpus folder feeds which Foundry collection. Same table as
 # scripts/check_foundry_drift.py; kept here so the page can name the collections a batch will
 # affect rather than saying "Foundry" vaguely.
+# LISTS, not strings. They were strings, and `for c in FOLDER_COLLECTION[folder]` then
+# iterated characters - the PRs page rendered a collection name as "O, T, -, A, l, i, g, n,
+# e, d, R, a, s". Same shape as publish_to_foundry.py's COLLECTIONS now, and Knowledge-Shared
+# names its five targets rather than saying "all five collections", which was prose masquerading
+# as data.
 FOLDER_COLLECTION = {
-    "Knowledge-OpsCenter": "OT-OpsCenter",
-    "Knowledge-BP-General": "OT-BPD",
-    "Knowledge-SupportAccessCenter": "OT-SAC",
-    "Knowledge-AlignedReleases": "OT-AlignedReleases",
-    "Knowledge-TylerIdentity": "TCP-KB-Identity",
-    "Knowledge-Shared": "all five collections",
+    "Knowledge-OpsCenter": ["OT-OpsCenter"],
+    "Knowledge-BP-General": ["OT-BPD"],
+    "Knowledge-SupportAccessCenter": ["OT-SAC"],
+    "Knowledge-AlignedReleases": ["OT-AlignedReleases"],
+    "Knowledge-TylerIdentity": ["TCP-KB-Identity"],
+    "Knowledge-Shared": ["OT-OpsCenter", "OT-BPD", "OT-SAC", "OT-AlignedReleases",
+                         "TCP-KB-Identity"],
 }
 
 
@@ -2831,10 +2843,9 @@ def pending_foundry_uploads():
     paths += [porcelain_path(l) for l in working.splitlines() if l.strip()]
     cols = []
     for path in paths:
-        folder = path.split("/")[0]
-        col = FOLDER_COLLECTION.get(folder)
-        if col and col not in cols:
-            cols.append(col)
+        for col in FOLDER_COLLECTION.get(path.split("/")[0], []):
+            if col not in cols:
+                cols.append(col)
     return cols
 
 
@@ -2991,7 +3002,31 @@ def _needs_override(out):
 
 
 PR_FIELDS = ("number,title,author,isDraft,headRefName,reviewDecision,mergeable,"
-             "statusCheckRollup,createdAt,url,additions,deletions,changedFiles")
+             "mergeStateStatus,statusCheckRollup,createdAt,url,additions,deletions,"
+             "changedFiles,files")
+
+# `mergeable` only reports CONFLICTS. `mergeStateStatus` reports POLICY, and it is the field
+# that decides which button can actually work:
+#
+#   CLEAN     nothing in the way - a plain merge succeeds
+#   BLOCKED   a required review is missing - a plain merge is REFUSED, only --admin works
+#   BEHIND    main has moved and this repo requires branches to be up to date
+#             (required_status_checks.strict = True), so it must be updated first
+#   DIRTY     real conflicts - not mergeable from here at all
+#   UNSTABLE  checks failing or pending, but mergeable
+#
+# Measured 2026-08-27: all four open requests were BLOCKED, which is why a plain "Merge"
+# button on them could never have worked - the repo requires an approval and the sole code
+# owner cannot approve his own.
+MERGE_STATE = {
+    "CLEAN": ("ready to merge", "reviewed"),
+    "BLOCKED": ("needs approval", "excluded"),
+    "BEHIND": ("behind main", "pending"),
+    "DIRTY": ("conflicts", "bad"),
+    "UNSTABLE": ("checks not green", "pending"),
+    "UNKNOWN": ("state unknown", "excluded"),
+    "HAS_HOOKS": ("ready to merge", "reviewed"),
+}
 
 
 def open_prs():
@@ -3015,6 +3050,39 @@ def open_prs():
         return [], "gh returned something that is not JSON"
     prs.sort(key=lambda x: x["number"], reverse=True)
     return prs, None
+
+
+def pr_kind(pr):
+    """What a change request is MADE of, and therefore what merging it obliges.
+
+    The distinction the page exists to surface: a request that touches Knowledge-* files owes a
+    Foundry upload after merging, and one that does not owes nothing. Getting that wrong in
+    either direction is expensive - a missed upload leaves the live agents answering from old
+    text while the repo looks correct, and an unnecessary one is a production write for no
+    reason.
+
+    `files` comes back in the same `gh pr list` call as everything else, so this costs no extra
+    network round-trip.
+    """
+    paths = [f.get("path", "") for f in (pr.get("files") or [])]
+    kb = sorted({x.split("/")[0] for x in paths if x.startswith("Knowledge-")})
+    tr = [x for x in paths if x.startswith("transcripts/")]
+    other = [x for x in paths if not x.startswith(("Knowledge-", "transcripts/"))]
+    cols = []
+    for folder in kb:
+        for c in FOLDER_COLLECTION.get(folder, []):
+            if c not in cols:
+                cols.append(c)
+    bits = []
+    if kb:
+        bits.append(f"<b>{len([x for x in paths if x.startswith('Knowledge-')])}</b> "
+                    "knowledge file(s)")
+    if tr:
+        bits.append(f"<b>{len(tr)}</b> transcript(s)")
+    if other:
+        bits.append(f"<b>{len(other)}</b> tooling/doc file(s)")
+    return {"cols": cols, "summary": " &middot; ".join(bits) or "no files",
+            "kb": bool(kb)}
 
 
 def pr_checks(pr):
@@ -3055,6 +3123,7 @@ def pr_page():
                     "<p class=sub>Every change request has been merged or closed.</p></div>")
     for pr in prs:
         cls, why = pr_checks(pr)
+        kind = pr_kind(pr)
         mine = pr["author"]["login"] == (ME or "")
         draft = pr.get("isDraft")
         decision = pr.get("reviewDecision") or ""
@@ -3068,14 +3137,17 @@ def pr_page():
                "running": "<span class='pill pending'>checks running</span>",
                "none": "<span class='pill excluded'>no checks</span>"}[cls]
         approved = decision == "APPROVED"
+        # Only when it says something the merge-state pill does not. REVIEW_REQUIRED and
+        # mergeStateStatus=BLOCKED are the same fact, and rendering both put "needs approval"
+        # on the card twice.
         rev = ("<span class='pill reviewed'>approved</span>" if approved
-               else "<span class='pill excluded'>needs approval</span>"
-               if decision == "REVIEW_REQUIRED"
-               else f"<span class='pill excluded'>{html.escape(decision.lower() or 'no review')}"
-                    "</span>")
-        conflict = ("<span class='pill bad'>conflicts</span>"
-                    if mergeable == "CONFLICTING" else "")
+               else "<span class='pill bad'>changes requested</span>"
+               if decision == "CHANGES_REQUESTED" else "")
+        st_label, st_cls = MERGE_STATE.get(
+            (pr.get("mergeStateStatus") or "UNKNOWN").upper(), ("state unknown", "excluded"))
+        conflict = f"<span class='pill {st_cls}'>{st_label}</span>"
 
+        state = (pr.get("mergeStateStatus") or "UNKNOWN").upper()
         acts = []
         if draft:
             acts.append(f"<button class=sec onclick=\"prDo(this,'ready',{pr['number']})\">"
@@ -3083,25 +3155,50 @@ def pr_page():
         if not mine and not approved:
             acts.append(f"<button class=sec onclick=\"prDo(this,'approve',{pr['number']})\">"
                         "Approve</button>")
-        acts.append(f"<button onclick=\"prMerge(this,{pr['number']},"
-                    f"'{html.escape(pr['title'][:60])}','{cls}')\">Merge</button>")
+
+        # EXACTLY ONE merge button, and which one is decided by the state - not by offering
+        # both and letting the reviewer discover which works. Showing "Merge" on a BLOCKED
+        # request is a button that cannot succeed, which is the same mistake as showing
+        # "Approve" on your own.
+        if state == "BEHIND":
+            # This repo sets required_status_checks.strict, so a branch behind main cannot
+            # merge until it is updated. Update is the only action that helps here.
+            acts.append(f"<button onclick=\"prDo(this,'update',{pr['number']})\">"
+                        "Update branch</button>")
+        elif state == "DIRTY":
+            pass                       # conflicts need a human in a editor, not a button here
+        elif state == "BLOCKED":
+            acts.append(f"<button onclick=\"prOverride(this,{pr['number']})\" "
+                        "title='Merge without the required approval (admin override)'>"
+                        "Merge anyway</button>")
+        else:
+            acts.append(f"<button onclick=\"prMerge(this,{pr['number']},"
+                        f"'{html.escape(pr['title'][:60])}','{cls}')\">Merge</button>")
 
         # Why Approve is missing on your own change request. GitHub refuses it outright, so a
         # button here would only ever produce an error - saying so is more use than hiding it
         # silently. Admins can merge without an approval anyway, which is what makes the repo
         # workable with one code owner.
-        selfnote = ("<div class=hint style='margin-top:8px'>This is yours, and GitHub does not "
-                    "let anyone approve their own. As an admin you can merge it without an "
-                    "approval &mdash; use <b>Merge anyway</b>.</div>"
-                    if mine and not approved else "")
-        # The override is shown, not hidden behind a retry: on this repo the sole code owner
-        # authors nearly every request, so "merge without an approval" is the NORMAL path for
-        # them rather than an exception. Hiding it would just mean two failed clicks first.
-        # It is a separate, differently-labelled button so bypassing a gate stays deliberate.
-        if mine and not approved:
-            acts.append(f"<button class=sec onclick=\"prOverride(this,{pr['number']})\" "
-                        "title='Merge without the required approval (admin override)'>"
-                        "Merge anyway</button>")
+        if state == "BLOCKED" and mine:
+            selfnote = ("<div class=hint style='margin-top:8px'>A plain merge is refused: an "
+                        "approval is required and GitHub does not let anyone approve their "
+                        "own. <b>Merge anyway</b> uses your admin override, which skips that "
+                        "gate &mdash; reasonable on your own work, and the only way through "
+                        "on a repo with one code owner.</div>")
+        elif state == "BLOCKED":
+            selfnote = ("<div class=hint style='margin-top:8px'>Needs an approval before a "
+                        "plain merge will go through. <b>Approve</b> it, or use <b>Merge "
+                        "anyway</b> to override as an admin.</div>")
+        elif state == "BEHIND":
+            selfnote = ("<div class=hint style='margin-top:8px'>Main has moved and this repo "
+                        "requires branches to be up to date, so this cannot merge until it is "
+                        "updated. <b>Update branch</b> rebases it onto main for you.</div>")
+        elif state == "DIRTY":
+            selfnote = ("<div class=hint style='margin-top:8px'>Real conflicts with main. They "
+                        "have to be resolved in the branch &mdash; there is no button for "
+                        "that.</div>")
+        else:
+            selfnote = ""
 
         body.append(
             "<div class=card>"
@@ -3112,8 +3209,15 @@ def pr_page():
             f"+{pr['additions']} &minus;{pr['deletions']} across {pr['changedFiles']} file(s)"
             "</p>"
             f"<div class=prpills>{pill}{chk}{rev}{conflict}</div>"
-            f"<p class=sub style='margin-top:8px'>{html.escape(why)}</p>"
-            f"{selfnote}"
+            f"<p class=sub style='margin-top:8px'>{kind['summary']}</p>"
+            f"<p class=sub>{html.escape(why)}</p>"
+            + (f"<div class='hint fdrynote'>Merging this obliges a Foundry upload to "
+               f"<b>{html.escape(', '.join(kind['cols']))}</b>. Afterwards:<br>"
+               "<code>python3 scripts/publish_to_foundry.py</code></div>"
+               if kind["kb"] else
+               "<div class=hint>No Foundry upload needed — this one does not touch knowledge "
+               "files.</div>")
+            + f"{selfnote}"
             f"<div class=stepacts>{''.join(acts)}"
             f"<a href=\"{html.escape(pr['url'])}\" target=_blank rel=noopener>"
             "<button class=sec>Open on GitHub</button></a></div>"
@@ -3462,6 +3566,14 @@ class H(BaseHTTPRequestHandler):
                     rc, out = gh("pr", "review", num, "--approve")
                 elif act == "ready":
                     rc, out = gh("pr", "ready", num)
+                elif act == "update":
+                    # This repo sets required_status_checks.strict, so a branch behind main
+                    # cannot merge until it is updated. `gh pr update-branch --rebase` keeps
+                    # the linear history the rest of the flow assumes; a merge commit here
+                    # would put a "Merge branch main into..." commit in a review batch.
+                    rc, out = gh("pr", "update-branch", num, "--rebase")
+                    if rc == 0:
+                        out += ("\n\nUpdated. Checks will re-run — merge once they are green.")
                 elif act == "merge":
                     # Rebase, matching how this repo has been merged throughout - a merge
                     # commit per review batch would bury the actual content in the history.
