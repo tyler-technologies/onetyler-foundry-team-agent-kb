@@ -42,9 +42,12 @@
 /contributor-initial-prompt.md  @vijay-tylertech
 /contributor-update-prompt.md   @vijay-tylertech
 /contributor-prompting-guide.md @vijay-tylertech
+/RUNNING-WITHOUT-AI.md          @vijay-tylertech
 /transcripts/README.md          @vijay-tylertech
 /transcripts/ONBOARDING.md      @vijay-tylertech
 /scripts/                       @vijay-tylertech
+/Start-reviewing.command        @vijay-tylertech
+/Start-reviewing.bat            @vijay-tylertech
 /templates/                     @vijay-tylertech
 /.github/                       @vijay-tylertech
 /.gitignore                     @vijay-tylertech

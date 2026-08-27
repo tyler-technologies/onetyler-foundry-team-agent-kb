@@ -924,6 +924,40 @@ font-variant-numeric:tabular-nums;padding-right:12px;width:1%}
 /* DIRECT child only. As a descendant selector this also hit the hint inside <summary>,
    pushing it 8px down so the count sat below the heading's baseline instead of on it. */
 .saves>.hint{margin-top:8px}
+
+/* ------------------------------------------------------------------------------------------
+   Save & Share only: everything one step larger. SCOPED, not global - the transcript list is
+   a dense 12-column table where the smaller scale is what makes it fit at 720p, while this
+   page is prose and form controls and reads as cramped at the same sizes.
+   The page title is deliberately NOT bumped: at 24px it is already the largest thing here,
+   and raising it with everything else would only re-open the gap.
+   ------------------------------------------------------------------------------------------ */
+.lg{font-size:15px}
+.lg .card>h3{font-size:19px}
+.lg .sub{font-size:15px;line-height:1.55}
+.lg .stepbody h4{font-size:16.5px}
+.lg label{font-size:14px}
+.lg .hint{font-size:13.5px}
+.lg ol.prog li{font-size:15px}
+.lg ol.prog li span{font-size:13.5px}
+.lg .whatsent{font-size:15px}
+.lg .whatsent>b{font-size:14px}
+.lg .saves table{font-size:14px}
+.lg details.saves>summary{font-size:14px}
+.lg .bar{font-size:15px}
+.lg pre.out{font-size:13.5px}
+.lg input{font-size:15px}
+.lg button{font-size:15px}
+/* The number bubbles and the stage dots have to grow with the text they sit beside, or they
+   drift out of line with the first row of the heading. */
+.lg .stepnum{flex-basis:26px;height:26px;font-size:13px;line-height:26px}
+.lg ol.prog li{padding-left:28px}
+.lg ol.prog li::before{width:17px;height:17px;line-height:17px;top:9px}
+.lg span.info{width:20px;height:20px;font-size:13px}
+
+/* More air between the title and the first note. They were 12px apart, which read as one
+   block rather than a heading and its content. */
+.lg h2.sec{margin-bottom:22px}
 /* Stage list for step 3. Each stage carries a STATE, because the useful information is not
    "here are four things" but "which of them is still owed, and which is not mine to do".
    Merge and Upload are deliberately shown as stages even though neither happens from this
@@ -1137,6 +1171,9 @@ pre.out .dadd{color:#a5d6a7}
 pre.out .ddel{color:#ef9a9a}
 pre.out .dhunk{color:#80cbc4}
 pre.out .dmeta{color:#90a4ae}
+/* Links inside the dark output panel need their own colour - the page's link
+   colour is tuned for a light surface and disappears on #263238. */
+pre.out a{color:#90caf9;text-decoration:underline}
 tr.row.mine-area td{background:var(--forge-theme-primary-container-minimum)}
 tr.row.mine-area td:first-child{box-shadow:inset 3px 0 0 var(--forge-theme-primary)}
 tr.row.mine-awaiting td{background:var(--forge-theme-warning-container-low)}
@@ -2349,6 +2386,12 @@ def diff_html(text):
             cls = "ddel"
         else:
             cls = ""
+        # Linkify URLs. `gh pr create` answers with the change request's address, and the
+        # whole point of that address is to be opened - to merge, or to send to a reviewer.
+        # Leaving it as text in a <pre> means selecting it by hand from a wall of monospace.
+        # Applied after escaping, so the href is built from already-escaped text.
+        e = re.sub(r"(https?://[^\s&<]+)",
+                   r"<a href='\1' target=_blank rel=noopener>\1</a>", e)
         out.append(f"<span class={cls}>{e}</span>" if cls else e)
     if clipped > 0:
         out.append(f"<span class=dmeta>… {clipped} more line(s) not shown — run "
@@ -2502,7 +2545,7 @@ def git_page():
                 f"<h4>{title}</h4><p class=sub>{desc}</p>{inner}</div></div>")
 
     body = (
-      f"<h2 class=sec>Save &amp; Share your reviews</h2>"
+      f"<h2 class=sec>Save &amp; Share Your Reviews</h2>"
       # NO BRANCH NAME HERE, deliberately. This line used to read "You are working on
       # feature/owner-highlighting", which is git vocabulary a reviewer has no use for and
       # cannot act on. The branch is handled entirely server-side now - see ensure_lane().
@@ -2586,7 +2629,7 @@ def git_page():
       "them.</li>"
       "<li>Only step 3 shares anything.</li>"
       "</ul></details>")
-    return page("Save & Share", body, active="git")
+    return page("Save & Share", "<div class=lg>" + body + "</div>", active="git")
 
 
 # ---------------------------------------------------------------- server
