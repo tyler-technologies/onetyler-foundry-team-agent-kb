@@ -626,6 +626,52 @@ input.bigsearch:focus{outline:2px solid var(--forge-theme-primary);outline-offse
 .searchhelp{font-size:12px;color:var(--forge-theme-text-medium);margin:0 0 var(--forge-spacing-medium)}
 .searchhelp code{background:var(--forge-theme-surface-container-minimum);padding:1px 5px;border-radius:3px}
 #emptystate a{color:var(--forge-theme-primary);font-weight:500}
+/* KPI row of stat tiles. Status colours, each with its own label, so identity is never
+   colour-alone. The four coloured states were run through the palette validator: the first
+   attempt paired #3f51b5 (ownership) with #1565c0 (pushed) at normal-vision deltaE 5.6 - a hard
+   fail, two blues nobody can separate. Ownership was pulled out of the colour space entirely
+   (it lives in the nav and in the row tint), leaving pending/suggested/reviewed/pushed, which
+   pass every check. `excluded` is deliberately neutral grey - not a categorical slot. */
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(126px,1fr));
+gap:10px;margin-bottom:var(--forge-spacing-medium)}
+.kpi{background:var(--forge-theme-surface);border:1px solid var(--forge-theme-outline);
+border-radius:4px;padding:12px 14px;box-shadow:0 1px 2px rgba(0,0,0,.06);
+border-top:3px solid var(--kc,var(--forge-theme-outline-low))}
+.kpi .v{font:600 26px/1.15 Roboto,sans-serif;color:var(--kc,var(--forge-theme-text-high))}
+.kpi .l{font:400 12px/1.4 Roboto,sans-serif;color:var(--forge-theme-text-medium);margin-top:2px}
+.kpi.progress{grid-column:span 2}
+.kpi .meter{height:6px;border-radius:3px;background:var(--forge-theme-primary-container-low);
+margin-top:9px;overflow:hidden}
+.kpi .meter i{display:block;height:100%;border-radius:3px;background:var(--kc)}
+/* Column-header filter popovers, following the Ops Center Activity pattern: the caret on a
+   heading opens a small panel with that column's control and Clear / Close / Update. This
+   replaced a permanent filter row under the headings, which cost a whole row of vertical space
+   on every screen to show controls that are mostly unused.
+   The caret turns solid primary when that column is filtered - otherwise a hidden filter is
+   invisible, which is the obvious failure mode of moving filters into popovers. */
+th{position:relative}
+th button.caretbtn{background:none;border:0;padding:2px 3px;margin-left:4px;cursor:pointer;
+color:var(--forge-theme-text-low);font-size:10px;line-height:1;border-radius:2px}
+th button.caretbtn:hover{background:var(--forge-theme-surface-container-low);filter:none}
+th button.caretbtn.active{color:var(--forge-theme-primary);font-weight:700}
+th button.caretbtn.active::after{content:'';position:absolute;top:6px;right:2px;width:5px;
+height:5px;border-radius:50%;background:var(--forge-theme-primary)}
+.fpop{position:absolute;z-index:45;top:100%;left:0;min-width:236px;
+background:var(--forge-theme-surface);border:1px solid var(--forge-theme-outline-low);
+border-radius:4px;box-shadow:0 4px 14px rgba(0,0,0,.18);padding:14px;text-align:left;
+font-weight:400;white-space:normal}
+.fpop[hidden]{display:none}
+.fpop .ttl{font:500 13px/1.4 Roboto,sans-serif;color:var(--forge-theme-text-high);
+margin-bottom:10px}
+.fpop label{font:400 12px/1.4 Roboto,sans-serif;margin:8px 0 3px;text-transform:none}
+.fpop .acts{display:flex;gap:6px;align-items:center;justify-content:flex-end;margin-top:14px}
+.fpop .acts button{padding:7px 14px}
+.fpop .acts .lnk{background:none;border:0;color:var(--forge-theme-primary);
+font:500 13px/1 Roboto,sans-serif;cursor:pointer;padding:7px 10px}
+.fpop .acts .lnk:hover{background:var(--forge-theme-primary-container-minimum);filter:none}
+.youline{font:400 13px/1.5 Roboto,sans-serif;color:var(--forge-theme-text-medium);
+margin:0 0 var(--forge-spacing-medium)}
+.youline b{color:var(--forge-theme-text-high)}
 .shown{font:italic 13px/1.4 Roboto,sans-serif;color:var(--forge-theme-text-medium);
 margin:0 0 var(--forge-spacing-small)}
 .pill{display:inline-block;padding:1px 8px;border-radius:10px;font-size:11px;font-weight:500}
@@ -848,6 +894,38 @@ document.addEventListener('change',e=>{
  else if(e.target.classList&&e.target.classList.contains('ck')) ckSync();
 });
 
+// ---- column-header filter popovers ---------------------------------------------------
+// Open/close, and mark the caret when that column is actually filtering. Without the marker a
+// filter you set is invisible once the popover closes, and you are left wondering why rows are
+// missing.
+function fpopAll(){return [...document.querySelectorAll('.fpop')]}
+function fpop(btn){const pop=btn.parentElement.querySelector('.fpop');const opening=pop.hidden;
+ fpopAll().forEach(o=>o.hidden=true);
+ pop.hidden=!opening;
+ if(opening){const f=pop.querySelector('select,input'); if(f)f.focus()}}
+function fpopClose(el){const pop=el.closest('.fpop'); if(pop)pop.hidden=true}
+function fpopClear(el){const pop=el.closest('.fpop');
+ pop.querySelectorAll('select').forEach(s=>s.value='');
+ pop.querySelectorAll('input[type=date]').forEach(i=>i.value='');
+ applyFilters(); fpopMarks(); pop.hidden=true}
+function fpopUpdate(el){applyFilters(); fpopMarks(); fpopClose(el)}
+function fpopMarks(){
+ document.querySelectorAll('th button.caretbtn').forEach(b=>{
+  const k=b.dataset.fkey; let on=false;
+  if(k==='date'){on=!!((document.getElementById('dfrom')||{}).value
+                     ||(document.getElementById('dto')||{}).value)}
+  else{const e=document.getElementById(k);
+       // "open" is the default Status view, so it does not count as a user filter
+       on=!!(e&&e.value&&!(k==='f_status'&&e.value==='__open__'))}
+  b.classList.toggle('active',on);
+ });
+}
+document.addEventListener('click',e=>{
+ if(e.target.closest('.fpop')||e.target.closest('button.caretbtn')) return;
+ fpopAll().forEach(o=>o.hidden=true);
+});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')fpopAll().forEach(o=>o.hidden=true)});
+
 const FKEYS=['agent','ex','fb','status','awaiting','routing','answer','diag','fix'];
 function fstate(){const g=i=>{const e=document.getElementById(i);return e?e.value:''};
 const o={q:g('f_q'),dfrom:g('dfrom'),dto:g('dto')};
@@ -892,7 +970,7 @@ if(es&&em){
  } else { es.style.display='none'; if(tb) tb.style.display=''; }
 }
 try{sessionStorage.setItem('tfilters',JSON.stringify(f))}catch(e){}
-if(window.ckSync)ckSync();}
+if(window.ckSync)ckSync(); if(window.fpopMarks)fpopMarks();}
 function clearFilters(){['f_q','dfrom','dto'].forEach(i=>{const e=document.getElementById(i);if(e)e.value=''});
 FKEYS.forEach(k=>{const e=document.getElementById('f_'+k);if(e)e.value=''});
 applyFilters()}
@@ -1087,51 +1165,95 @@ def list_page(show_all=False):
     pct = (100 * done // scope) if scope else 0
     mine_a = sum(1 for r in recs if r["mine_awaiting"])
     mine_r = sum(1 for r in recs if r["mine_area"] and r["status"] in ("pending", "suggested"))
-    wholine = ""
-    if ME:
-        wholine = (f"<div class=bar style='background:#fff8e6;border-color:#e8d3a8'>"
-                   f"You are <b>{html.escape(ME)}</b>."
-                   + (f" <b>{mine_a}</b> transcript(s) awaiting you." if mine_a else "")
-                   + (f" <b>{mine_r}</b> open in your area." if mine_r else "")
-                   + ("" if (mine_a or mine_r) else " Nothing open is yours right now.")
-                   + " Highlighted rows are yours — amber means handed to you, blue means your "
-                     "area. Ownership is in <code>agent-owners.json</code>.</div>")
-    bar = (wholine + f"<div class=bar><b>{done} / {scope} in-scope reviewed</b> ({pct}%)"
-           f" &nbsp;·&nbsp; {counts['pending']} pending"
-           + (f" &nbsp;·&nbsp; <span class='pill suggested'>{counts['suggested']} suggested"
-              f"</span>" if counts["suggested"] else "")
-           + f" &nbsp;·&nbsp; {excl} excluded (pre-go-live)"
-           f" &nbsp;·&nbsp; {tot} total"
-           f" &nbsp;·&nbsp; <a href='/git'>commit &amp; open a PR &rarr;</a></div>")
-    search = ("<div class=searchwrap><span class=mag>&#128269;</span>"
-              "<input class=bigsearch id=f_q placeholder='Search transcripts&hellip;'></div>"
-              "<p class=searchhelp>Searches the question and filename. "
-              "Use the boxes under each heading to narrow further.</p>"
-              "<div class=bar id=fbar style='display:flex;gap:10px;align-items:center;flex-wrap:wrap'>"
-              "<span class=hint style='font-size:12px'>Date</span>"
-              "<input type=date id=dfrom style='width:auto'> to "
-              "<input type=date id=dto style='width:auto'>"
-              "<label style='display:inline-flex;align-items:center;gap:5px;font-size:12px;"
-              "text-transform:none;letter-spacing:0;font-weight:400;margin:0'>"
-              "<input type=checkbox id=f_mine style='width:auto;margin:0'>Only mine</label>"
-              "<button class=sec onclick='clearFilters()' style='margin-left:auto'>Clear all"
-              "</button></div>"
-              f"<p class=shown><b id=shown>0</b> of {tot} transcripts shown</p>")
 
-    filt = ("<tr class=filters>"
-            "<th></th>"
-            "<th></th>"
-            f"<th><select id=f_agent>{opts('agent')}</select></th>"
-            "<th class=nowrap><small>use date range above</small></th>"
-            f"<th><select id=f_ex>{opts('ex')}</select></th>"
-            f"<th><select id=f_fb>{opts('fb')}</select></th>"
-            f"<th><select id=f_status><option value='__open__'>open (pending+suggested)"
-            f"</option>{opts('status')}</select></th>"
-            f"<th><select id=f_awaiting>{opts('awaiting')}</select></th>"
-            f"<th><select id=f_routing>{opts('routing')}</select></th>"
-            f"<th><select id=f_answer>{opts('answer')}</select></th>"
-            f"<th><select id=f_diag>{opts('diag')}</select></th>"
-            f"<th><select id=f_fix>{opts('fix')}</select></th></tr>")
+    # One quiet line for identity + the legend, instead of the amber banner that was doing
+    # four jobs at once. The counts moved into the tiles; the legend is the only thing left
+    # that has to be said in words.
+    youline = ""
+    if ME:
+        bits = []
+        if mine_a:
+            bits.append(f"<b>{mine_a}</b> awaiting you")
+        if mine_r:
+            bits.append(f"<b>{mine_r}</b> open in your area")
+        youline = ("<p class=youline>"
+                   + (" &middot; ".join(bits) if bits else "Nothing open is yours right now.")
+                   + " &nbsp;&mdash;&nbsp; amber rows were handed to you, blue rows are your "
+                     "area.</p>")
+
+    # (label, filter-kind, select-id). kind: "" = not filterable, "sel" = value dropdown,
+    # "date" = From/To range. Order matches the columns rendered per row.
+    HEADS = [("First question", "", ""), ("Handled by", "sel", "f_agent"),
+             ("Date", "date", ""), ("Ex", "sel", "f_ex"),
+             ("Foundry FB", "sel", "f_fb"), ("Status", "sel", "f_status"),
+             ("Awaiting", "sel", "f_awaiting"), ("Routing", "sel", "f_routing"),
+             ("Answer", "sel", "f_answer"), ("Diagnosis", "sel", "f_diag"),
+             ("Fix target", "sel", "f_fix")]
+
+    def hdr(label, kind, fid):
+        """A column heading, with its filter tucked into a popover on the caret."""
+        cls = " class=qcell" if label == "First question" else ""
+        if not kind:
+            return f"<th{cls}>{label}</th>"
+        if kind == "date":
+            inner = ("<div class=ttl>Date</div>"
+                     "<label>From</label><input type=date id=dfrom>"
+                     "<label>To</label><input type=date id=dto>")
+            key = "date"
+        else:
+            src = fid[2:]
+            extra = ("<option value='__open__'>open (pending+suggested)</option>"
+                     if fid == "f_status" else "")
+            inner = (f"<div class=ttl>{label}</div>"
+                     f"<select id={fid}>{extra}{opts(src)}</select>")
+            key = fid
+        return (f"<th{cls}>{label}"
+                f"<button type=button class=caretbtn data-fkey='{key}' "
+                f"onclick='fpop(this)' aria-label='Filter by {label}'>&#9662;</button>"
+                f"<div class=fpop hidden>{inner}"
+                "<div class=acts><button type=button class=lnk onclick='fpopClear(this)'>Clear"
+                "</button><button type=button class=lnk onclick='fpopClose(this)'>Close</button>"
+                "<button type=button onclick='fpopUpdate(this)'>Update</button>"
+                "</div></div></th>")
+
+    def kpi(label, value, colour=None, span=False, meter=None):
+        style = f" style='--kc:{colour}'" if colour else ""
+        cls = "kpi progress" if span else "kpi"
+        bar = (f"<div class=meter><i style='width:{meter}%'></i></div>"
+               if meter is not None else "")
+        return (f"<div class='{cls}'{style}><div class=v>{value}</div>"
+                f"<div class=l>{label}</div>{bar}</div>")
+
+    # Lifecycle states only, in lifecycle order. Ownership is deliberately absent - see the
+    # CSS comment. No links on any tile.
+    tiles = [kpi("Reviewed of in-scope", f"{done}/{scope}", "#2e7d32", span=True, meter=pct)]
+    if counts["pending"]:
+        tiles.append(kpi("Pending", counts["pending"], "#d14900"))
+    if counts["suggested"]:
+        tiles.append(kpi("Suggested", counts["suggested"], "#5b3ba8"))
+    if counts["reviewed"]:
+        tiles.append(kpi("Awaiting processing", counts["reviewed"], "#2e7d32"))
+    if counts["pushed"]:
+        tiles.append(kpi("Live in Foundry", counts["pushed"], "#1565c0"))
+    tiles.append(kpi("Excluded (pre-go-live)", excl))
+    tiles.append(kpi("Transcripts", tot))
+    bar = youline + "<div class=kpis>" + "".join(tiles) + "</div>"
+
+    # Search and the narrowing controls on ONE row. Previously the search field, its helper
+    # paragraph, the date/mine/clear bar and the count line were four stacked blocks before
+    # the table even started.
+    search = ("<div class=bar id=fbar style='display:flex;gap:10px;align-items:center;"
+              "flex-wrap:wrap'>"
+              "<div class=searchwrap style='flex:1 1 260px;margin:0'>"
+              "<span class=mag>&#128269;</span>"
+              "<input class=bigsearch id=f_q placeholder='Search question or filename&hellip;'>"
+              "</div>"
+              "<label style='display:inline-flex;align-items:center;gap:5px;font-size:13px;"
+              "text-transform:none;letter-spacing:0;font-weight:400;margin:0;white-space:nowrap'>"
+              "<input type=checkbox id=f_mine style='width:auto;margin:0'>Only mine</label>"
+              "<button class=sec onclick='clearFilters()'>Clear</button></div>"
+              f"<p class=shown><b id=shown>0</b> of {tot} shown</p>")
+
 
     bulkbar = ("<div class=bar id=bulkbar style='display:none'>"
                "<b><span id=cknum>0</span> selected</b> &nbsp;"
@@ -1145,12 +1267,9 @@ def list_page(show_all=False):
                 + "<div class=tblcard><table id=tbl><tr>"
                   "<th class=nowrap style='width:1%'>"
                   "<input type=checkbox id=ckall title='select all shown'></th>"
-                  + "".join(f"<th{' class=qcell' if h=='First question' else ''}>{h}"
-                              f"<span class=caret>&#9662;</span></th>" for h in
-                     ["First question","Handled by","Date","Ex","Foundry FB","Status",
-                      "Awaiting","Routing","Answer","Diagnosis","Fix target"])
+                  + "".join(hdr(*h) for h in HEADS)
                   + "</tr>"
-                + filt + "".join(rows) + "</table>"
+                  + "".join(rows) + "</table>"
                   "<div id=emptystate style='display:none;padding:38px 8px 44px;text-align:center'>"
                   "<div style='font-size:32px;opacity:.35;margin-bottom:10px'>&#9776;</div>"
                   "<div id=emptymsg style='font-size:15px;color:var(--forge-theme-text-medium);"
