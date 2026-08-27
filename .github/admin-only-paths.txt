@@ -50,3 +50,5 @@
 ^\.gitignore$
 # Generated from GitHub team membership; hand-editing it does nothing but cause confusion.
 ^contributors\.json$
+# Hand-maintained ownership map for review-UI highlighting. Owner maintains it.
+^agent-owners\.json$

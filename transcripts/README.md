@@ -396,6 +396,38 @@ Three things work together:
 concluded, and if you still disagree, hit **Re-review** — that raises `review_round` and both
 verdicts end up on the record. Re-reviewing is encouraged; it just has to be explicit.
 
+## Finding your own rows
+
+The review list shows an **Awaiting** column and highlights the rows that are yours, so you do
+not have to read every line to find your work.
+
+| Highlight | Means |
+|---|---|
+| **Amber**, with a `you` badge | `awaiting` names you — somebody handed this to you personally |
+| **Blue**, with a `your area` badge | You own the agent that answered it. Nobody has asked you specifically |
+| No highlight | Not yours |
+
+There is a **mine only** checkbox in the filter bar, and `Awaiting` is filterable like any other
+column.
+
+Ownership comes from [`agent-owners.json`](../agent-owners.json) — hand-maintained, and
+deliberately *not* `contributors.json`, which is generated from GitHub teams and would overwrite
+anything added by hand. It uses a default owner plus per-agent overrides, so adding an agent
+needs no edit:
+
+```json
+{ "default_owner": "vijay-tylertech",
+  "by_agent": { "identity": "jon-olson-tylertech" } }
+```
+
+**Ownership is a convenience, not a permission.** It changes which rows are tinted and nothing
+else — anyone may still review anything, and `Suggest & next` remains the way to weigh in on an
+area you do not own.
+
+The UI works out who you are from `gh api user`; override with `--me <username>`. If it cannot
+tell, or the name is not in `contributors.json`, **nothing** is highlighted and it says so on
+startup — highlighting the wrong person's rows would be worse than highlighting nobody's.
+
 ## Referring to a transcript
 
 Use the review UI URL, never the bare hash:

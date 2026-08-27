@@ -40,6 +40,57 @@ def contributors():
         return []
 
 
+OWNERS = REPO / "agent-owners.json"
+
+
+def agent_owners():
+    """agent slug -> set of usernames who own it, from agent-owners.json.
+
+    Hand-maintained, unlike contributors.json which is generated. Read fresh each request so
+    editing the file takes effect without restarting the server. Returns ({}, default) on any
+    problem rather than raising — a broken ownership file must not take the review UI down,
+    since ownership is only a convenience for finding your own rows.
+    """
+    try:
+        d = json.loads(OWNERS.read_text(encoding="utf-8"))
+    except Exception:
+        return {}, None
+    def as_set(v):
+        return {v} if isinstance(v, str) else set(v or [])
+    by = {k: as_set(v) for k, v in (d.get("by_agent") or {}).items() if not k.startswith("_")}
+    return by, d.get("default_owner") or None
+
+
+def owners_of(agent):
+    by, default = agent_owners()
+    if agent in by:
+        return by[agent]
+    return {default} if default else set()
+
+
+def whoami(override=None):
+    """The current contributor, for highlighting their rows.
+
+    Order: an explicit --me override, then the local `gh` identity. Returns None if neither
+    works, in which case nothing is highlighted — which is the right failure mode: highlighting
+    the WRONG person's rows is worse than highlighting nobody's.
+    """
+    if override:
+        return override
+    rc, out = git_cmd("gh", "api", "user", "--jq", ".login")
+    return out.strip() or None
+
+
+def git_cmd(*args):
+    try:
+        r = subprocess.run(list(args), cwd=REPO, capture_output=True, text=True, timeout=15)
+        return r.returncode, r.stdout
+    except Exception:
+        return 1, ""
+
+
+ME = None          # resolved once at startup; see main()
+
 # Ordered so rewritten frontmatter keeps a stable, diff-friendly shape.
 SOURCE_KEYS = ["conversation_id", "answered_by", "date", "exchanges",
                "dropped_sample_prompts", "foundry_feedback", "user_comments"]
@@ -451,6 +502,17 @@ tr.filters small{color:#6b7280;font-weight:400}
 #fbar input[type=date]{width:auto;padding:4px 6px;font-size:12px;border:1px solid #c3cbd5;border-radius:4px}
 td.nowrap,th.nowrap{white-space:nowrap}
 tr.row[data-status=excluded] td{opacity:.5}
+/* Two strengths of "this row is yours", deliberately different. Awaiting-you is a personal
+   hand-off and gets the strong treatment; your-area is ambient and must not shout, or a
+   contributor who owns four agents sees a wall of colour and stops noticing any of it. */
+tr.row.mine-area td{background:#fbfdff}
+tr.row.mine-area td:first-child{box-shadow:inset 3px 0 0 #9dc0e8}
+tr.row.mine-awaiting td{background:#fff8e6}
+tr.row.mine-awaiting td:first-child{box-shadow:inset 3px 0 0 #e0a92b}
+tr.row.mine-awaiting:hover td{background:#fff3d6}
+.pill.mineflag{background:#e0a92b;color:#fff;margin-left:5px}
+tr.row.mine-area .pill.mineflag{background:#9dc0e8;color:#14385e}
+span.owner{color:#8b95a3;font-size:12px}
 .deleg{font-size:11px;color:#7a5cbf;font-weight:600}
 pre.out{background:#10151f;color:#d6dde8;padding:10px;border-radius:6px;font-size:12px;overflow:auto;max-height:240px}
 /* Field help. .fld is the positioning context so the panel OVERLAYS rather than reflowing
@@ -526,12 +588,14 @@ const msg=(document.getElementById('cmsg')||{}).value||'';
 const r=await post('/git',{action,branch,message:msg});
 document.getElementById('gitout').textContent=r.output||'(no output)';toast(r.ok?action+' ok':action+' failed',r.ok)}
 
-const FKEYS=['agent','ex','fb','status','routing','answer','diag','fix'];
+const FKEYS=['agent','ex','fb','status','awaiting','routing','answer','diag','fix'];
 function fstate(){const g=i=>{const e=document.getElementById(i);return e?e.value:''};
 const o={q:g('f_q'),dfrom:g('dfrom'),dto:g('dto')};
 FKEYS.forEach(k=>o[k]=g('f_'+k));return o}
 function applyFilters(){const f=fstate();let n=0;
+const mineOnly=(document.getElementById('f_mine')||{}).checked;
 document.querySelectorAll('tr.row').forEach(tr=>{let ok=true;
+ if(mineOnly && !tr.dataset.mine) ok=false;
  if(f.q && !tr.dataset.q.includes(f.q.toLowerCase())) ok=false;
  FKEYS.forEach(k=>{const want=f[k]; if(!want) return;
   const have=tr.dataset[k]||'';
@@ -554,9 +618,9 @@ const set=(id,v)=>{const e=document.getElementById(id); if(e&&v) e.value=v};
 if(saved){set('f_q',saved.q);set('dfrom',saved.dfrom);set('dto',saved.dto);
  FKEYS.forEach(k=>set('f_'+k,saved[k]));}
 else{set('f_status','__open__');}  // default view: everything still open (pending + suggested)
-['f_q','dfrom','dto'].concat(FKEYS.map(k=>'f_'+k)).forEach(id=>{
+['f_q','dfrom','dto','f_mine'].concat(FKEYS.map(k=>'f_'+k)).forEach(id=>{
  const e=document.getElementById(id); if(!e)return;
- e.addEventListener((e.tagName==='SELECT'||e.type==='date')?'change':'input',applyFilters)});
+ e.addEventListener((e.tagName==='SELECT'||e.type==='date'||e.type==='checkbox')?'change':'input',applyFilters)});
 applyFilters()}
 
 // This block is emitted at the END of the body, so the table above is already parsed.
@@ -609,6 +673,16 @@ def list_page():
             "suggested_by": fm.get("suggested_by", ""),
             "awaiting": fm.get("awaiting", ""),
         })
+    by_agent, default_owner = agent_owners()
+    for r in recs:
+        owners = by_agent.get(r["agent"], {default_owner} if default_owner else set())
+        r["owners"] = sorted(o for o in owners if o)
+        # Two DIFFERENT reasons a row is yours, deliberately kept apart:
+        #   awaiting == you   -> handed to you personally. Strongest signal.
+        #   you own the agent -> yours by area; nobody asked you specifically.
+        # Collapsing them would hide the difference between "waiting on me" and "my patch".
+        r["mine_awaiting"] = bool(ME and r["awaiting"] == ME)
+        r["mine_area"] = bool(ME and ME in owners and not r["mine_awaiting"])
 
     # newest first — reviewers work the recent tail
     recs.sort(key=lambda r: (r["date"], r["rel"]), reverse=True)
@@ -622,13 +696,19 @@ def list_page():
     rows = []
     for r in recs:
         rows.append(
-            "<tr class=row"
+            "<tr class='row"
+            + (" mine-awaiting" if r["mine_awaiting"] else "")
+            + (" mine-area" if r["mine_area"] else "")
+            + "'"
             f" data-q=\"{html.escape((r['q'] + ' ' + r['rel']).lower())}\""
             f" data-agent=\"{html.escape(r['agent'])}\" data-date=\"{html.escape(r['date'])}\""
             f" data-ex=\"{html.escape(r['ex'])}\" data-fb=\"{html.escape(r['fb'])}\""
             f" data-status=\"{html.escape(r['status'])}\" data-routing=\"{html.escape(r['routing'])}\""
             f" data-answer=\"{html.escape(r['answer'])}\" data-diag=\"{html.escape(r['diag'])}\""
-            f" data-fix=\"{html.escape(r['fix'])}\" data-reviewer=\"{html.escape(r['reviewer'])}\">"
+            f" data-fix=\"{html.escape(r['fix'])}\" data-reviewer=\"{html.escape(r['reviewer'])}\""
+            f" data-awaiting=\"{html.escape(r['awaiting'])}\""
+            f" data-owner=\"{html.escape(','.join(r['owners']))}\""
+            f" data-mine=\"{'awaiting' if r['mine_awaiting'] else ('area' if r['mine_area'] else '')}\">"
             f"<td class=qcell title=\"{html.escape(r['qfull'])}\">"
             f"<a href='/t/{html.escape(r['rel'])}'>{html.escape(r['q'])}</a></td>"
             f"<td>{html.escape(r['agent'])}"
@@ -638,6 +718,7 @@ def list_page():
             f"<td>{'<span class=\'pill warn\'>'+html.escape(r['fb'])+'</span>' if r['fb'] not in ('none','') else ''}</td>"
             f"<td><span class='pill {r['status']}'>{html.escape(r['status'])}</span>"
             f"{'<div class=deleg>'+html.escape(r['suggested_by'])+' &rarr; '+html.escape(r['awaiting'] or 'anyone')+'</div>' if r['status']=='suggested' else ''}</td>"
+            f"<td class=nowrap>{awaiting_cell(r)}</td>"
             f"<td>{html.escape(r['routing'])}"
             f"{'&rarr;'+html.escape(r['reassign']) if r['reassign'] else ''}</td>"
             f"<td>{html.escape(r['answer'])}</td>"
@@ -649,7 +730,18 @@ def list_page():
     done = counts["reviewed"]
     scope = tot - excl
     pct = (100 * done // scope) if scope else 0
-    bar = (f"<div class=bar><b>{done} / {scope} in-scope reviewed</b> ({pct}%)"
+    mine_a = sum(1 for r in recs if r["mine_awaiting"])
+    mine_r = sum(1 for r in recs if r["mine_area"] and r["status"] in ("pending", "suggested"))
+    wholine = ""
+    if ME:
+        wholine = (f"<div class=bar style='background:#fff8e6;border-color:#e8d3a8'>"
+                   f"You are <b>{html.escape(ME)}</b>."
+                   + (f" <b>{mine_a}</b> transcript(s) awaiting you." if mine_a else "")
+                   + (f" <b>{mine_r}</b> open in your area." if mine_r else "")
+                   + ("" if (mine_a or mine_r) else " Nothing open is yours right now.")
+                   + " Highlighted rows are yours — amber means handed to you, blue means your "
+                     "area. Ownership is in <code>agent-owners.json</code>.</div>")
+    bar = (wholine + f"<div class=bar><b>{done} / {scope} in-scope reviewed</b> ({pct}%)"
            f" &nbsp;·&nbsp; {counts['pending']} pending"
            + (f" &nbsp;·&nbsp; <span class='pill suggested'>{counts['suggested']} suggested"
               f"</span>" if counts["suggested"] else "")
@@ -659,7 +751,7 @@ def list_page():
            "<div class=bar id=fbar>Showing <b id=shown>0</b> of "
            f"<b>{tot}</b> &nbsp;·&nbsp; date "
            "<input type=date id=dfrom> to <input type=date id=dto>"
-           " &nbsp;<button class=sec onclick='clearFilters()'>Clear all</button></div>")
+           " &nbsp;<label style='display:inline;font-size:12px;text-transform:none;letter-spacing:0;font-weight:400'><input type=checkbox id=f_mine style='width:auto;margin-right:4px'>mine only</label>"" &nbsp;<button class=sec onclick='clearFilters()'>Clear all</button></div>")
 
     filt = ("<tr class=filters>"
             "<th><input id=f_q placeholder='search question / filename'></th>"
@@ -669,6 +761,7 @@ def list_page():
             f"<th><select id=f_fb>{opts('fb')}</select></th>"
             f"<th><select id=f_status><option value='__open__'>open (pending+suggested)"
             f"</option>{opts('status')}</select></th>"
+            f"<th><select id=f_awaiting>{opts('awaiting')}</select></th>"
             f"<th><select id=f_routing>{opts('routing')}</select></th>"
             f"<th><select id=f_answer>{opts('answer')}</select></th>"
             f"<th><select id=f_diag>{opts('diag')}</select></th>"
@@ -676,7 +769,7 @@ def list_page():
 
     return page("Transcripts", bar
                 + "<table id=tbl><tr><th>First question<th>Handled by<th>Date<th>Ex"
-                  "<th>Foundry FB<th>Status<th>Routing<th>Answer<th>Diagnosis<th>Fix target</tr>"
+                  "<th>Foundry FB<th>Status<th>Awaiting<th>Routing<th>Answer<th>Diagnosis<th>Fix target</tr>"
                 + filt + "".join(rows) + "</table>")
 
 
@@ -699,6 +792,23 @@ def doc_popover(k):
              f"<p>{html.escape(d['about'])}</p>{table}"
              f"<button type=button class='sec tipclose' onclick=\"tip(this)\">Close</button></div>")
     return icon, panel
+
+
+def awaiting_cell(r):
+    """Who a transcript is waiting on, plus why the row is highlighted.
+
+    Shows `awaiting` when set. When it is not, falls back to the agent's owner in muted text —
+    so a row is never blank in this column, and "nobody has been asked, but this is Jon's area"
+    is visible at a glance rather than requiring you to know the mapping.
+    """
+    if r["awaiting"]:
+        badge = " <span class='pill mineflag'>you</span>" if r["mine_awaiting"] else ""
+        return f"<b>{html.escape(r['awaiting'])}</b>{badge}"
+    if r["owners"]:
+        who = ", ".join(r["owners"])
+        tag = " <span class='pill mineflag'>your area</span>" if r["mine_area"] else ""
+        return f"<span class=owner>{html.escape(who)}</span>{tag}"
+    return "<span class=owner>—</span>"
 
 
 def field(k, val):
@@ -969,10 +1079,31 @@ class H(BaseHTTPRequestHandler):
 
 
 def main():
+    global ME
     ap = argparse.ArgumentParser()
     ap.add_argument("--port", type=int, default=7777)
+    ap.add_argument("--me", help="your GitHub username, for highlighting your own rows; "
+                                 "defaults to whatever `gh api user` reports")
     ap.add_argument("--no-browser", action="store_true")
     a = ap.parse_args()
+    ME = whoami(a.me)
+    known = contributors()
+    if ME and known and ME not in known:
+        # flush=True throughout: stdout is block-buffered when redirected to a file, and
+        # serve_forever() never returns, so an unflushed diagnostic is never seen at all.
+        print(f"note: '{ME}' is not in contributors.json, so no rows will be marked "
+              f"as yours. Pass --me with a registered name if that is wrong.", flush=True)
+        ME = None
+    if not ME:
+        print("note: could not identify you, so no rows are highlighted as yours. "
+              "Pass --me <your-github-username>, or check `gh auth status`.", flush=True)
+    else:
+        by, dflt = agent_owners()
+        if not by and not dflt:
+            print("note: agent-owners.json is missing or unreadable — no ownership "
+                  "highlighting. Row colouring is a convenience; everything else works.",
+                  flush=True)
+        print(f"you are: {ME}", flush=True)
     if not TDIR.is_dir() or not tfiles():
         sys.exit("No transcripts found. Run: python3 scripts/fetch_transcripts.py")
     url = f"http://127.0.0.1:{a.port}/"
