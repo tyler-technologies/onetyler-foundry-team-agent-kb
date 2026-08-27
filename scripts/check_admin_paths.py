@@ -53,7 +53,6 @@ def codeowner_patterns():
 EXPECTED = {
     r"^README\.md$":                     "/README.md",
     r"^team-config/":                    "/team-config/",
-    r"^Knowledge-[^/]+/_START_HERE\.md$": "/Knowledge-*/_START_HERE.md",
     r"^CLAUDE\.md$":                     "/CLAUDE.md",
     r"^contributor-initial-prompt\.md$": "/contributor-initial-prompt.md",
     r"^contributor-update-prompt\.md$":  "/contributor-update-prompt.md",

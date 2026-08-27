@@ -79,6 +79,21 @@ jobs:
         # from CODEOWNERS stops being gated while CI still claims it is protected.
         run: python3 scripts/check_admin_paths.py
 
+      - name: CODEOWNERS matches agent-owners.json
+        # CODEOWNERS is GENERATED from agent-owners.json. Two sources of truth for one fact is
+        # the bug this replaces: ownership was recorded in one file and enforced in another,
+        # and nothing kept them honest.
+        run: python3 scripts/gen_codeowners.py --check
+
+      - name: Corpus ownership
+        # Reports when a request touches a corpus its author does not own. Not a gate for that
+        # case — editing another agent's corpus IS how feedback reaches its owner, and
+        # CODEOWNERS already requires them to approve. It fails only on an admin-only path.
+        run: |
+          python3 scripts/check_folder_ownership.py \
+            --base "origin/${{ github.base_ref }}" \
+            --author "${{ github.event.pull_request.user.login }}"
+
       - name: Frontmatter is well-formed
         run: python3 scripts/review_status.py --check
 
