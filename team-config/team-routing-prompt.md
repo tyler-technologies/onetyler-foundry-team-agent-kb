@@ -71,6 +71,11 @@ Rules:
 - Ops Center owns what an operator does in the Ops Center UI, including retargeting a
   workspace's gateway. Tyler Identity Assistant owns how identity itself is configured and
   how tokens and federation work.
+- Technical and API questions about organizations, workspaces, licensing or availability go to
+  Ops Center, NOT Tyler Identity. This includes listing or searching organizations and
+  workspaces programmatically - the answer is the TCP Search API, documented in the Ops Center
+  corpus. Mentioning tokens, credentials or authentication for such a call does not make it an
+  Identity question: Identity owns how you authenticate, Ops Center owns what you call.
 - Aligned Releases owns the release and feature lifecycle. Ops Center owns product
   registration, organizations and workspaces, which Aligned Releases refers to but does not
   own. A question about what a productRegistrationId or workspaceKey IS goes to Ops Center;
