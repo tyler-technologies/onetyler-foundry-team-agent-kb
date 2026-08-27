@@ -549,31 +549,39 @@ a{color:var(--forge-theme-primary)}
 header{background:var(--forge-theme-brand);color:#fff;padding:0 var(--forge-spacing-medium);
 height:56px;display:flex;gap:var(--forge-spacing-medium);align-items:center;
 position:sticky;top:0;z-index:30;box-shadow:0 1px 3px rgba(0,0,0,.24)}
-header b{font-size:16px;font-weight:500;letter-spacing:.01em}
-header .who{margin-left:auto;font-size:13px;opacity:.85}
+header b{font-size:16px;font-weight:500;letter-spacing:.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+header .who{margin-left:auto;font-size:13px;opacity:.85;white-space:nowrap;flex:0 0 auto}
 
 /* --- SIDE NAV. The old top-bar links read as prose and people did not know they were
    navigation at all. A Forge-style rail with an icon, a label and a live count per item
    makes each one obviously a place you can go. --- */
-.shell{display:flex;min-height:calc(100vh - 56px)}
+.shell{display:flex;min-height:calc(100vh - 56px);align-items:stretch}
+/* The rail's right-hand rule runs the FULL viewport height, not just as far as the last nav
+   item. Sizing it to the viewport (rather than letting it shrink-wrap its content) is what
+   makes the boundary continuous - with align-self:flex-start it stopped under "Save & share"
+   and left the divider dangling in mid-page. overflow-y:auto keeps a long nav usable if it
+   ever outgrows a short screen. */
 nav.side{width:var(--nav-w);flex:0 0 var(--nav-w);background:var(--forge-theme-surface);
-border-right:1px solid var(--forge-theme-outline);padding:var(--forge-spacing-small) 0;
-position:sticky;top:56px;align-self:flex-start;max-height:calc(100vh - 56px);overflow:auto}
+border-right:1px solid var(--forge-theme-outline);
+padding:var(--forge-spacing-small) var(--forge-spacing-small);
+position:sticky;top:56px;height:calc(100vh - 56px);overflow-y:auto}
 nav.side .grp{font:500 11px/1.6 Roboto,sans-serif;text-transform:uppercase;letter-spacing:.09em;
 color:var(--forge-theme-text-low);padding:var(--forge-spacing-medium) var(--forge-spacing-medium) var(--forge-spacing-xsmall)}
-nav.side a{display:flex;align-items:center;gap:10px;padding:10px var(--forge-spacing-medium);
-color:var(--forge-theme-text-high);text-decoration:none;font-size:14px;
-border-left:3px solid transparent}
+nav.side a{display:flex;align-items:center;gap:10px;
+padding:11px var(--forge-spacing-medium);border-radius:4px;
+color:var(--forge-theme-text-high);text-decoration:none;font-size:14px}
 nav.side a:hover{background:var(--forge-theme-primary-container-minimum)}
 nav.side a.on{background:var(--forge-theme-primary-container-low);
-border-left-color:var(--forge-theme-primary);color:var(--forge-theme-primary);font-weight:500}
+color:var(--forge-theme-primary);font-weight:500}
 nav.side a .ic{width:20px;text-align:center;font-size:15px;opacity:.8}
 nav.side a .ct{margin-left:auto;font-size:12px;color:var(--forge-theme-text-medium);
 background:var(--forge-theme-surface-container-low);border-radius:10px;padding:0 7px}
 nav.side a.on .ct{background:#fff;color:var(--forge-theme-primary)}
 nav.side .hint{font-size:11px;color:var(--forge-theme-text-medium);line-height:1.45;
 padding:var(--forge-spacing-small) var(--forge-spacing-medium) var(--forge-spacing-medium)}
-main.wrap{flex:1;min-width:0;padding:var(--forge-spacing-large);max-width:none}
+main.wrap{flex:1;min-width:0;max-width:none;
+padding:var(--forge-spacing-large) var(--forge-spacing-large)
+        var(--forge-spacing-large) var(--forge-spacing-large)}
 /* the 12-column table scrolls INSIDE its card rather than stretching the page */
 .tblcard{overflow-x:auto}
 
@@ -766,16 +774,17 @@ button.tipclose{padding:3px 10px;font-size:11px}
   th,td{padding-right:10px}
 }
 @media (max-width:1180px){
+  header b{font-size:14px}
   :root{--nav-w:156px}
-  nav.side a{padding:9px 10px;font-size:13px;gap:7px}
-  nav.side .grp{padding:10px 10px 2px}
+  nav.side a{padding:10px 12px;font-size:13px;gap:8px}
+  nav.side .grp{padding:12px 12px 2px}
   nav.side .hint{display:none}          /* the nav explainer is the first thing to go */
-  main.wrap{padding:var(--forge-spacing-small)}
+  main.wrap{padding:var(--forge-spacing-medium) var(--forge-spacing-medium)}
   td{font-size:13px}
 }
 @media (max-height:820px){
   header{height:48px}
-  nav.side{top:48px;max-height:calc(100vh - 48px)}
+  nav.side{top:48px;height:calc(100vh - 48px)}
   .shell{min-height:calc(100vh - 48px)}
   input.bigsearch{padding:9px 12px 9px 36px;font-size:14px}
   .searchhelp{margin-bottom:var(--forge-spacing-small);font-size:11px}
@@ -1049,7 +1058,7 @@ def page(title, inner, active="", all_view=False):
     return f"""<!doctype html><meta charset=utf-8><title>{html.escape(title)}</title>
 <meta name=viewport content="width=device-width,initial-scale=1">
 <link rel=stylesheet href="https://cdn.forge.tylertech.com/v1/css/tyler-font.css">
-<style>{CSS}</style><header><b>Transcript Review</b>{who}</header>
+<style>{CSS}</style><header><b>OneTyler Foundry Team Agent Transcript Review</b>{who}</header>
 <body data-default-mine="{'1' if (ME and not all_view) else '0'}">
 <div class=shell>{side}<main class=wrap>{inner}</main></div>
 <div class=toast id=toast></div><script>{JS}</script>"""
