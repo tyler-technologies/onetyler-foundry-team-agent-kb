@@ -1095,6 +1095,21 @@ Full conventions are in `README.md`. The essentials:
   near the top, self-contained sections (RAG chunks independently of headings), repeated
   explicit "Use when:" / "Prerequisites:" / "Fields:" patterns, and URLs preserved verbatim.
 - Add a **"Notes for the chatbot"** section for routing nuances and traps.
+- **A behavioural rule must be CO-LOCATED with the data it governs, not only stated once.**
+  Retrievers chunk independently of headings, so a rule in a "Notes for the chatbot" section at
+  the end of a long file is in a different chunk from the entry it is meant to modify — and the
+  agent answering a specific question retrieves the entry, not the note. State the rule beside
+  the data as well, and say in-file that the repetition is deliberate so nobody tidies it away.
+
+  Measured 2026-08-27: the rule "give the Confluence ticket page, not the raw JSM form URL" was
+  added to `Conf-OneTylerTickets.md`'s notes at line 463 of a 777-line file. Retrieval probes
+  confirmed the rule was live in all five collections — and the agent still handed out only the
+  bare form URL, because the chunk it retrieved was the ticket entry at line 124. **Content
+  being retrievable is not the same as content being applied.**
+
+  The same logic applies to contradictions: if an entry elsewhere shows the thing the rule
+  forbids, the agent will follow the concrete example over the general instruction. Fix the
+  example, not just the rule.
 - **Update `_START_HERE.md`** in that folder whenever you add, rename, or remove a file. A
   stale start page actively misleads the agent. Update `README.md` too if team-level routing
   changes.
