@@ -940,6 +940,13 @@ button.danger:hover{filter:brightness(.92)}
 .dzrow .sub{margin-top:3px}
 .dzact{flex:0 0 auto}
 .prpills{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+/* Amber, matching "not finished yet" elsewhere on the page rather than red: an outstanding
+   request is not an error, it is work in flight. */
+.prbadge{margin-top:3px;font-size:11px}
+.prbadge a{display:inline-block;padding:1px 6px;border-radius:3px;
+background:var(--t-yellow-bg);border:1px solid var(--t-yellow-bd);
+color:var(--forge-theme-text-high);text-decoration:none;font-weight:500}
+.prbadge a:hover{text-decoration:underline}
 /* Amber, because it is an obligation rather than a warning: this one is not finished when it
    merges. */
 .fdrynote{margin-top:8px;padding:8px 12px;border-radius:4px;
@@ -2007,7 +2014,12 @@ def list_page(show_all=False):
             "suggested_by": fm.get("suggested_by", ""),
             "awaiting": fm.get("awaiting", ""),
             "eff_agents": effective_agents(fm),
+            "openpr": None,          # filled in below from transcript_pr_map()
         })
+    tpr = transcript_pr_map()
+    for r in recs:
+        r["openpr"] = tpr.get(r["rel"])
+
     by_agent, default_owner = agent_owners()
     admin_set = admins()
     for r in recs:
@@ -2079,9 +2091,15 @@ def list_page(show_all=False):
             f" data-eff=\"{html.escape(','.join(r['eff_agents']))}\""
             f" title=\"{html.escape(r.get('own_basis',''))}\""
             f" data-mine=\"{'awaiting' if r['mine_awaiting'] else ('area' if r['mine_area'] else '')}\""
+            f" data-openpr=\"{r['openpr']['number'] if r['openpr'] else ''}\""
             f" data-href=\"/t/{html.escape(r['rel'])}\">"
             f"<td class=nowrap><input type=checkbox class=ck value=\"{html.escape(r['rel'])}\""
-            f"{' disabled' if r['status']!='pending' else ''}></td>"
+            # Disabled when it is inside an open request as well as when it is not pending.
+            # Bulk-marking is precisely the "acting on it automatically" this badge exists to
+            # prevent, so the badge alone would have been advice without a guard behind it.
+            f"{' disabled' if (r['status']!='pending' or r['openpr']) else ''}"
+            f"{' title=\'Inside an unmerged change request — open it instead\'' if r['openpr'] else ''}"
+            "></td>"
             f"<td class=fbcell>{fb_glyph(r['fb'])}</td>"
             f"<td class=qcell title=\"{html.escape(r['qfull'])}\">"
             f"<a href='/t/{html.escape(r['rel'])}'>{html.escape(r['q'])}</a></td>"
@@ -2090,7 +2108,16 @@ def list_page(show_all=False):
             f"<td class=nowrap>{html.escape(r['date'])}</td>"
             f"<td>{html.escape(r['ex'])}</td>"
             f"<td><span class='pill {r['status']}'>{html.escape(r['status'])}</span>"
-            f"{'<div class=deleg>'+html.escape(r['suggested_by'])+' &rarr; '+html.escape(r['awaiting'] or 'anyone')+'</div>' if r['status']=='suggested' else ''}</td>"
+            f"{'<div class=deleg>'+html.escape(r['suggested_by'])+' &rarr; '+html.escape(r['awaiting'] or 'anyone')+'</div>' if r['status']=='suggested' else ''}"
+            # Already inside an unmerged change request. Says so on the row, because the
+            # alternative is someone re-reviewing work that is already done - a sync from main
+            # re-creates these as fresh `pending` stubs, since fetch_transcripts.py decides
+            # "new" from the working tree alone and cannot see a branch.
+            + (f"<div class=prbadge><a href=\"{html.escape(r['openpr']['url'])}\" "
+               f"target=_blank rel=noopener onclick='event.stopPropagation()'>"
+               f"outstanding PR #{r['openpr']['number']}</a></div>"
+               if r["openpr"] else "")
+            + "</td>"
             f"<td class=awcell>{awaiting_cell(r)}</td>"
             f"<td>{html.escape(r['routing'])}"
             f"{'&rarr;'+html.escape(r['reassign']) if r['reassign'] else ''}</td>"
@@ -3052,6 +3079,63 @@ def open_prs():
     return prs, None
 
 
+# Transcripts that are already inside an open change request.
+#
+# WHY THIS EXISTS. `fetch_transcripts.py` decides "is this new?" with `p.exists()` - the
+# WORKING TREE and nothing else. It has no idea about branches or open requests. So a
+# transcript reviewed on a branch, committed, and sitting in an unmerged request does not
+# exist on main, and a sync from main happily re-creates it as a fresh `pending` stub.
+#
+# Measured 2026-08-27 on a clean main checkout: `--dry-run` reported "would add: 4 new", of
+# which THREE were transcripts already reviewed inside PR #18. Someone would then have
+# re-reviewed work that was already done, and the merge would collide.
+#
+# Pulling them anyway is the right call - the alternative is a sync that silently withholds
+# conversations - so instead the row says so and links to the request.
+_TPR_CACHE = {"at": 0.0, "map": {}, "ok": False}
+_TPR_TTL = 60.0
+
+
+def transcript_pr_map(force=False):
+    """{rel -> {"number", "url"}} for transcripts touched by an open change request.
+
+    `rel` is relative to transcripts/, matching the review UI's own keys.
+    """
+    now = time.monotonic()
+    if not force and _TPR_CACHE["ok"] and (now - _TPR_CACHE["at"]) < _TPR_TTL:
+        return _TPR_CACHE["map"]
+    out = {}
+    if shutil.which("gh"):
+        try:
+            r = subprocess.run(["gh", "pr", "list", "--state", "open", "--limit", "50",
+                                "--json", "number,url,files"],
+                               cwd=REPO, capture_output=True, text=True, timeout=10)
+            if r.returncode == 0:
+                for pr in json.loads(r.stdout or "[]"):
+                    for f in pr.get("files") or []:
+                        path = f.get("path", "")
+                        if not (path.startswith("transcripts/") and path.endswith(".md")):
+                            continue
+                        rel = path[len("transcripts/"):]
+                        # Only real transcripts. INDEX.md and README.md live in this folder
+                        # and change on nearly every request, so without this the badge
+                        # appeared against docs. Matching on the SHAPE of the path rather
+                        # than a blocklist, for the reason is_transcript() gives: a blocklist
+                        # broke the moment ONBOARDING.md was added.
+                        if "/" not in rel or not re.match(r"^\d{4}-\d{2}-\d{2}--",
+                                                          rel.split("/")[-1]):
+                            continue
+                        if True:
+                            # Lowest PR number wins only for stability of display; a
+                            # transcript in two requests is itself worth noticing, and the
+                            # badge links to one of them rather than pretending there is one.
+                            out.setdefault(rel, {"number": pr["number"], "url": pr["url"]})
+        except Exception:                                          # noqa: BLE001
+            out = _TPR_CACHE["map"]
+    _TPR_CACHE.update(at=now, map=out, ok=True)
+    return out
+
+
 def pr_kind(pr):
     """What a change request is MADE of, and therefore what merging it obliges.
 
@@ -3521,10 +3605,19 @@ class H(BaseHTTPRequestHandler):
                 if who not in contributors():
                     raise ValueError(f"'{who}' is not in contributors.json")
                 done, skipped = [], []
+                # The disabled checkbox in the UI is advice; this is the rule. A transcript
+                # already inside an unmerged change request must not be re-stamped here - the
+                # verdict in that request is the real one, and stamping a duplicate guarantees
+                # a conflict when it merges.
+                tpr = transcript_pr_map()
                 for rel in rels:
                     f = (TDIR / rel).resolve()
                     if not str(f).startswith(str(TDIR.resolve())) or not f.is_file():
                         skipped.append((rel, "not found")); continue
+                    if rel in tpr:
+                        skipped.append((rel, f"already inside change request "
+                                             f"#{tpr[rel]['number']} — open that instead"))
+                        continue
                     fm, body = parse(f)
                     if fm is None:
                         skipped.append((rel, "no frontmatter")); continue
