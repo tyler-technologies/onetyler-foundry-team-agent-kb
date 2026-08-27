@@ -14,7 +14,7 @@ Stdlib only — no pip install, no build step. Binds to loopback only.
 Everything it writes lands in transcripts/*.md. Commit and open a PR as normal,
 or use the Git panel in the UI.
 """
-import argparse, html, json, os, re, subprocess, sys, webbrowser
+import argparse, html, json, os, re, shutil, subprocess, sys, time, webbrowser
 from collections import Counter
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -930,6 +930,22 @@ padding:1px 4px;border-radius:2px}
 .confirmbox .cacts{margin-top:12px;display:flex;gap:8px}
 button.danger{background:var(--forge-theme-error);color:var(--on-accent);border:0}
 button.danger:hover{filter:brightness(.92)}
+/* The escape hatch at the foot of the page. Tinted rather than bordered-and-loud: it has to
+   read as "not for today" while staying findable on the day it matters. */
+.card.dangerzone{background:var(--t-red-bg);border-color:var(--t-red-bd)}
+.card.dangerzone>h3{font-size:16px}
+.dzrow{display:flex;gap:20px;align-items:flex-start;margin-top:14px}
+.dzrow>div:first-child{flex:1;min-width:0}
+.dzrow b{font-weight:500}
+.dzrow .sub{margin-top:3px}
+.dzact{flex:0 0 auto}
+.prpills{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+.card>h3 a{text-decoration:none}
+#prout{margin-top:20px}
+/* Hand-off line at the end of a step: where responsibility passes to someone else. */
+.handoff{margin-top:14px;padding:10px 14px;border-radius:4px;
+background:var(--forge-theme-surface-container-minimum);
+color:var(--forge-theme-text-medium);font-size:13.5px}
 /* The list of saves. A recessed panel, like "About to be sent" - it is a record of what has
    happened, not a control, and giving it a card border would make it compete with the steps. */
 .saves{margin-top:14px;background:var(--forge-theme-surface-container-minimum);
@@ -1386,6 +1402,41 @@ function discardSave(btn,hash,when,newer){
    ()=>gitDo('discard',{hash}));
 }
 
+// ---- change requests ----------------------------------------------------------------------
+function prOut(txt, ok){
+ let box=document.getElementById('prout');
+ if(!box){box=document.createElement('pre');box.className='out';box.id='prout';
+   document.querySelector('main.wrap').appendChild(box)}
+ box.textContent=txt; box.scrollIntoView({block:'nearest'});
+ toast(ok?'done':'failed',ok);
+}
+async function prDo(btn,action,number,extra){
+ const label=btn.textContent; btn.disabled=true; btn.textContent='Working\u2026';
+ try{
+   const r=await post('/pr',Object.assign({action,number},extra||{}));
+   prOut(r.output||'(no output)',r.ok);
+   // Reload only on success. A failure message is the thing you need to read, and reloading
+   // would replace it with a fresh page listing the same unmerged request.
+   if(r.ok) setTimeout(()=>location.reload(),1500);
+ } finally { btn.disabled=false; btn.textContent=label; }
+}
+// Merge is outward-facing and awkward to walk back, so it goes through the same gate as the
+// destructive actions - and the gate names the checks state, because "merge anyway" on a
+// failing build is exactly the mistake worth interrupting.
+function prMerge(btn,number,title,checks){
+ const warn = checks==='failing' ? '<b>Checks are failing on this one.</b><br>'
+            : checks==='running' ? 'Checks are still running.<br>' : '';
+ confirmThen(btn,'Merge #'+number+'?',
+   warn+'<code>'+title+'</code><br><br>Rebases onto main and deletes the branch. Anything '
+   +'merged is live in the repo for everyone.',
+   ()=>prDo(btn,'merge',number));
+}
+function prOverride(btn,number){
+ confirmThen(btn,'Merge #'+number+' bypassing review?',
+   'This skips the required approval. Only reasonable on your own work \u2014 it is the one '
+   +'action here that removes a safety gate rather than passing through it.',
+   ()=>prDo(btn,'merge-override',number));
+}
 function copyPrompt(btn){
  const text=window.AI_PROMPT||'';
  const done=ok=>{btn.textContent = ok ? '\u2713 Copied — paste it to your assistant'
@@ -1833,6 +1884,38 @@ def nav_counts():
     return open_n, mine_n, uncommitted
 
 
+# The nav badge needs a PR count on EVERY page, and `gh pr list` is a network call - so
+# without a cache, opening any page waits on GitHub. Measured: it made the PRs page slow enough
+# that a screenshot timed out twice.
+#
+# 60 seconds, and deliberately not longer: the number changes when you merge something, and a
+# badge that lags a merge by minutes is worse than one that lags by seconds. The PRs page
+# refreshes the cache from the list it already fetched, so acting on a request updates the
+# badge immediately.
+_PR_CACHE = {"at": 0.0, "n": 0, "ok": False}
+_PR_TTL = 60.0
+
+
+def pr_count(force=False):
+    now = time.monotonic()
+    if not force and _PR_CACHE["ok"] and (now - _PR_CACHE["at"]) < _PR_TTL:
+        return _PR_CACHE["n"]
+    if not shutil.which("gh"):
+        _PR_CACHE.update(at=now, n=0, ok=True)
+        return 0
+    try:
+        # Short timeout on purpose: this is decoration on a nav item, and a page must not hang
+        # waiting for it. A stale or zero badge is a fine outcome; a frozen page is not.
+        r = subprocess.run(["gh", "pr", "list", "--state", "open", "--limit", "50",
+                            "--json", "number"],
+                           cwd=REPO, capture_output=True, text=True, timeout=8)
+        n = len(json.loads(r.stdout or "[]")) if r.returncode == 0 else _PR_CACHE["n"]
+    except Exception:                                          # noqa: BLE001
+        n = _PR_CACHE["n"]
+    _PR_CACHE.update(at=now, n=n, ok=True)
+    return n
+
+
 def page(title, inner, active="", all_view=False, rel=""):
     """Shell with a Forge-style SIDE NAV.
 
@@ -1841,6 +1924,7 @@ def page(title, inner, active="", all_view=False, rel=""):
     with an icon, a label and a live count per item makes each one visibly a destination.
     """
     open_n, mine_n, uncommitted = nav_counts()
+    open_pr_count = pr_count() if is_admin() else 0
 
     def item(href, icon, label, count=None, key=""):
         on = " class=on" if key and key == active else ""
@@ -1861,6 +1945,10 @@ def page(title, inner, active="", all_view=False, rel=""):
            if (is_admin() or not ME) else "")
         + "<div class=grp>Save &amp; Publish</div>"
         + item("/git", "&#8593;", "Save &amp; Share", uncommitted or None, "git")
+        # Admins only, same rule as All Transcripts: a contributor cannot merge, so the item
+        # would be a link to a page of buttons that all refuse.
+        + (item("/prs", "&#10003;", "PRs", open_pr_count or None, "prs")
+           if is_admin() else "")
         + "</nav>")
     return f"""<!doctype html><meta charset=utf-8><title>{html.escape(title)}</title>
 <meta name=viewport content="width=device-width,initial-scale=1">
@@ -2836,7 +2924,7 @@ def git_fragments():
                  f"You have <b>{n}</b> edited file(s) not yet saved.")
     elif unpushed != "0":
         state = (f"<span class='pill reviewed'>saved</span> Saved, but "
-                 f"<b>{unpushed}</b> change(s) have not been sent in yet — do Part 3.")
+                 f"<b>{unpushed}</b> change(s) have not been sent in yet — do Part 2.")
     else:
         state = ("<span class='pill pushed'>all sent</span> Nothing waiting. "
                  "Everything you have reviewed has been sent in.")
@@ -2880,6 +2968,157 @@ def git_fragments():
                       "you have not saved yet this sitting, or everything is already sent "
                       "in.</span></div>")
     return {"state": state, "files": files, "saves": saves_html, "unsent": n}
+
+
+def gh(*args, timeout=180):
+    """Run gh with the admin's own credentials. There is deliberately no shared token in this
+    repo: a PAT in a repo secret is readable by any write-access contributor's PR."""
+    r = subprocess.run(["gh", *args], cwd=REPO, capture_output=True, text=True,
+                       timeout=timeout)
+    return r.returncode, (r.stdout + r.stderr).strip()
+
+
+def _needs_override(out):
+    """Did GitHub refuse purely for a missing approval, as opposed to a real problem?
+
+    Matters because the two need different answers: a missing approval is something an admin
+    may legitimately override on their own work, while failing checks or a conflict are not.
+    """
+    low = (out or "").lower()
+    if any(k in low for k in ("conflict", "not mergeable", "check", "failing")):
+        return False
+    return any(k in low for k in ("review", "approv", "protected", "required"))
+
+
+PR_FIELDS = ("number,title,author,isDraft,headRefName,reviewDecision,mergeable,"
+             "statusCheckRollup,createdAt,url,additions,deletions,changedFiles")
+
+
+def open_prs():
+    """Open and draft change requests, newest first. Returns (list, error).
+
+    Shells out to `gh` rather than calling the API directly: gh already holds the reviewer's
+    own credentials, and this repo deliberately has no shared token - a PAT in a repo secret
+    would be readable by any write-access contributor's PR.
+    """
+    if not shutil.which("gh"):
+        return [], ("The GitHub CLI (gh) is not installed, so change requests cannot be listed "
+                    "from here. Install it, or use the link on the Save & Publish page.")
+    r = subprocess.run(["gh", "pr", "list", "--state", "open", "--limit", "50",
+                        "--json", PR_FIELDS],
+                       cwd=REPO, capture_output=True, text=True, timeout=120)
+    if r.returncode != 0:
+        return [], (r.stderr or r.stdout).strip()[:400]
+    try:
+        prs = json.loads(r.stdout or "[]")
+    except json.JSONDecodeError:
+        return [], "gh returned something that is not JSON"
+    prs.sort(key=lambda x: x["number"], reverse=True)
+    return prs, None
+
+
+def pr_checks(pr):
+    """Reduce the check rollup to one word. `gh` reports per-check rows; what a human wants is
+    whether it is safe to merge."""
+    rows = pr.get("statusCheckRollup") or []
+    if not rows:
+        return "none", "No checks ran on this one."
+    states = [(c.get("conclusion") or c.get("state") or "").upper() for c in rows]
+    if any(s in ("FAILURE", "ERROR", "TIMED_OUT", "CANCELLED") for s in states):
+        return "failing", "At least one check failed — do not merge without looking."
+    if any(s in ("PENDING", "IN_PROGRESS", "QUEUED", "") for s in states):
+        return "running", "Checks are still running."
+    return "passing", f"All {len(rows)} check(s) passed."
+
+
+def pr_page():
+    """Approve and merge change requests without leaving the tool. ADMINS ONLY.
+
+    Exists because merging was the one step in the loop that always meant leaving for GitHub,
+    and on a repo where one person is both author and sole code owner that is a lot of
+    round-trips for something with two possible answers.
+
+    It does NOT try to be GitHub. There is no diff view, no comments, no file browser - the
+    change request itself is one click away for all of that. What is here is the decision:
+    what is open, is it safe, and merge it.
+    """
+    prs, err = open_prs()
+    if not err:
+        # Seed the badge from the list we just fetched, so merging something updates the nav
+        # on the next render instead of up to a minute later.
+        _PR_CACHE.update(at=time.monotonic(), n=len(prs), ok=True)
+    body = ["<h2 class=sec>Change Requests</h2>"]
+    if err:
+        body.append(f"<div class='bar bnr-done'>{html.escape(err)}</div>")
+    if not prs and not err:
+        body.append("<div class=card><h3>Nothing open</h3>"
+                    "<p class=sub>Every change request has been merged or closed.</p></div>")
+    for pr in prs:
+        cls, why = pr_checks(pr)
+        mine = pr["author"]["login"] == (ME or "")
+        draft = pr.get("isDraft")
+        decision = pr.get("reviewDecision") or ""
+        mergeable = (pr.get("mergeable") or "").upper()
+        age = (pr.get("createdAt") or "")[:10]
+
+        pill = ("<span class='pill suggested'>draft</span>" if draft
+                else "<span class='pill pending'>open</span>")
+        chk = {"passing": "<span class='pill reviewed'>checks passed</span>",
+               "failing": "<span class='pill bad'>checks failed</span>",
+               "running": "<span class='pill pending'>checks running</span>",
+               "none": "<span class='pill excluded'>no checks</span>"}[cls]
+        approved = decision == "APPROVED"
+        rev = ("<span class='pill reviewed'>approved</span>" if approved
+               else "<span class='pill excluded'>needs approval</span>"
+               if decision == "REVIEW_REQUIRED"
+               else f"<span class='pill excluded'>{html.escape(decision.lower() or 'no review')}"
+                    "</span>")
+        conflict = ("<span class='pill bad'>conflicts</span>"
+                    if mergeable == "CONFLICTING" else "")
+
+        acts = []
+        if draft:
+            acts.append(f"<button class=sec onclick=\"prDo(this,'ready',{pr['number']})\">"
+                        "Mark ready for review</button>")
+        if not mine and not approved:
+            acts.append(f"<button class=sec onclick=\"prDo(this,'approve',{pr['number']})\">"
+                        "Approve</button>")
+        acts.append(f"<button onclick=\"prMerge(this,{pr['number']},"
+                    f"'{html.escape(pr['title'][:60])}','{cls}')\">Merge</button>")
+
+        # Why Approve is missing on your own change request. GitHub refuses it outright, so a
+        # button here would only ever produce an error - saying so is more use than hiding it
+        # silently. Admins can merge without an approval anyway, which is what makes the repo
+        # workable with one code owner.
+        selfnote = ("<div class=hint style='margin-top:8px'>This is yours, and GitHub does not "
+                    "let anyone approve their own. As an admin you can merge it without an "
+                    "approval &mdash; use <b>Merge anyway</b>.</div>"
+                    if mine and not approved else "")
+        # The override is shown, not hidden behind a retry: on this repo the sole code owner
+        # authors nearly every request, so "merge without an approval" is the NORMAL path for
+        # them rather than an exception. Hiding it would just mean two failed clicks first.
+        # It is a separate, differently-labelled button so bypassing a gate stays deliberate.
+        if mine and not approved:
+            acts.append(f"<button class=sec onclick=\"prOverride(this,{pr['number']})\" "
+                        "title='Merge without the required approval (admin override)'>"
+                        "Merge anyway</button>")
+
+        body.append(
+            "<div class=card>"
+            f"<h3><a href=\"{html.escape(pr['url'])}\" target=_blank rel=noopener>"
+            f"#{pr['number']}</a> {html.escape(pr['title'][:110])}</h3>"
+            f"<p class=sub>{html.escape(pr['author']['login'])} &middot; {age} &middot; "
+            f"<code>{html.escape(pr['headRefName'])}</code> &middot; "
+            f"+{pr['additions']} &minus;{pr['deletions']} across {pr['changedFiles']} file(s)"
+            "</p>"
+            f"<div class=prpills>{pill}{chk}{rev}{conflict}</div>"
+            f"<p class=sub style='margin-top:8px'>{html.escape(why)}</p>"
+            f"{selfnote}"
+            f"<div class=stepacts>{''.join(acts)}"
+            f"<a href=\"{html.escape(pr['url'])}\" target=_blank rel=noopener>"
+            "<button class=sec>Open on GitHub</button></a></div>"
+            "</div>")
+    return page("Change Requests", "<div class=lg>" + "".join(body) + "</div>", active="prs")
 
 
 def git_page():
@@ -2936,33 +3175,9 @@ def git_page():
       "<p class=sub>Parts 1 and 2 are yours. Part 3 needs an assistant for one step — "
       "updating the knowledge files — and buttons for the rest.</p>"
       "<div class=whatsent><b>About to be sent</b><div id=gitfiles>" + files + "</div></div>"
-      # Part 1 is the escape hatch, and it goes FIRST because that is when you want it: you
-      # have just realised the last half hour of edits were wrong, before saving them.
-      + step("1", "Part 1 — Reset unsaved edits",
-             "Puts edited transcripts back to their last saved state. Only touches edits you "
-             "have not saved; anything already saved is untouched, and newly synced "
-             "conversations are left alone.",
-             "<div class=stepacts>"
-             "<button class=sec onclick='resetUnsaved(this)'>Reset unsaved edits</button>"
-             "</div>"
-             "<div class=hint style='margin-top:10px'>Undoable — the edits are set aside "
-             "rather than deleted, and the output tells you how to put them back.</div>")
-      # There used to be a step before these two: name a branch and click a button to create
-      # it. It is gone. It was just a git branch, there was no decision in it - the name was
-      # generated, the timing forced, and the answer always "yes" - and the owner of this repo
-      # could not tell from the page what it did, which is decisive evidence no contributor
-      # would. It now happens on the first save of a sitting and is never mentioned.
-      # "Save progress", not "Save your reviews". It IS a local git commit, and "progress" is
-      # the word that carries the two things a reviewer needs to know about it: it is a
-      # checkpoint, and it is not finished. "Save your reviews" sounded like it did something
-      # WITH the reviews. Optional, too - step 2 saves first, so nobody is stuck by skipping
-      # this.
-      # "(recommended)", not "(optional)". Both are true - step 2 saves first, so skipping this
-      # breaks nothing - but "optional" invites skipping, and a reviewer who never saves has
-      # no checkpoint to go back to if they change their mind mid-batch.
-      + step("2", "Part 2 — Save progress (recommended)",
+      + step("1", "Part 1 — Save progress (recommended)",
              "A checkpoint on this machine (local git commit) you can go back to. "
-             "Optional in the strict sense — Part 3 saves first anyway. Nothing is shared yet; if the laptop died "
+             "Optional in the strict sense — Part 2 saves first anyway. Nothing is shared yet; if the laptop died "
              "now, the work would go with it.",
              # Empty by DEFAULT, not prefilled. A prefilled box asks to be read, edited and
              # worried about; an empty one labelled "optional" asks for nothing. Blank is
@@ -2974,7 +3189,7 @@ def git_page():
              "<button class=sec onclick=\"gitDo('commit')\">Save progress</button>"
              "<button class=sec onclick=\"gitDo('diff')\">Show me exactly what changed</button>"
              "</div>" + "<div id=githist>" + saves_html + "</div>")
-      + step("3", "Part 3 — Publish",
+      + step("2", "Part 2 — Publish",
              "Your verdicts are not the deliverable — the knowledge files that stop the agents "
              "repeating those answers are. Updating them is the one step here that needs an "
              "assistant; the rest is this button and a merge.",
@@ -2986,19 +3201,19 @@ def git_page():
              "<li data-stage=pr class=wait><b>Create the change request</b>"
              "<span>someone checks it before it becomes official (a GitHub pull "
              "request)</span></li>"
-             "<li data-stage=merge class=wait><b>Merge</b>"
-             "<span>done by a reviewer, not from here (merged into main)</span></li>"
-             + ("<li data-stage=foundry class='wait fdry'><b>Upload to Foundry</b>"
-                f"<span>{html.escape(', '.join(fdry))} &mdash; only after the merge, and "
-                "only with your say-so. Nothing reaches the live agents before then.</span>"
-                "</li>"
-                if fdry else
-                "<li data-stage=foundry class=none><b>Upload to Foundry</b>"
-                "<span>not needed &mdash; this batch changes transcript reviews only, and "
-                "reviews are not agent knowledge</span></li>")
              + "</ol>"
              "<div class=stepacts>"
-             "<button onclick=\"gitDo('pr')\">Send my reviews in</button></div>")
+             "<button onclick=\"gitDo('pr')\">Send my reviews in</button></div>"
+             # Part 2 ENDS here. Merging and the Foundry upload are decisions ABOUT a request
+             # that already exists, not steps in submitting one, and they live on the PRs tab
+             # where the request can be seen next to its checks. Listing them here as
+             # greyed-out stages implied this button was somehow responsible for them.
+             + ("<div class=handoff>What happens next is on <a href='/prs'><b>PRs</b></a>: "
+                "approving, merging, and the Foundry upload if knowledge files changed."
+                if is_admin() else
+                "<div class=handoff>An admin approves and merges it from there. Once it is "
+                "sent, you are done.")
+             + "</div>")
       + "</div>"
       f"<script>window.AI_PROMPT={prompt_json};</script>"
 
@@ -3023,8 +3238,24 @@ def git_page():
       "change is not required.</li>"
       "<li>Suggestions handed to someone else need sending in too; that is how they reach "
       "them.</li>"
-      "<li>Only step 3 shares anything.</li>"
-      "</ul></details>")
+      "<li>Only Part 2 shares anything.</li>"
+      "</ul></details>"
+
+      # NOT a numbered Part, and last on the page. It is an EXCEPTION to the workflow, not a
+      # stage of it - numbering it first implied you were meant to pass through it every time,
+      # and made the first thing on the publish page a way to throw work away.
+      "<div class='card dangerzone'>"
+      "<h3>Something went wrong?</h3>"
+      "<p class=sub>Not part of the normal flow — only for undoing.</p>"
+      "<div class=dzrow><div>"
+      "<b>Reset unsaved edits</b>"
+      "<div class=sub>Puts edited transcripts back to their last saved state. Only touches "
+      "edits you have not saved; anything already saved is untouched, and newly synced "
+      "conversations are left alone. Undoable — the edits are set aside rather than deleted, "
+      "and the output tells you how to put them back.</div>"
+      "</div><div class=dzact>"
+      "<button class=sec onclick='resetUnsaved(this)'>Reset unsaved edits</button>"
+      "</div></div></div>")
     return page("Save & Share", "<div class=lg>" + body + "</div>", active="git")
 
 
@@ -3063,6 +3294,16 @@ class H(BaseHTTPRequestHandler):
             self.send_header("Cache-Control", "public, max-age=86400")
             self.end_headers()
             return self.wfile.write(body)
+        if self.path == "/prs":
+            # Same gate as All Transcripts, and for the same reason: a contributor cannot
+            # merge, so every button here would refuse. Not a security boundary - the page
+            # only shows what `gh` would tell them anyway.
+            if not is_admin():
+                return self._send(200, page("Change Requests",
+                    "<div class=card><h3>Admins only</h3><p class=sub>Merging is an admin "
+                    "action. Send your reviews in from <b>Save &amp; Share</b> and an admin "
+                    "will merge them.</p></div>", active="git"))
+            return self._send(200, pr_page())
         if self.path == "/git":
             return self._send(200, git_page())
         if self.path.startswith("/t/"):
@@ -3205,6 +3446,53 @@ class H(BaseHTTPRequestHandler):
             except Exception as e:
                 return self._send(200, json.dumps({"ok": False, "error": str(e)}),
                                   "application/json")
+        if self.path == "/pr":
+            if not is_admin():
+                return self._send(200, json.dumps(
+                    {"ok": False, "output": "Merging is an admin action."}),
+                    "application/json")
+            act = (data.get("action") or "").strip()
+            num = str(data.get("number") or "").strip()
+            if not num.isdigit():
+                return self._send(200, json.dumps(
+                    {"ok": False, "output": "no change request number"}),
+                    "application/json")
+            try:
+                if act == "approve":
+                    rc, out = gh("pr", "review", num, "--approve")
+                elif act == "ready":
+                    rc, out = gh("pr", "ready", num)
+                elif act == "merge":
+                    # Rebase, matching how this repo has been merged throughout - a merge
+                    # commit per review batch would bury the actual content in the history.
+                    # NO --admin here: that flag bypasses the required review, and bypassing a
+                    # gate has to be a separate, deliberate click rather than a silent
+                    # fallback. If GitHub refuses, the answer says so and offers the override.
+                    rc, out = gh("pr", "merge", num, "--rebase", "--delete-branch")
+                    if rc != 0 and _needs_override(out):
+                        out += ("\n\nGitHub refused because the required approval is missing. "
+                                "You can merge it anyway as an admin — that BYPASSES the review "
+                                "gate, so only do it on your own work:\n"
+                                "  press Merge again and choose the override")
+                    elif rc == 0:
+                        out += ("\n\nMerged. Two things follow:\n"
+                                "  python3 scripts/check_foundry_drift.py   "
+                                "(main is now ahead of the live agents)\n"
+                                "  python3 scripts/publish_to_foundry.py    "
+                                "(only if knowledge files changed)")
+                elif act == "merge-override":
+                    rc, out = gh("pr", "merge", num, "--rebase", "--admin",
+                                 "--delete-branch")
+                    if rc == 0:
+                        out = ("Merged WITH the review gate bypassed (admin override).\n\n"
+                               + out
+                               + "\n\nNext: python3 scripts/check_foundry_drift.py")
+                else:
+                    rc, out = 1, "unknown action"
+            except Exception as e:                                    # noqa: BLE001
+                rc, out = 1, str(e)
+            return self._send(200, json.dumps(
+                {"ok": rc == 0, "output": out or "(no output)"}), "application/json")
         if self.path == "/git":
             act = data.get("action")
             # Blank is the normal case, so it resolves to the generated label rather than
