@@ -460,6 +460,37 @@ Full URL prefix for all of the above (except the feature-request portal): `https
 
 ## Notes for the chatbot
 
+### ⚠ Which link to hand out: the Confluence page first, the JSM portal only as a fallback
+
+**If a ticket is described on the Confluence page, give the user the Confluence link — not the
+raw JSM form URL.**
+
+<https://tylertech.atlassian.net/wiki/spaces/TTI/pages/386600308/Tyler+Cloud+Platform+TCP+Ops+Center+Related+Tickets+and+Permissions>
+
+Only send someone straight to a `help.center.tylertech.com/.../create/NNNN` URL when the
+request is **not** covered on that Confluence page.
+
+Why, and it is not cosmetic: the Confluence page carries the field-by-field instructions and
+the surrounding context for filling the form in — the JSM form on its own does not. A user
+handed the bare form is more likely to submit it wrongly and have it bounced. This catalog
+already treats Confluence as authoritative on *how to fill in a form* (see the source
+precedence table at the top); this note extends the same precedence to **which link you give
+the user**.
+
+**You can tell which case you are in from this file.** Every request documented here with
+field guidance is on the Confluence page. If the entry exists here in that shape, lead with
+the Confluence link and mention the form URL as supporting detail. Both sources are indexed —
+this page and the JSM portal — so the distinction is knowable, not a guess.
+
+Applies to *all* agents, not just Ops Center: any answer that ends in "file a ticket" is
+subject to it.
+
+Recorded 2026-08-27 from three separate transcript reviews — org-admin access, internal
+organization creation, and an Admin Center login error — all of which had the right answer
+attached to the wrong link. Verified live on the same date: asked "I need to be added as an
+org admin", the agent returned the correct two-path answer but handed out only
+`.../create/4165` and never mentioned the Confluence page.
+
 - When a user describes their need, prefer pointing them to **self-service** first (e.g., +Import for Workforce Direct orgs) before recommending a ticket.
 - Watch for the **shared form 4133** confusion — many distinct asks land at the same URL with different Notes wording. Always give the user the exact Notes-field template.
 - "Add an Org Admin" / "Promote me as admin" is NOT handled by the generic form 4133 — route to the manager's-guide flow under *Org Admins*.
