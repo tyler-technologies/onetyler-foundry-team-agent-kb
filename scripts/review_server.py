@@ -71,7 +71,7 @@ def avatar(login, size=22):
     box = (f"width:{size}px;height:{size}px;border-radius:50%;flex:0 0 auto;"
            f"vertical-align:middle;object-fit:cover")
     fallback = (f"<span class=av style=\"{box};display:inline-flex;align-items:center;"
-                f"justify-content:center;background:#d8dbe0;color:#41474e;"
+                f"justify-content:center;background:var(--av-fallback-bg);color:var(--av-fallback-fg);"
                 f"font-size:{max(8, size // 2 - 2)}px;font-weight:600\">{ini}</span>")
     if NO_AVATARS:
         return fallback
@@ -90,6 +90,14 @@ def avatar(login, size=22):
              else "this.onerror=null;this.style.display='none'")
     return (f"<img class=av src=\"{urls[0]}\" alt=\"\" loading=lazy "
             f"title=\"{html.escape(login)}\" style=\"{box}\" onerror=\"{onerr}\">")
+
+
+ASSETS = Path(__file__).resolve().parent / "assets"
+
+# The Tyler "talking Ts", borrowed byte-for-byte from the Ops Center repo so this tool wears
+# the same mark as the product it reviews. Served from disk rather than inlined: it is 3 KB
+# on every page otherwise, and as a separate file the browser caches it once.
+LOGO = ASSETS / "tyler-brand-dark-theme.svg"   # white — the app bar is dark
 
 
 OWNERS = REPO / "agent-owners.json"
@@ -568,6 +576,22 @@ def git(*args, timeout=60):
     return r.returncode, (r.stdout + r.stderr).strip()
 
 
+def porcelain_path(line):
+    """The path out of one `git status --porcelain` line, without counting columns.
+
+    `git()` strips its whole output, which removes the leading space from the FIRST line
+    only - so ` M transcripts/x.md` arrives as `M transcripts/x.md`. A fixed `line[3:]`
+    then eats a real character and the UI showed `ranscripts/team/...`, missing its `t`.
+    Only ever the first row, which is why it reads as a typo rather than a bug.
+
+    Parsing the status code instead of assuming its width fixes it for stripped and
+    unstripped lines alike, and handles renames, where porcelain writes `old -> new` and the
+    interesting half is the new name.
+    """
+    s = re.sub(r"^\s*[MADRCU?!]{1,2}\s+", "", line)
+    return s.split(" -> ")[-1].strip().strip('"')
+
+
 # ---------------------------------------------------------------- rendering
 CSS = """
 /* ---------------------------------------------------------------------------------------
@@ -605,7 +629,144 @@ CSS = """
   --forge-spacing-xsmall:4px; --forge-spacing-small:8px;
   --forge-spacing-medium:16px; --forge-spacing-large:24px;
   --nav-w:212px;
+
+  /* Tokens beyond Forge's set. Every one of these had been a literal hex somewhere, which is
+     what made dark mode a rewrite rather than a switch. */
+  --row-line:#f0f0f0;
+  --fb-none-fg:#c3c7cc;
+  --fb-down-bg:#c0341d;
+  --tint-success:#e6f2e7;
+  --tint-purple:#ede4fb;
+  --tint-error:#f6e0e4;
+  --accent-purple:#5b3ba8;
+  --av-fallback-bg:#d8dbe0;
+  --av-fallback-fg:#41474e;
+  --meta-fg:#6b7280;
+  --danger-fg:#a11100;
+  --shadow-card:0 1px 2px rgba(0,0,0,.06);
+  --shadow-pop:0 4px 14px rgba(0,0,0,.18);
+  --brand-edge:transparent;
+  /* Ink to place ON a filled accent (button, badge, pill). It MUST be a token, because the
+     accents inverse between modes: Forge's light primary #3f51b5 is dark and takes white
+     text, while its dark primary #8c9eff is LIGHT and does not.
+     MEASURED white-on-dark-accent, all of them unreadable:
+       primary #8c9eff 2.49:1 · warning #e3c069 1.75:1 · success #5fce8f 1.96:1 · error
+       #f0a3a0 2.01:1     (4.5:1 required)
+     Dark ink on the same fills: primary 7.10:1, warning 10.08:1.
+     This is the failure ops-tools' notes call out twice - a control rendering
+     white-on-white or black-on-dark - and it is invisible to anyone reading the CSS,
+     because `color:#fff` looks obviously right next to a `background:var(--primary)`. */
+  --on-accent:#ffffff;
+  /* Pill INK, separate from the accent it derives from. A pill is dark-text-on-pale-tint,
+     which is a different contrast problem from white-on-solid-accent, and the accent value
+     that works for the latter is too pale for the former.
+     FOUND BY scripts/check_contrast.py, which is the whole reason that file exists - these
+     three had been shipping under threshold and nobody had measured them:
+       .pending/.warn  #d14900 on #f9e9e0 = 3.81:1   -> #a83a00 = 5.43:1
+       .reviewed       #2e7d32 on #e6f2e7 = 4.45:1   -> #206b26 = 5.71:1  (4.45 LOOKS fine,
+                       which is exactly why it survived; it is still a fail)
+     Pill text is 11px, so 4.5:1 applies - the 3:1 large-text allowance does not. */
+  --bnr-ok-bg:#eef7ee;    --bnr-ok-bd:#c6e3c6;    --bnr-ok-fg:#1c3d1f;
+  --bnr-sug-bg:#f3ecfd;   --bnr-sug-bd:#cdb8f0;   --bnr-sug-fg:#33215c;
+  --bnr-done-bg:#fff6e5;  --bnr-done-bd:#e8d3a8;  --bnr-done-fg:#4a3610;
+  --pill-warn-fg:#a83a00;
+  --pill-ok-fg:#206b26;
+
+  /* KPI tile colours. RE-VALIDATED 2026-08-27 with the dataviz palette validator, which
+     rejected what was here before: green #2e7d32 against orange #d14900 was protan ΔE 5.1,
+     under the floor of 8 - red-green colourblindness collapses that pair. Fixed by separating
+     the two on LIGHTNESS rather than hue, since protanopia preserves lightness and discards
+     hue. Now protan ΔE 15.6.
+       node scripts/validate_palette.js "#206b26,#f57c00,#5b3ba8" --mode light   -> ALL PASS
+     Blue was REMOVED from the space rather than re-stepped: blue against purple was protan
+     ΔE 1.4 and no amount of nudging fixed it, so "Closed out" is now neutral - which suits
+     it, being the one tile that is finished work and does not need to shout.
+     The contrast WARN both palettes carry is discharged by every tile having a visible text
+     label; colour here reinforces a label, it is never the only encoding. */
+  --kpi-green:#206b26;
+  --kpi-amber:#f57c00;
+  --kpi-purple:#5b3ba8;
 }
+/* ------------------------------------------------------------------------------------------
+   DARK MODE. Same shape as ops-tools (`/Users/.../tcp-cli/ops-tools/style.css`): the CSS is
+   variable-driven, so dark overrides SURFACES, TEXT and ACCENTS only and every rule below is
+   written once. `[data-mode]` is set on <html> pre-paint by an inline script, so there is no
+   flash of the light theme.
+
+   `color-scheme:dark` is not decoration - it is what makes the browser's own chrome follow:
+   scrollbars, the date pickers in the Date filter popover, select dropdowns, and the focus
+   ring. Without it those stay light and the page looks half-converted.
+
+   Borrowed and re-measured from ops-tools where it had already solved the same problem, most
+   usefully its warning that a DARK BRAND BAR needs a hairline edge: on a dark page the app
+   bar and the page beneath it are close enough in luminance that the bar stops reading as a
+   bar. Hence --brand-edge.
+   ------------------------------------------------------------------------------------------ */
+[data-mode="dark"]{
+  color-scheme:dark;
+  --forge-theme-brand:#1a237e;
+  --forge-theme-primary:#8c9eff;
+  --forge-theme-primary-container:#2c3560;
+  --forge-theme-primary-container-low:#252c4a;
+  --forge-theme-primary-container-minimum:#1f2436;
+  --forge-theme-surface:#22262c;
+  --forge-theme-surface-dim:#16191d;
+  --forge-theme-surface-container:#39404a;
+  --forge-theme-surface-container-low:#2b313a;
+  --forge-theme-surface-container-minimum:#262b32;
+  --forge-theme-text-high:#e6e8eb;
+  --forge-theme-text-medium:#a3aab4;
+  --forge-theme-text-low:#7c838d;
+  --forge-theme-outline:#39404a;
+  --forge-theme-outline-low:#59616b;
+  --forge-theme-outline-medium:#79828e;
+  --forge-theme-success:#5fce8f;
+  --forge-theme-error:#f0a3a0;
+  --forge-theme-warning:#e3c069;
+  --forge-theme-info:#8fb6f2;
+  --forge-theme-info-container-low:#172742;
+  --forge-theme-warning-container-low:#322916;
+
+  --row-line:#2b313a;
+  --fb-none-fg:#5b6270;
+  /* Kept RED rather than lightened. A thumbs-down badge is a verdict, not a label, and the
+     white glyph on it needs a dark fill - the same reasoning ops-tools uses for leaving its
+     verdict pills un-overridden in dark. Given a hairline so it defines against the panel. */
+  --fb-down-bg:#c0341d;
+  --tint-success:#17301f;
+  --tint-purple:#261c3a;
+  --tint-error:#3a1e1e;
+  --accent-purple:#c4a9ef;
+  --av-fallback-bg:#39404a;
+  --av-fallback-fg:#c3c7cc;
+  --meta-fg:#8b929c;
+  --danger-fg:#f0a3a0;
+  /* Dark conveys elevation with a DEEPER shadow, not a lighter one - a .06 alpha shadow is
+     invisible on #16191d. */
+  --shadow-card:0 1px 3px rgba(0,0,0,.5);
+  --shadow-pop:0 6px 20px rgba(0,0,0,.6);
+  --brand-edge:#39404a;
+  --on-accent:#16191d;
+  /* Dark needs no separate ink: the accents are already light and the tints already dark, so
+     the accent IS the right pill colour. Measured on the dark tints - warn 8.20:1,
+     success 7.24:1, error 7.55:1, suggested 7.84:1, pushed 7.22:1. */
+  --bnr-ok-bg:#17301f;    --bnr-ok-bd:#2f5d40;    --bnr-ok-fg:#c8e6d2;
+  --bnr-sug-bg:#261c3a;   --bnr-sug-bd:#443463;   --bnr-sug-fg:#ddccf5;
+  --bnr-done-bg:#322916;  --bnr-done-bd:#574727;  --bnr-done-fg:#f0e0bd;
+  --pill-warn-fg:var(--forge-theme-warning);
+  --pill-ok-fg:var(--forge-theme-success);
+
+  /* Re-stepped for the dark surface, not the light values dimmed - the dataviz validator's
+     dark lightness band is L 0.48-0.67 where light's is 0.43-0.77, so the light palette is
+     literally out of range. Same lightness-separation trick to keep green and orange apart
+     under red-green CVD:
+       node scripts/validate_palette.js "#137738,#ce7c22,#9163d5" --mode dark \
+            --surface "#22262c"     -> ALL PASS, worst adjacent protan dE 9.3 */
+  --kpi-green:#137738;
+  --kpi-amber:#ce7c22;
+  --kpi-purple:#9163d5;
+}
+
 *{box-sizing:border-box}
 body{margin:0;font:14px/1.55 Roboto,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
 color:var(--forge-theme-text-high);background:var(--forge-theme-surface-dim)}
@@ -615,6 +776,27 @@ a{color:var(--forge-theme-primary)}
 header{background:var(--forge-theme-brand);color:#fff;padding:0 var(--forge-spacing-medium);
 height:56px;display:flex;gap:var(--forge-spacing-medium);align-items:center;
 position:sticky;top:0;z-index:30;box-shadow:0 1px 3px rgba(0,0,0,.24)}
+/* The mark is 12 dots with no bounding box, so it reads as smaller than its box and
+   needs less gap to the title than the header's default. Fixed size - it must not
+   shrink with the title at narrow widths, or it turns to mush. */
+header .brand{flex:0 0 auto;display:block}
+/* See --brand-edge in the dark block: transparent in light, a hairline in dark. */
+header{border-bottom:1px solid var(--brand-edge)}
+/* Mode switch. Sits left of the username - it is chrome, not content, so it belongs with the
+   identity block rather than in the page. */
+/* margin-left:auto lives on the WRAPPER, not here - with it on .modesw the switch was
+   pushed right but the username then sat further right still, leaving the switch stranded
+   mid-bar looking like it belonged to the title. */
+.hdrright{margin-left:auto;display:flex;align-items:center;gap:var(--forge-spacing-medium);
+flex:0 0 auto}
+.modesw{display:inline-flex;gap:0;flex:0 0 auto;
+border:1px solid rgba(255,255,255,.35);border-radius:4px;overflow:hidden}
+.modesw button{background:transparent;color:#fff;border:0;padding:3px 7px;font-size:12px;
+line-height:1.4;cursor:pointer;opacity:.72;min-width:26px}
+.modesw button:hover{background:rgba(255,255,255,.14);opacity:1}
+.modesw button[aria-pressed=true]{background:rgba(255,255,255,.22);opacity:1;font-weight:600}
+header .who{margin-left:0}
+header{gap:10px}
 header b{font-size:16px;font-weight:500;letter-spacing:.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 header .who{margin-left:auto;font-size:13px;opacity:.85;white-space:nowrap;flex:0 0 auto}
 
@@ -642,7 +824,7 @@ color:var(--forge-theme-primary);font-weight:500}
 nav.side a .ic{width:20px;text-align:center;font-size:15px;opacity:.8}
 nav.side a .ct{margin-left:auto;font-size:12px;color:var(--forge-theme-text-medium);
 background:var(--forge-theme-surface-container-low);border-radius:10px;padding:0 7px}
-nav.side a.on .ct{background:#fff;color:var(--forge-theme-primary)}
+nav.side a.on .ct{background:var(--forge-theme-surface);color:var(--forge-theme-primary)}
 nav.side .hint{font-size:11px;color:var(--forge-theme-text-medium);line-height:1.45;
 padding:var(--forge-spacing-small) var(--forge-spacing-medium) var(--forge-spacing-medium)}
 main.wrap{flex:1;min-width:0;max-width:none;
@@ -653,7 +835,7 @@ padding:var(--forge-spacing-large) var(--forge-spacing-large)
 
 /* --- surfaces --- */
 .bar,.card{background:var(--forge-theme-surface);border:1px solid var(--forge-theme-outline);
-border-radius:4px;box-shadow:0 1px 2px rgba(0,0,0,.06)}
+border-radius:4px;box-shadow:var(--shadow-card)}
 .bar{padding:12px var(--forge-spacing-medium);margin-bottom:var(--forge-spacing-medium)}
 .card{padding:var(--forge-spacing-medium);margin-bottom:14px}
 /* Sized to the Forge scale: heading4 for section titles, body2 (14px) as the body default
@@ -666,7 +848,7 @@ h3.sub{font:500 16px/1.4 Roboto,sans-serif;margin:0 0 6px}
    bordered grid read as a spreadsheet; this reads as a list you scan. */
 .tblcard{background:var(--forge-theme-surface);border:1px solid var(--forge-theme-outline);
 border-radius:4px;padding:var(--forge-spacing-medium) var(--forge-spacing-large) var(--forge-spacing-small);
-box-shadow:0 1px 2px rgba(0,0,0,.06)}
+box-shadow:var(--shadow-card)}
 table{width:100%;border-collapse:collapse;background:transparent}
 th,td{text-align:left;white-space:nowrap}
 /* The question column takes the leftover width and wraps; everything else stays compact.
@@ -680,7 +862,7 @@ color:var(--forge-theme-text-medium);background:none;
 border-bottom:1px solid var(--forge-theme-outline)}
 th .caret{color:var(--forge-theme-text-low);font-size:10px;margin-left:5px}
 td{padding:14px 14px 14px 0;font-size:14px;color:var(--forge-theme-text-high);
-border-bottom:1px solid #f0f0f0}
+border-bottom:1px solid var(--row-line)}
 tbody tr:last-child td,table tr:last-child td{border-bottom:0}
 tr.row{cursor:pointer}
 tr.row:hover td{background:var(--forge-theme-primary-container-minimum)}
@@ -711,17 +893,26 @@ gap:10px;margin-bottom:var(--forge-spacing-medium)}
 .kpi[title]{cursor:help}
 td.fbcell,th.fbcell{width:1%;text-align:center;padding-left:6px;padding-right:6px}
 .fb{font-size:15px;line-height:1;cursor:help}
-.fb-none{color:#c3c7cc;cursor:help}
+.fb-none{color:var(--fb-none-fg);cursor:help}
 /* The thumbs-down signal lives in its own CELL, not on the row. A row tint or a left bar
    would compete with the amber/blue "this row is yours" highlighting below, and on a row that
    is both, one has to lose - it would be the thumbs-down, since the ownership rules are
    declared later and win on equal specificity. A badge in its own column always shows. */
-.fb.down{background:#c0341d;border-radius:50%;padding:2px 3px 3px;box-shadow:0 0 0 2px #fff}
+/* Review banners. These were inline styles, which is why they broke in dark: an inline
+   style cannot see [data-mode], so the panel stayed light green while the text went light
+   grey with the mode - measured near-invisible on the detail page. The `color` is stated
+   explicitly rather than inherited, which is the actual lesson: a tinted panel must own its
+   ink, or the ink follows the mode while the panel does not. */
+.bar.bnr-ok{background:var(--bnr-ok-bg);border-color:var(--bnr-ok-bd);color:var(--bnr-ok-fg)}
+.bar.bnr-sug{background:var(--bnr-sug-bg);border-color:var(--bnr-sug-bd);color:var(--bnr-sug-fg)}
+.bar.bnr-done{background:var(--bnr-done-bg);border-color:var(--bnr-done-bd);
+color:var(--bnr-done-fg)}
+.fb.down{background:var(--fb-down-bg);border-radius:50%;padding:2px 3px 3px;box-shadow:0 0 0 2px var(--forge-theme-surface)}
 .who{display:inline-flex;align-items:center;gap:7px}
 .whocell{display:inline-flex;align-items:center;gap:6px}
 .whocell .av+.av{margin-left:-7px;box-shadow:0 0 0 2px var(--forge-theme-surface)}
 .kpi{background:var(--forge-theme-surface);border:1px solid var(--forge-theme-outline);
-border-radius:4px;padding:12px 14px;box-shadow:0 1px 2px rgba(0,0,0,.06);
+border-radius:4px;padding:12px 14px;box-shadow:var(--shadow-card);
 border-top:3px solid var(--kc,var(--forge-theme-outline-low))}
 .kpi .v{font:600 26px/1.15 Roboto,sans-serif;color:var(--kc,var(--forge-theme-text-high))}
 .kpi .l{font:400 12px/1.4 Roboto,sans-serif;color:var(--forge-theme-text-medium);margin-top:2px}
@@ -744,7 +935,7 @@ th button.caretbtn.active::after{content:'';position:absolute;top:6px;right:2px;
 height:5px;border-radius:50%;background:var(--forge-theme-primary)}
 .fpop{position:absolute;z-index:45;top:100%;left:0;min-width:236px;
 background:var(--forge-theme-surface);border:1px solid var(--forge-theme-outline-low);
-border-radius:4px;box-shadow:0 4px 14px rgba(0,0,0,.18);padding:14px;text-align:left;
+border-radius:4px;box-shadow:var(--shadow-pop);padding:14px;text-align:left;
 font-weight:400;white-space:normal}
 .fpop[hidden]{display:none}
 .fpop .ttl{font:500 13px/1.4 Roboto,sans-serif;color:var(--forge-theme-text-high);
@@ -761,13 +952,13 @@ margin:0 0 var(--forge-spacing-medium)}
 .shown{font:italic 13px/1.4 Roboto,sans-serif;color:var(--forge-theme-text-medium);
 margin:0 0 var(--forge-spacing-small)}
 .pill{display:inline-block;padding:1px 8px;border-radius:10px;font-size:11px;font-weight:500}
-.pending{background:var(--forge-theme-warning-container-low);color:var(--forge-theme-warning)}
-.reviewed{background:#e6f2e7;color:var(--forge-theme-success)}
+.pending{background:var(--forge-theme-warning-container-low);color:var(--pill-warn-fg)}
+.reviewed{background:var(--tint-success);color:var(--pill-ok-fg)}
 .excluded{background:var(--forge-theme-surface-container-low);color:var(--forge-theme-text-medium)}
 .pushed{background:var(--forge-theme-info-container-low);color:var(--forge-theme-info)}
-.suggested{background:#ede4fb;color:#5b3ba8}
-.bad{background:#f6e0e4;color:var(--forge-theme-error)}
-.warn{background:var(--forge-theme-warning-container-low);color:var(--forge-theme-warning)}
+.suggested{background:var(--tint-purple);color:var(--accent-purple)}
+.bad{background:var(--tint-error);color:var(--forge-theme-error)}
+.warn{background:var(--forge-theme-warning-container-low);color:var(--pill-warn-fg)}
 .q{background:var(--forge-theme-info-container-low);border-left:3px solid var(--forge-theme-info);
 padding:10px 12px;border-radius:4px;white-space:pre-wrap}
 .a{background:var(--forge-theme-surface-dim);border:1px solid var(--forge-theme-outline);
@@ -782,7 +973,7 @@ select,input,textarea{width:100%;padding:7px 8px;border:1px solid var(--forge-th
 border-radius:4px;font-size:13px;font-family:inherit;background:var(--forge-theme-surface)}
 select:focus,input:focus,textarea:focus{outline:2px solid var(--forge-theme-primary);outline-offset:-1px}
 textarea{min-height:88px;resize:vertical}
-button{background:var(--forge-theme-primary);color:#fff;border:0;padding:9px 16px;border-radius:4px;
+button{background:var(--forge-theme-primary);color:var(--on-accent);border:0;padding:9px 16px;border-radius:4px;
 font-size:13px;font-weight:500;cursor:pointer;letter-spacing:.02em}
 button:hover{filter:brightness(.92)}
 button.sec{background:var(--forge-theme-surface);color:var(--forge-theme-primary);
@@ -801,25 +992,25 @@ tr.filters small{color:var(--forge-theme-text-low);font-weight:400}
 #fbar input[type=date]{width:auto;padding:4px 6px;font-size:12px}
 td.nowrap,th.nowrap{white-space:nowrap}
 tr.row[data-status=excluded] td{opacity:.5}
-.deleg{font-size:11px;color:#5b3ba8;font-weight:500}
+.deleg{font-size:11px;color:var(--accent-purple);font-weight:500}
 pre.out{background:#263238;color:#eceff1;padding:12px;border-radius:4px;font-size:12px;
 overflow:auto;max-height:280px;line-height:1.5}
 tr.row.mine-area td{background:var(--forge-theme-primary-container-minimum)}
 tr.row.mine-area td:first-child{box-shadow:inset 3px 0 0 var(--forge-theme-primary)}
 tr.row.mine-awaiting td{background:var(--forge-theme-warning-container-low)}
 tr.row.mine-awaiting td:first-child{box-shadow:inset 3px 0 0 var(--forge-theme-warning)}
-.pill.mineflag{background:var(--forge-theme-warning);color:#fff;margin-left:5px}
-tr.row.mine-area .pill.mineflag{background:var(--forge-theme-primary);color:#fff}
+.pill.mineflag{background:var(--forge-theme-warning);color:var(--on-accent);margin-left:5px}
+tr.row.mine-area .pill.mineflag{background:var(--forge-theme-primary);color:var(--on-accent)}
 span.owner{color:var(--forge-theme-text-medium);font-size:12px}
 .fld{position:relative}
 button.info{background:var(--forge-theme-primary-container);color:var(--forge-theme-primary);
 border:0;border-radius:50%;width:16px;height:16px;padding:0;margin-left:5px;
 font:700 11px/16px Roboto,sans-serif;cursor:pointer;vertical-align:middle;
 text-transform:none;letter-spacing:0}
-button.info:hover{background:var(--forge-theme-primary);color:#fff;filter:none}
+button.info:hover{background:var(--forge-theme-primary);color:var(--on-accent);filter:none}
 .tip{position:absolute;z-index:40;top:100%;left:0;width:340px;max-width:78vw;
 background:var(--forge-theme-surface);border:1px solid var(--forge-theme-outline-low);
-border-radius:4px;box-shadow:0 4px 14px rgba(0,0,0,.18);padding:12px 14px;font-size:12px;
+border-radius:4px;box-shadow:var(--shadow-pop);padding:12px 14px;font-size:12px;
 font-weight:400;text-transform:none;letter-spacing:0;color:var(--forge-theme-text-high)}
 .tip[hidden]{display:none}
 .tip b{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--forge-theme-text-medium)}
@@ -1094,10 +1285,10 @@ function syncNow(){const b=document.getElementById('syncbtn'),m=document.getElem
   if(d.ok){m.textContent=d.added?('added '+d.added+' new \u2014 reloading'):'no new transcripts';
    if(d.added){location.reload();return}
    b.disabled=false;b.innerHTML='\u21bb Sync transcripts';
-  } else {m.innerHTML='<span style="color:#a11">sync failed: '
+  } else {m.innerHTML='<span style="color:var(--danger-fg)">sync failed: '
     +(d.error||'see the terminal for details').replace(/</g,'&lt;')+'</span>';
    b.disabled=false;b.innerHTML='\u21bb Sync transcripts';}
- }).catch(e=>{m.innerHTML='<span style="color:#a11">sync failed: '+e+'</span>';
+ }).catch(e=>{m.innerHTML='<span style="color:var(--danger-fg)">sync failed: '+e+'</span>';
   b.disabled=false;b.innerHTML='\u21bb Sync transcripts';});}
 // Drop just the Status filter, leaving everything else. The one-click version of the advice
 // the empty state gives, because "remove the Status filter" means finding a caret in a column
@@ -1128,12 +1319,59 @@ applyFilters()}
 // definitions exist and throws a ReferenceError, leaving the filters inert.
 if(document.getElementById('tbl')) initFilters();
 
+// ---- display mode ------------------------------------------------------------------------
+// The inline <head> script already applied the mode; this only wires the buttons and keeps
+// them in sync. Two things worth noting:
+//   - It listens for OS changes, so "Auto" tracks a machine that flips at sunset WITHOUT a
+//     reload. A stale "Auto" that only updates on navigation is the bug people report as
+//     "dark mode doesn't work".
+//   - The listener is registered unconditionally but no-ops unless the preference is auto,
+//     rather than being added and removed as the preference changes - fewer states to get
+//     wrong, and the check is free.
+(function(){
+ const root=document.documentElement;
+ const osDark=()=>window.matchMedia('(prefers-color-scheme: dark)').matches;
+ function paint(){
+   const pref=root.dataset.modePref||'auto';
+   root.dataset.mode = pref==='auto' ? (osDark()?'dark':'light') : pref;
+   document.querySelectorAll('[data-mode-set]').forEach(b=>{
+     b.setAttribute('aria-pressed', String(b.dataset.modeSet===pref));
+   });
+ }
+ document.querySelectorAll('[data-mode-set]').forEach(b=>{
+   b.addEventListener('click',()=>{
+     const v=b.dataset.modeSet;
+     root.dataset.modePref=v;
+     try{localStorage.setItem('foundry-review-mode',v)}catch(e){}
+     paint();
+   });
+ });
+ try{
+   window.matchMedia('(prefers-color-scheme: dark)')
+     .addEventListener('change',()=>{ if((root.dataset.modePref||'auto')==='auto') paint(); });
+ }catch(e){}
+ paint();
+})();
+
 // Carry the reviewer between transcripts so a clean batch is one click each.
 (function(){const rv=document.querySelector('[data-fm=reviewer]');
  if(!rv||rv.value) return;
  let last=null; try{last=localStorage.getItem('lastReviewer')}catch(e){}
  if(last&&[...rv.options].some(o=>o.value===last)) rv.value=last;})();
 """
+
+
+# Light / Dark / Auto. Three states, not a two-way toggle: "Auto" is the default and it has
+# to stay reachable, because a reviewer who lands in dark because it is 9pm and their OS
+# switched should be able to say "follow the OS" again rather than being stuck on an explicit
+# choice they made once. aria-pressed is set by JS from the stored preference.
+MODE_SWITCH = (
+    "<div class=modesw role=group aria-label='Display mode'>"
+    "<button type=button data-mode-set=light title='Light' aria-pressed=false>&#9788;</button>"
+    "<button type=button data-mode-set=dark title='Dark' aria-pressed=false>&#9790;</button>"
+    "<button type=button data-mode-set=auto title='Follow the operating system' "
+    "aria-pressed=false>A</button>"
+    "</div>")
 
 
 def nav_counts():
@@ -1186,8 +1424,23 @@ def page(title, inner, active="", all_view=False):
         + "</nav>")
     return f"""<!doctype html><meta charset=utf-8><title>{html.escape(title)}</title>
 <meta name=viewport content="width=device-width,initial-scale=1">
+<!-- Set the mode BEFORE the stylesheet, so the first paint is already correct. Deferring this
+     to the main script at the bottom of the page gives a visible white flash on every
+     navigation in dark mode, which is worse than not having dark mode at all. Same approach as
+     ops-tools/index.html. Wrapped in try/catch because a browser with storage disabled must
+     still render - it just falls back to following the OS. -->
+<script>
+(function(){{try{{
+  var m=localStorage.getItem("foundry-review-mode")||"auto";
+  document.documentElement.dataset.modePref=m;
+  document.documentElement.dataset.mode = m==="auto"
+    ? (window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light") : m;
+}}catch(e){{document.documentElement.dataset.mode="light";
+  document.documentElement.dataset.modePref="auto";}}}})();
+</script>
 <link rel=stylesheet href="https://cdn.forge.tylertech.com/v1/css/tyler-font.css">
-<style>{CSS}</style><header><b>OneTyler Foundry Team Agent Transcript Review</b>{who}</header>
+<link rel=icon type="image/svg+xml" href="/logo.svg">
+<style>{CSS}</style><header><img class=brand src="/logo.svg" alt="Tyler Technologies" width=28 height=28><b>OneTyler Foundry Team Agent Transcript Review</b><div class=hdrright>{MODE_SWITCH}{who}</div></header>
 <body data-default-mine="{'1' if (ME and not all_view) else '0'}" data-default-status="{'pending' if (ME and not all_view) else '__open__'}" data-show-all="{'1' if (is_admin() or not ME) else '0'}">
 <div class=shell>{side}<main class=wrap>{inner}</main></div>
 <div class=toast id=toast></div><script>{JS}</script>"""
@@ -1396,28 +1649,28 @@ def list_page(show_all=False):
     # bar its width. When there is nothing in scope there is no progress to draw, so it drops
     # to a plain tile rather than rendering an empty trough.
     tiles = [kpi("Reviewed of in-scope" + (" (yours)" if mine_only else ""),
-                 f"{done}/{scope}", "#2e7d32", span=bool(scope),
+                 f"{done}/{scope}", "var(--kpi-green)", span=bool(scope),
                  meter=pct if scope else None,
                  why=("Of the transcripts in this view that are in scope, how many carry a "
                       "human verdict. In scope means everything except pre-go-live testing. "
                       "Wider than the other tiles because it is the only one with a bar."
                       + (" This view is filtered to your rows only." if mine_only else "")))]
     if counts["pending"]:
-        tiles.append(kpi("Awaiting review", counts["pending"], "#d14900",
+        tiles.append(kpi("Awaiting review", counts["pending"], "var(--kpi-amber)",
                          why="Nobody has looked at these yet."))
     if counts["suggested"]:
-        tiles.append(kpi("Suggested", counts["suggested"], "#5b3ba8",
+        tiles.append(kpi("Suggested", counts["suggested"], "var(--kpi-purple)",
                          why="Someone worked these up but left the decision to the area "
                              "owner. Not yet a verdict."))
     if counts["reviewed"]:
-        tiles.append(kpi("Reviewed, not yet actioned", counts["reviewed"], "#2e7d32",
+        tiles.append(kpi("Reviewed, not yet actioned", counts["reviewed"], "var(--kpi-green)",
                          why="A human verdict is recorded and Claude has not yet processed "
                              "it. This is the queue work comes from."))
     if counts["pushed"]:
         # "Live in Foundry" read as though the TRANSCRIPTS were in Foundry. They are not - the
         # knowledge-file changes they caused are. Renamed to describe the transcript's own
         # state, with the Foundry part explained in the tooltip.
-        tiles.append(kpi("Closed out", counts["pushed"], "#1565c0",
+        tiles.append(kpi("Closed out", counts["pushed"],
                          why="Fully done: reviewed, processed, and any resulting knowledge "
                              "change is live in Foundry and verified. Nothing further owed."))
     tiles.append(kpi("Excluded", excl,
@@ -1545,7 +1798,7 @@ def field(k, val):
                     f"placeholder='contributors.json is empty or unreadable'>{panel}</div>")
         opts = "".join(f"<option{' selected' if o == val else ''}>{html.escape(o)}</option>"
                        for o in [""] + people)
-        stale = ("<div class=hint style='color:#a11'>current value "
+        stale = ("<div class=hint style='color:var(--danger-fg)'>current value "
                  f"'{html.escape(val)}' is not in contributors.json</div>"
                  if val and val not in people else "")
         return f"<div class=fld>{lab}<select data-fm={k}>{opts}</select>{stale}{panel}</div>"
@@ -1578,7 +1831,7 @@ def detail_page(rel):
                + (f" <span class=hint>({html.escape(fm.get('orchestration',''))})</span>"
                   if fm.get("orchestration") else "")
                if fm.get("delegated_to") else "")
-            + f"<br><small style='color:#6b7280'>{html.escape(rel)} · "
+            + f"<br><small style='color:var(--meta-fg)'>{html.escape(rel)} · "
               f"conversation {html.escape(fm.get('conversation_id',''))}</small></div>")
 
     # A pending transcript renders pre-filled with the "nothing wrong" answer so an
@@ -1594,7 +1847,7 @@ def detail_page(rel):
             prefill["review_round"] = "1"
 
     if is_new:
-        banner = ("<div class=bar style='background:#eef7ee;border-color:#c6e3c6'>"
+        banner = ("<div class='bar bnr-ok'>"
                   "Pre-filled as <b>no changes needed</b> — routing correct, answer good, "
                   "nothing to fix. If that is true, just pick your name and hit "
                   "<b>Mark reviewed &amp; next</b>."
@@ -1606,7 +1859,7 @@ def detail_page(rel):
     elif (fm.get("review_status") or "") == "suggested":
         # Nothing here is a verdict yet. Say so loudly, or the owner reads a filled-in form
         # as settled and rubber-stamps someone else's guess.
-        banner = ("<div class=bar style='background:#f3ecfd;border-color:#cdb8f0'>"
+        banner = ("<div class='bar bnr-sug'>"
                   f"<b>Suggestion from {html.escape(fm.get('suggested_by','?'))}</b>"
                   + (f", handed to <b>{html.escape(fm['awaiting'])}</b>"
                      if fm.get("awaiting") else " — no owner named")
@@ -1615,7 +1868,7 @@ def detail_page(rel):
                     "with, then <b>Mark reviewed</b> to accept it under your own name — or "
                     "<b>Suggest</b> again to hand it on.</div>")
     else:
-        banner = (f"<div class=bar style='background:#fff6e5;border-color:#e8d3a8'>"
+        banner = (f"<div class='bar bnr-done'>"
                   f"Already <b>{html.escape(fm.get('review_status',''))}</b> by "
                   f"<b>{html.escape(fm.get('reviewer','?'))}</b> (round "
                   f"{html.escape(fm.get('review_round','1'))}). Saving edits keeps the same round; "
@@ -1632,7 +1885,7 @@ def detail_page(rel):
             f"<div class=tools>Tools called: "
             f"{'<span class=pill.bad>none — answered without searching</span>' if none_tools else html.escape(tools)}</div>"
             f"<div class=q>{html.escape(q)}</div>"
-            f"<div style='margin:8px 0 4px;font-size:12px;color:#4a5260'><b>Answer given</b></div>"
+            f"<div style='margin:8px 0 4px;font-size:12px;color:var(--forge-theme-text-medium)'><b>Answer given</b></div>"
             f"<div class=a>{html.escape(a)}</div>"
             f"<div class=fld><label style='margin-top:10px'>Correction{ci}</label>{cp}"
             f"<textarea data-ex={n}>{html.escape(rv)}</textarea></div></div>")
@@ -1683,7 +1936,7 @@ def git_page():
                  "Everything you have reviewed has been sent in.")
 
     files = ("<ul style='margin:6px 0 0 18px;padding:0;font-size:13px'>"
-             + "".join(f"<li>{html.escape(l[3:])}</li>" for l in changed[:12])
+             + "".join(f"<li>{html.escape(porcelain_path(l))}</li>" for l in changed[:12])
              + (f"<li>… and {n-12} more</li>" if n > 12 else "")
              + "</ul>") if changed else \
             "<div class=hint style='margin-top:6px'>Nothing changed under transcripts/ yet — " \
@@ -1759,6 +2012,19 @@ class H(BaseHTTPRequestHandler):
             # (see is_admin) - just refusing to have two answers to the same question.
             want_all = "all=1" in self.path
             return self._send(200, list_page(show_all=want_all and (is_admin() or not ME)))
+        if self.path == "/logo.svg":
+            # Cache hard: it is a brand mark that changes when Tyler rebrands, and it is on
+            # every page. An immutable response keeps it out of the request log entirely.
+            try:
+                body = LOGO.read_bytes()
+            except OSError:
+                return self._send(404, page("404", "Not found"))
+            self.send_response(200)
+            self.send_header("Content-Type", "image/svg+xml")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Cache-Control", "public, max-age=86400")
+            self.end_headers()
+            return self.wfile.write(body)
         if self.path == "/git":
             return self._send(200, git_page())
         if self.path.startswith("/t/"):
