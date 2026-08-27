@@ -4,6 +4,9 @@ For a contributor who has **already** set the repo up and needs to pull changes 
 the instructions. For a first-time setup use
 [`contributor-initial-prompt.md`](contributor-initial-prompt.md) instead.
 
+**New to this, or unsure what to say?** [`contributor-prompting-guide.md`](contributor-prompting-guide.md) is the plain-English
+phrasebook.
+
 Use this whenever the process or tooling has moved — the boundary of what you may edit, the
 review lifecycle, or the review UI itself. Re-reading matters more than pulling: an agent
 carrying yesterday's understanding of the rules will confidently apply rules that no longer
