@@ -145,6 +145,18 @@ registration, obtaining credentials)
 - **Org keys, CRM customer identifiers, licensing, Admin Center access, CAPM, workspaces** →
   `Knowledge-OpsCenter/`. Identity docs reference org keys constantly but Ops Center owns
   them.
+- **⚠ Listing or querying organizations and workspaces via API** → `Knowledge-OpsCenter/`
+  (`Docusaurus-OpsCenterAdoption.md` → *Listing Ops Center Organizations and Workspaces*).
+  **Hand this off; do not attempt it from this corpus.** The answer is the **TCP Search API**
+  (`POST /api/v1/Search/workspaces`, `GET /api/v2/Tenants` filtered by `customerId`) — not a
+  Provisioning or Identity endpoint.
+
+  This is called out because it has actually gone wrong: asked "how do I get a list of
+  workspaces for an organization using the api?", this agent answered instead of handing off,
+  while the correct content sat indexed in the Ops Center corpus. **Any technical or API
+  question about organizations, workspaces, licensing or availability belongs to Ops Center**,
+  even when the asker frames it in identity terms or mentions tokens and credentials for the
+  call. Authenticating the call is this corpus's business; what to call is not.
 - **Retargeting a workspace's gateway / Workforce Managed → Direct migration** →
   `Knowledge-OpsCenter/` (`Training-WorkforceManagedToDirectMigration.md`). Ops Center owns
   what an operator *does*; this corpus owns how identity is *configured*.

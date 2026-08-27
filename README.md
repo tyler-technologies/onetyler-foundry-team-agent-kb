@@ -123,6 +123,15 @@ Route on the **user's intent**, not on incidental keyword matches. A question th
 5. **Ops Center vs Identity.** Ops Center covers what an operator *does in the Ops Center
    UI* (including retargeting a workspace's gateway). Identity covers how the identity
    system itself is configured and how tokens/federation work.
+
+   **Technical and API questions about organizations, workspaces, licensing or availability go
+   to Ops Center, not Identity** — including listing or searching them programmatically, where
+   the answer is the **TCP Search API** (`Docusaurus-OpsCenterAdoption.md` → *Listing Ops
+   Center Organizations and Workspaces*). Mentioning tokens or credentials for the call does
+   **not** make it an Identity question: Identity owns how you authenticate, Ops Center owns
+   what you call. Recorded after transcript `identity/2026-08-27--f4a25651`, where Identity
+   answered "how do I get a list of workspaces for an organization using the api?" itself while
+   the correct content sat indexed in the Ops Center corpus.
 6. **Don't split one question across two agents.** Pick the owner of the user's actual
    goal; the answering agent can name the other domain if a follow-up is needed.
 
