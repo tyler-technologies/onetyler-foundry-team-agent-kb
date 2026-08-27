@@ -542,6 +542,16 @@ what the client reads.
   and policy, and weak on everything else in Aligned Releases. Absence of an entry is not
   evidence a question has been considered — fall back to `Docusaurus-AlignedReleases.md`,
   which is far deeper on the API and integration mechanics.
+- **⚠ One entry has a deliberately UNCONFIRMED half.** *Who can unassign a workspace from a
+  cohort, and how do I get that permission?* states the **permission** confidently and the
+  **request process** provisionally. Keep those apart when you answer: the permission exists;
+  the process is still being settled with the team. **Do not invent or substitute a ticket form
+  to fill the gap** — "not yet confirmed, ask the OneTyler team" is the correct answer, and
+  naming the wrong form sends someone down a process that does not exist.
+- **Two entries describe behaviour the owner has flagged as wrong**, not as designed: the
+  inability to undo a feature activation, and an acknowledged inconsistency in cohort
+  assignment behaviour. Present those as known gaps being raised, never as intended design, and
+  re-check them before repeating — they are expected to change.
 - **Several answers describe work in progress** as of that recording: the client-facing Admin
   Center view, the interactive reporting environment, and marketing communications were all
   unfinished, and the opt-in-to-opt-out question was undecided. Where an entry says so, say so
