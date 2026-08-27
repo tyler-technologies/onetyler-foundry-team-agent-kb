@@ -906,6 +906,22 @@ font:600 12px/24px Roboto,sans-serif;text-align:center}
 color:var(--forge-theme-text-high)}
 .stepbody .sub{margin-bottom:12px}
 .stepacts{margin-top:12px;display:flex;gap:10px;flex-wrap:wrap}
+/* The list of saves. A recessed panel, like "About to be sent" - it is a record of what has
+   happened, not a control, and giving it a card border would make it compete with the steps. */
+.saves{margin-top:14px;background:var(--forge-theme-surface-container-minimum);
+border-radius:4px;padding:12px 16px}
+details.saves>summary{cursor:pointer;list-style:none;display:flex;align-items:center;
+gap:8px;font-weight:500;font-size:13px}
+details.saves>summary::-webkit-details-marker{display:none}
+details.saves>summary .hint{font-weight:400}
+details.saves>summary .chev{margin-left:auto}
+.saves>b{font-weight:500;font-size:13px;color:var(--forge-theme-text-medium)}
+.saves table{width:100%;border-collapse:collapse;margin-top:8px;font-size:13px}
+.saves td{padding:4px 0;vertical-align:top;border:0}
+.saves td.swhen{white-space:nowrap;color:var(--forge-theme-text-medium);
+font-variant-numeric:tabular-nums;padding-right:12px;width:1%}
+.saves td.sstate{text-align:right;white-space:nowrap;width:1%}
+.saves .hint{margin-top:8px}
 /* Stage list for step 3. Each stage carries a STATE, because the useful information is not
    "here are four things" but "which of them is still owed, and which is not mine to do".
    Merge and Upload are deliberately shown as stages even though neither happens from this
@@ -1261,10 +1277,10 @@ function setOutHead(action){
 function stage(name,state){const el=document.querySelector('#prog li[data-stage='+name+']');
  if(!el||el.classList.contains('none'))return;
  el.classList.remove('wait','run','done','fail'); el.classList.add(state);}
-async function gitDo(action){const branch=(document.getElementById('branch')||{}).value||'';
-const msg=(document.getElementById('cmsg')||{}).value||'';
+// No `branch` field any more — the branch is chosen server-side per sitting and never shown.
+async function gitDo(action){const msg=(document.getElementById('cmsg')||{}).value||'';
 if(action==='pr'){stage('push','run')}
-const r=await post('/git',{action,branch,message:msg});
+const r=await post('/git',{action,message:msg});
 if(action==='pr'){
  // One request does both the push and the PR, so the push is only knowable as "it got far
  // enough to try the PR". Read that off the output rather than claiming both succeeded.
@@ -2123,41 +2139,179 @@ def detail_page(rel):
     return page(f"{fm.get('answered_by','')} {rel}", "".join(parts))
 
 
-def default_branch_name(current):
-    """The prefilled name for step 1's lane.
+# The branch for this sitting, remembered for the lifetime of the server process.
+#
+# It is just a git branch, and there is nothing in it for a reviewer to decide: the name is
+# generated, the timing is forced, and the answer is always "yes, do it". So it is no longer a
+# step on the page - it happens on the first save of a sitting and is reported afterwards.
+#
+# "Per sitting" == per server run, which is the honest boundary: the server is started when
+# someone sits down to review ("get me set up for reviewing") and every save in that session
+# should land on one branch, not one branch per click. A sitting resumed after a restart is
+# recognised by already BEING on a review/ branch.
+SITTING_LANE = None
 
-    Step 1 runs `git switch -c <name>`, which is the ONE action on this page that can
-    collide: the branch either does not exist (fine) or it does, and then the command fails
-    outright. Steps 2 and 3 are additive - a commit is always a new commit, and `gh pr create`
-    refuses rather than overwriting an existing PR - so nothing there needs disambiguating.
 
-    Carries BOTH the username and a timestamp, for two different reasons:
-      - the username, so a glance at `git branch -a` says whose copy this is;
-      - the timestamp, because a username alone collides the second time the same person
-        starts a batch, which is exactly the hard failure this is here to avoid.
+def lane_name():
+    """A fresh lane name: username for whose it is, timestamp because a name must be unique.
 
-    If they are ALREADY on a review branch, returns it unchanged. The card promises step 1 is
-    "safe to click twice", and handing back a fresh name on reload would instead start a
-    second copy and split one batch of reviews across two branches. (The old default also had
-    a latent bug here - it produced `review/review/foo` when already on `review/foo`.)
+    `git switch -c` is the one git call in this whole flow that can collide - it fails
+    outright if the branch exists, where a commit is always a new commit and `gh pr create`
+    refuses rather than overwriting. Hence the timestamp: the username alone collides the
+    second time the same person sits down.
     """
-    if current.startswith("review/"):
-        return current
     who = ME or "batch"
     return f"review/{who}/{datetime.now().strftime('%m%d%Y-%H%M%S')}"
 
 
-def default_commit_message():
-    """Step 2's prefilled message.
+def current_lane():
+    """The branch a save would land on right now, without creating anything.
 
-    Carries the username and no timestamp. Git already records the author and the date, so a
-    timestamp would be duplicating what `git log` shows anyway - but the name is NOT
-    redundant, because step 3 runs `gh pr create --fill`, which takes the PR title from the
-    first commit. Without a name in it, every reviewer's pull request is titled
-    "Review transcripts: verdicts and proposed fixes" and the PR list becomes unreadable.
+    Returns (name, is_shared). `is_shared` means "we are on a branch reviews must not land
+    on", which is what triggers auto-creation on save.
     """
-    who = f" ({ME})" if ME else ""
-    return f"Review transcripts{who}: verdicts and proposed fixes"
+    _, cur = git("rev-parse", "--abbrev-ref", "HEAD")
+    cur = cur.strip()
+    if cur.startswith("review/"):
+        return cur, False
+    if SITTING_LANE:
+        return SITTING_LANE, False
+    return cur, True
+
+
+def ensure_lane():
+    """Put us on this sitting's review branch, creating it if needed. Returns (name, created).
+
+    Called from the save action rather than from a button. Idempotent: once a sitting has a
+    lane, every later save in that sitting goes to the same one.
+    """
+    global SITTING_LANE
+    name, shared = current_lane()
+    if not shared:
+        # Already on the right branch, or on a remembered lane we have drifted off.
+        _, cur = git("rev-parse", "--abbrev-ref", "HEAD")
+        if cur.strip() != name:
+            git("switch", name)
+        SITTING_LANE = name
+        return name, False
+    name = lane_name()
+    # Branch from origin/main, NOT from wherever HEAD happens to be. `git switch -c <name>`
+    # with no start point inherits every commit on the current branch, so a reviewer who
+    # happened to be sitting on somebody's feature branch would open a change request
+    # containing that person's unmerged work alongside their own three review edits. That is
+    # the "the PR is a revert in disguise" failure, and it is invisible in the UI because the
+    # page only ever shows the reviewer's own diff.
+    #
+    # Uncommitted work follows a switch, so the reviewer's edits come along; only the history
+    # is left behind.
+    git("fetch", "origin", "main", timeout=120)
+    rc, out = git("switch", "-c", name, "origin/main")
+    if rc != 0:
+        # A dirty file that differs between the two branches blocks the switch. Falling back
+        # to HEAD is better than refusing to save, but say which happened - the resulting
+        # change request will carry more than the reviewer expects.
+        rc2, out2 = git("switch", "-c", name)
+        if rc2 != 0:
+            raise RuntimeError(f"could not set your work aside: {out}\n{out2}")
+        SITTING_LANE = name
+        return name, True
+    SITTING_LANE = name
+    return name, True
+
+
+# `git commit` returns 1 both for "nothing to commit" and for a real failure. They need
+# telling apart: sending in reviews that were already saved is normal, a broken commit is not.
+NOTHING_TO_SAVE = 99
+
+
+def save_reviews(msg):
+    """Put this sitting on its own branch if needed, then commit the reviewer's work.
+
+    This is "Save my reviews", and it is also the first thing "Send my reviews in" does. The
+    branch part is invisible: it happens here rather than as a step on the page, because it is
+    just a git branch with no decision in it.
+
+    Stages BOTH the trees a contributor legitimately edits. Staging only `transcripts` was a
+    silent data-loss trap: a reviewer whose feedback led them to fix a Knowledge-* file got
+    "saved ok" with the knowledge edit left out, to be lost at the next branch switch.
+    Deliberately NOT `git add -A` - scripts/, .github/ and CLAUDE.md are admin-only (hard rule
+    6), and sweeping them into a review commit is how a contributor would accidentally ship an
+    instruction change. Anything dirty outside the two trees is reported, not staged.
+    """
+    lane, created = ensure_lane()
+    lines = []
+    if created:
+        # Said in plain terms, without the word "branch": the reviewer did not ask for this
+        # and should not have to know what it is, but silence about it would be worse.
+        lines.append("Your work has been set aside from everyone else's, so it cannot "
+                     "disturb the shared copy while it is being checked.")
+    paths = ["transcripts"] + sorted(d.name for d in REPO.iterdir()
+                                     if d.is_dir() and d.name.startswith("Knowledge-"))
+    git("add", "--", *paths)
+    rc, out = git("commit", "-m", msg)
+    if rc != 0 and "nothing to commit" in out.lower():
+        rc, out = NOTHING_TO_SAVE, "Nothing new to save — everything is already saved."
+    lines.append(out)
+    _, left = git("status", "--porcelain")
+    skipped = [porcelain_path(l) for l in left.splitlines()
+               if l.strip() and not l.strip().startswith("??")]
+    if skipped:
+        lines.append("NOT saved — outside transcripts/ and Knowledge-*/, so not part of a "
+                     "review:\n" + "\n".join(f"  {s}" for s in skipped))
+    return rc, "\n\n".join(x for x in lines if x)
+
+
+def unsent_saves():
+    """Saves that have NOT been sent in yet - nothing else.
+
+    Deliberately not "every save since the last request". Once a save is inside a change
+    request there is no longer an action attached to it, so listing it is history for its own
+    sake; the only reason to read this list is to answer "is there anything of mine still
+    sitting on this laptop?" Filtering to that makes the list short enough to be read at a
+    glance and makes an EMPTY list meaningful.
+
+    No fetch here: this runs on every page render and a network call would make the page hang
+    on a bad connection. It compares against the last-known origin/main, which is what the
+    rest of the page does too.
+    """
+    _, cur = git("rev-parse", "--abbrev-ref", "HEAD")
+    cur = cur.strip()
+    rc, _ = git("rev-parse", "--verify", "--quiet", "origin/main")
+    if rc != 0:
+        return []
+    rc, out = git("log", "--format=%h%x09%ad%x09%s", "--date=format:%m/%d %H:%M",
+                  "origin/main..HEAD")
+    if rc != 0 or not out.strip():
+        return []
+    # Which of them are already on the remote, i.e. already inside a change request.
+    sent = set()
+    rc2, _ = git("rev-parse", "--verify", "--quiet", f"origin/{cur}")
+    if rc2 == 0:
+        _, pushed = git("log", "--format=%h", f"origin/main..origin/{cur}")
+        sent = {l.strip() for l in pushed.splitlines() if l.strip()}
+    rows = []
+    for line in out.splitlines():
+        parts = line.split("\t")
+        if len(parts) == 3 and parts[0] not in sent:
+            rows.append({"h": parts[0], "when": parts[1], "subject": parts[2]})
+    return rows
+
+
+def auto_commit_message():
+    """Used when the reviewer leaves the label box empty, which is the expected case.
+
+    Carries the git user and a timestamp. Git records both itself, so this is redundant in
+    `git log` - but it is NOT redundant where it actually gets read: "Send my reviews in" runs
+    `gh pr create --fill`, which takes the change request's TITLE from the first commit. A
+    generic title makes a list of open requests from several reviewers unreadable, and the
+    timestamp separates one sitting from the same person's next one.
+
+    Prefers git's configured name over the GitHub login, since that is the identity actually
+    recorded on the commit; falls back to the login, then to something rather than nothing.
+    """
+    _, who = git("config", "user.name")
+    who = who.strip() or ME or "unknown reviewer"
+    return f"Reviews by {who} — {datetime.now().strftime('%m%d%Y-%H%M%S')}"
 
 
 # A diff can be long, so it is capped - but the cap is STATED on the page rather than
@@ -2319,6 +2473,27 @@ def git_page():
     # "Worth knowing" is now collapsed: it is reference material that was competing with the
     # controls every single visit.
     fdry = pending_foundry_uploads()
+    saves = unsent_saves()
+    if saves:
+        # COLLAPSED by default. It is a record of what already happened, so it is the last
+        # thing anyone needs on arrival - and left open it pushes the two actual buttons down
+        # the page, which is the "busy" problem this page was rewritten to fix. The count sits
+        # in the summary so the section answers its own question without being opened.
+        saves_html = (
+            "<details class=saves><summary>See progress history"
+            f"<span class=hint> &mdash; <b>{len(saves)}</b> save(s) not sent in yet</span>"
+            "<span class=chev aria-hidden=true></span></summary>"
+            "<table>" + "".join(
+                f"<tr><td class=swhen>{html.escape(s['when'])}</td>"
+                f"<td>{html.escape(s['subject'])}</td></tr>"
+                for s in saves)
+            + "</table>"
+            "<div class=hint>Sending them in covers all of these at once. A save drops off "
+            "this list as soon as it has been sent.</div></details>")
+    else:
+        saves_html = ("<div class=saves><span class=hint>Nothing saved and unsent — either "
+                      "you have not saved yet this sitting, or everything is already sent "
+                      "in.</span></div>")
 
     def step(num, title, desc, inner):
         return (f"<div class=step><div class=stepnum>{num}</div><div class=stepbody>"
@@ -2326,48 +2501,47 @@ def git_page():
 
     body = (
       f"<h2 class=sec>Save &amp; Share your reviews</h2>"
-      f"<div class=bar>{state}<br><span class=hint>You are working on "
-      f"<b>{html.escape(branch)}</b>." + (" That is the shared copy, so step 1 will move you "
-      "onto your own copy first." if on_main else "") + "</span></div>"
+      # NO BRANCH NAME HERE, deliberately. This line used to read "You are working on
+      # feature/owner-highlighting", which is git vocabulary a reviewer has no use for and
+      # cannot act on. The branch is handled entirely server-side now - see ensure_lane().
+      f"<div class=bar>{state}</div>"
 
       "<div class=card>"
       "<h3>Publish your reviews</h3>"
-      "<p class=sub>Three steps, in order. Nothing leaves your machine until step 3.</p>"
+      "<p class=sub>Nothing leaves your machine until you send it in. The first step is "
+      "optional.</p>"
       "<div class=whatsent><b>About to be sent</b>" + files + "</div>"
-      # Naming this step took three tries, and the rejected ones are instructive because each
-      # promised something `git switch -c` does not do:
-      #   "Save working copy"  - it saves nothing. Saving is step 2.
-      #   "Backup progress"    - it backs nothing up. Nothing is stored, nothing duplicated;
-      #                          the files on disk do not move. The backup is step 2 (a
-      #                          snapshot you can return to) and step 3 (the first copy that
-      #                          exists off this laptop).
-      #   "Make your own copy" - nothing is copied either.
-      # What it actually does is give your edits their own lane so they do not land on the
-      # shared branch. So the title names the PURPOSE, which is the only part a
-      # non-technical reviewer needs, and claims nothing about saving.
-      + step(1, "Keep your work separate",
-             "Gives your edits their own lane, so they cannot disturb the shared copy everyone "
-             "else works from. Nothing is saved or backed up yet — that is step 2. Safe to "
-             "click twice.",
-             "<label>Name for your lane<span class=hint> — anything; a date is fine</span>"
-             "</label>"
-             f"<input id=branch value=\"{html.escape(default_branch_name(branch))}\">"
+      # There used to be a step before these two: name a branch and click a button to create
+      # it. It is gone. It was just a git branch, there was no decision in it - the name was
+      # generated, the timing forced, and the answer always "yes" - and the owner of this repo
+      # could not tell from the page what it did, which is decisive evidence no contributor
+      # would. It now happens on the first save of a sitting and is never mentioned.
+      # "Save progress", not "Save your reviews". It IS a local git commit, and "progress" is
+      # the word that carries the two things a reviewer needs to know about it: it is a
+      # checkpoint, and it is not finished. "Save your reviews" sounded like it did something
+      # WITH the reviews. Optional, too - step 2 saves first, so nobody is stuck by skipping
+      # this.
+      + step(1, "Save progress",
+             "A checkpoint on this machine you can go back to. Optional — sending them in "
+             "saves first anyway. Nothing is shared yet; if the laptop died now, the work "
+             "would go with it.",
+             # Empty by DEFAULT, not prefilled. A prefilled box asks to be read, edited and
+             # worried about; an empty one labelled "optional" asks for nothing. Blank is
+             # handled server-side by auto_commit_message().
+             "<label>Optional label for your changes<span class=hint> — leave blank and your "
+             "name and the time are used</span></label>"
+             "<input id=cmsg value='' placeholder='e.g. identity transcripts, first pass'>"
              "<div class=stepacts>"
-             "<button class=sec onclick=\"gitDo('branch')\">Keep my work separate</button></div>")
-      + step(2, "Save your reviews",
-             "Records a snapshot you can go back to. Still only on this machine — if the laptop\n             died now, the work would go with it. Step 3 is what changes that.",
-             "<label>What did you review?<span class=hint> — one line, for whoever reads it "
-             "later</span></label>"
-             f"<input id=cmsg value=\"{html.escape(default_commit_message())}\">"
-             "<div class=stepacts>"
-             "<button class=sec onclick=\"gitDo('commit')\">Save my reviews</button>"
+             "<button class=sec onclick=\"gitDo('commit')\">Save progress</button>"
              "<button class=sec onclick=\"gitDo('diff')\">Show me exactly what changed</button>"
-             "</div>")
-      + step(3, "Send them in — and on to Foundry",
-             "The first point your work exists anywhere other than this laptop, and the step that\n             reaches the team. What follows depends on what you changed, so the stages below\n             say exactly what is still owed.",
+             "</div>" + saves_html)
+      + step(2, "Send them in — and on to Foundry",
+             "The first point your work exists anywhere other than this laptop, and the step "
+             "that reaches the team. What follows depends on what you changed, so the stages "
+             "below say exactly what is still owed.",
              "<ol class=prog id=prog>"
-             "<li data-stage=push class=wait><b>Push your copy to GitHub</b>"
-             "<span>your branch, not the shared one</span></li>"
+             "<li data-stage=push class=wait><b>Upload to GitHub</b>"
+             "<span>your work, kept apart from everyone else's until it is checked</span></li>"
              "<li data-stage=pr class=wait><b>Create the change request</b>"
              "<span>someone checks it before it becomes official</span></li>"
              "<li data-stage=merge class=wait><b>Merge</b>"
@@ -2590,55 +2764,42 @@ class H(BaseHTTPRequestHandler):
                                   "application/json")
         if self.path == "/git":
             act = data.get("action")
-            br = (data.get("branch") or "").strip() or "review/batch"
-            msg = (data.get("message") or "").strip() or "Review transcripts"
+            # Blank is the normal case, so it resolves to the generated label rather than
+            # to a generic one - "Review transcripts" as a change-request title told a
+            # reviewer nothing about whose it was or when.
+            msg = (data.get("message") or "").strip() or auto_commit_message()
             try:
-                if act == "branch":
-                    rc, out = git("switch", "-c", br)
-                elif act == "commit":
-                    # Stage BOTH the things a contributor legitimately edits. Staging only
-                    # `transcripts` was a silent data-loss trap: a reviewer whose feedback
-                    # led them to fix a Knowledge-* file clicked "Save my reviews", got
-                    # "commit ok", and the knowledge edit was not in it - it stayed
-                    # uncommitted and would be lost by the next branch switch. Nothing on
-                    # the page said so, because the file list and the diff were also scoped
-                    # to transcripts.
-                    #
-                    # Deliberately NOT `git add -A`: scripts/, .github/ and CLAUDE.md are
-                    # admin-only (hard rule 6), and sweeping them into a review commit is
-                    # how a contributor accidentally ships an instruction change. Anything
-                    # dirty outside these two trees is reported, not staged.
-                    paths = ["transcripts"] + sorted(
-                        d.name for d in REPO.iterdir()
-                        if d.is_dir() and d.name.startswith("Knowledge-"))
-                    git("add", "--", *paths)
-                    rc, out = git("commit", "-m", msg)
-                    _, left = git("status", "--porcelain")
-                    skipped = [porcelain_path(l) for l in left.splitlines()
-                               if l.strip() and not l.strip().startswith("??")]
-                    if skipped:
-                        out += ("\n\nNOT saved — outside transcripts/ and Knowledge-*/, so "
-                                "not part of a review:\n"
-                                + "\n".join(f"  {s}" for s in skipped))
+                if act == "commit":
+                    rc, out = save_reviews(msg)
                 elif act == "diff":
-                    # Was `--stat`, which is a file-and-count summary. The button says "show
-                    # me exactly what changed" and a reviewer checking their own verdicts
-                    # needs the lines, not the count.
                     rc, out = 0, review_diff()
                 elif act == "pr":
+                    # Save FIRST, always. "Send my reviews in" used to push and open a PR
+                    # without committing, so a reviewer who never clicked Save sent an empty
+                    # change request and was told it worked. Save is a checkpoint a reviewer
+                    # may want; it must not be a prerequisite they can forget.
+                    rc, out = save_reviews(msg)
+                    if rc not in (0, NOTHING_TO_SAVE):
+                        raise RuntimeError(out)
                     _, cur = git("rev-parse", "--abbrev-ref", "HEAD")
-                    rc, out = git("push", "-u", "origin", cur, timeout=180)
-                    if rc == 0:
+                    prc, pout = git("push", "-u", "origin", cur.strip(), timeout=180)
+                    out = (out + "\n\n" + pout).strip()
+                    rc = prc
+                    if prc == 0:
                         r = subprocess.run(["gh", "pr", "create", "--fill"], cwd=REPO,
                                            capture_output=True, text=True, timeout=180)
-                        rc, out = r.returncode, out + "\n" + r.stdout + r.stderr
+                        rc = r.returncode
+                        out = (out + "\n" + r.stdout + r.stderr).strip()
                 else:
                     rc, out = 1, "unknown action"
                 return self._send(200, json.dumps(
                     # `html` is pre-escaped by diff_html, so the browser can innerHTML it. It
                     # is sent alongside `output` rather than instead of it, so a client that
                     # ignores it still shows the plain text.
-                    {"ok": rc == 0, "output": out, "html": diff_html(out)}),
+                    # NOTHING_TO_SAVE means "already saved", which is a fine thing to have happened -
+                    # reporting it as a failure would train people to ignore the toast.
+                    {"ok": rc in (0, NOTHING_TO_SAVE), "output": out,
+                     "html": diff_html(out)}),
                     "application/json")
             except FileNotFoundError as e:
                 return self._send(200, json.dumps({"ok": False, "output": f"missing tool: {e}"}),
