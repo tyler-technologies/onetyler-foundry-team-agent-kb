@@ -25,3 +25,7 @@ __pycache__/
 .DS_Store
 .vscode/
 .idea/
+
+# When the transcript sync last ran. Local state about this checkout, not content -
+# committing it would make every sync a spurious diff and every pull a conflict.
+.last-transcript-sync
