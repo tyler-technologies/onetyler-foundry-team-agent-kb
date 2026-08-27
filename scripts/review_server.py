@@ -136,6 +136,17 @@ def admins():
         return set()
 
 
+def is_admin(login=None):
+    """Admins see across every agent; contributors see their own patch.
+
+    This scopes the UI, and that is ALL it does - it is not an access control. A contributor
+    has every transcript on disk in their own git checkout, so hiding the view does not hide
+    the data and must never be described as if it did. What it buys is a queue that shows a
+    contributor their own work instead of 59 rows that are mostly somebody else's.
+    """
+    return (login or ME) in admins()
+
+
 def effective_agents(fm):
     """Which SUB-AGENT(S) a transcript really belongs to.
 
@@ -698,6 +709,14 @@ input.bigsearch:focus{outline:2px solid var(--forge-theme-primary);outline-offse
 .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(126px,1fr));
 gap:10px;margin-bottom:var(--forge-spacing-medium)}
 .kpi[title]{cursor:help}
+td.fbcell,th.fbcell{width:1%;text-align:center;padding-left:6px;padding-right:6px}
+.fb{font-size:15px;line-height:1;cursor:help}
+.fb-none{color:#c3c7cc;cursor:help}
+/* The thumbs-down signal lives in its own CELL, not on the row. A row tint or a left bar
+   would compete with the amber/blue "this row is yours" highlighting below, and on a row that
+   is both, one has to lose - it would be the thumbs-down, since the ownership rules are
+   declared later and win on equal specificity. A badge in its own column always shows. */
+.fb.down{background:#c0341d;border-radius:50%;padding:2px 3px 3px;box-shadow:0 0 0 2px #fff}
 .who{display:inline-flex;align-items:center;gap:7px}
 .whocell{display:inline-flex;align-items:center;gap:6px}
 .whocell .av+.av{margin-left:-7px;box-shadow:0 0 0 2px var(--forge-theme-surface)}
@@ -860,7 +879,13 @@ button.tipclose{padding:3px 10px;font-size:11px}
 }
 """
 
-JS = """
+# RAW string, deliberately. This block is JavaScript, so JS must own its own escapes: in a
+# plain """...""" Python eats them first, and `alert('Skipped:\n')` became a real newline inside
+# a single-quoted JS literal - a SyntaxError that killed the ENTIRE script block, so every
+# filter, popover, checkbox and row-click on the page was inert. Introduced 7459127 and not
+# caught because the row counts it appeared to prove are rendered server-side.
+# Keep `node --check` in the test below; it is what found this.
+JS = r"""
 async function post(url,body){const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},
 body:JSON.stringify(body)});return r.json()}
 // Field help. One open at a time, so the page never fills with overlapping panels.
@@ -995,6 +1020,7 @@ document.addEventListener('click',e=>{
 document.addEventListener('keydown',e=>{if(e.key==='Escape')fpopAll().forEach(o=>o.hidden=true)});
 
 const FKEYS=['agent','ex','fb','status','awaiting','routing','answer','diag','fix'];
+const SHOW_ALL_LINK=document.body.dataset.showAll==='1';
 const FKEY_STORE='tfilters:'+(document.body.dataset.defaultMine==='1'?'mine':'all');
 function fstate(){const g=i=>{const e=document.getElementById(i);return e?e.value:''};
 const o={q:g('f_q'),dfrom:g('dfrom'),dto:g('dto')};
@@ -1024,14 +1050,31 @@ const es=document.getElementById('emptystate'), em=document.getElementById('empt
 if(es&&em){
  if(n===0){
    es.style.display='';
-   const others=(f.q||f.dfrom||f.dto||FKEYS.some(k=>f[k]&&f[k]!=='__open__'));
-   if(mineOnly&&!others){
-     em.textContent='There is nothing that is yours to review.';
-     ea.innerHTML='<a href="/?all=1">Click on All Transcripts to see all transcripts.</a>';
-   } else if(mineOnly){
+   // Which empty is this? Three of them, and they need different advice:
+   //   nothing pending  -> ONE filter is hiding your rows; say which, and offer to drop it
+   //   nothing matching  -> your own filters; offer to clear them
+   //   nothing yours     -> the scope itself is empty; nothing you can do here
+   const dflt=document.body.dataset.defaultStatus||'';
+   const onlyDefaultStatus=(f.f_status===dflt&&dflt&&!f.q&&!f.dfrom&&!f.dto
+     &&!FKEYS.some(k=>k!=='f_status'&&f[k]));
+   const anyFilter=(f.q||f.dfrom||f.dto||FKEYS.some(k=>f[k]));
+   const total=document.querySelectorAll('tr.row').length;
+   const seeAll=SHOW_ALL_LINK
+     ? ' &nbsp;<a href="/?all=1">or see All Transcripts</a>' : '';
+   if(mineOnly&&total===0){
+     em.textContent='There is nothing assigned to you \u2014 no transcript is waiting on you '
+       +'by name, and none of the agents you own has an open conversation.';
+     ea.innerHTML=SHOW_ALL_LINK
+       ? '<a href="/?all=1">Click on All Transcripts to see all transcripts.</a>'
+       : '<button class=sec onclick="syncNow()">Sync transcripts</button>';
+   } else if(mineOnly&&onlyDefaultStatus){
+     em.innerHTML='Nothing of yours is <b>'+dflt.replace(/__/g,'')+'</b>. '
+       +'You have '+total+' transcript(s) in total \u2014 remove the <b>Status</b> filter to '
+       +'see them all.';
+     ea.innerHTML='<button onclick="dropStatus()">Show all '+total+' of my transcripts</button>';
+   } else if(mineOnly&&anyFilter){
      em.textContent='Nothing of yours matches these filters.';
-     ea.innerHTML='<button class=sec onclick="clearFilters()">Clear the filters</button>'
-       +' &nbsp;<a href="/?all=1">or see All Transcripts</a>';
+     ea.innerHTML='<button class=sec onclick="clearFilters()">Clear the filters</button>'+seeAll;
    } else {
      em.textContent='No transcripts match these filters.';
      ea.innerHTML='<button class=sec onclick="clearFilters()">Clear the filters</button>';
@@ -1056,6 +1099,13 @@ function syncNow(){const b=document.getElementById('syncbtn'),m=document.getElem
    b.disabled=false;b.innerHTML='\u21bb Sync transcripts';}
  }).catch(e=>{m.innerHTML='<span style="color:#a11">sync failed: '+e+'</span>';
   b.disabled=false;b.innerHTML='\u21bb Sync transcripts';});}
+// Drop just the Status filter, leaving everything else. The one-click version of the advice
+// the empty state gives, because "remove the Status filter" means finding a caret in a column
+// header you were not looking at.
+function showStatus(v){const e=document.getElementById('f_status');
+ if(e){e.value=v;applyFilters()}}
+function dropStatus(){const e=document.getElementById('f_status');
+ if(e){e.value='';applyFilters()}}
 function clearFilters(){['f_q','dfrom','dto'].forEach(i=>{const e=document.getElementById(i);if(e)e.value=''});
 FKEYS.forEach(k=>{const e=document.getElementById('f_'+k);if(e)e.value=''});
 applyFilters()}
@@ -1064,7 +1114,10 @@ try{saved=JSON.parse(sessionStorage.getItem(FKEY_STORE))}catch(e){}
 const set=(id,v)=>{const e=document.getElementById(id); if(e&&v) e.value=v};
 if(saved){set('f_q',saved.q);set('dfrom',saved.dfrom);set('dto',saved.dto);
  FKEYS.forEach(k=>set('f_'+k,saved[k]));}
-else{set('f_status','__open__');}  // default view: everything still open (pending + suggested)
+else{set('f_status',document.body.dataset.defaultStatus||'__open__');}
+// My Transcripts opens on `pending` — the work still to start. Clearing the Status filter
+// widens it to everything of yours, which is the point: the filter is removable, the
+// ownership scope is not.
 ['f_q','dfrom','dto'].concat(FKEYS.map(k=>'f_'+k)).forEach(id=>{
  const e=document.getElementById(id); if(!e)return;
  e.addEventListener((e.tagName==='SELECT'||e.type==='date'||e.type==='checkbox')?'change':'input',applyFilters)});
@@ -1123,7 +1176,11 @@ def page(title, inner, active="", all_view=False):
         "<nav class=side>"
         "<div class=grp>Review</div>"
         + (item("/", "&#9873;", "My Transcripts", mine_n or None, "mine") if ME else "")
-        + item("/?all=1", "&#9776;", "All Transcripts", open_n or None, "all")
+        # Admins only. For a contributor the item would be a link to other people's work they
+        # cannot push to - an invitation to a dead end. An unidentified user gets it too,
+        # because with no `me` there is no "mine" to fall back to and an empty app is worse.
+        + (item("/?all=1", "&#9776;", "All Transcripts", open_n or None, "all")
+           if (is_admin() or not ME) else "")
         + "<div class=grp>Publish</div>"
         + item("/git", "&#8593;", "Save &amp; Share", uncommitted or None, "git")
         + "</nav>")
@@ -1131,7 +1188,7 @@ def page(title, inner, active="", all_view=False):
 <meta name=viewport content="width=device-width,initial-scale=1">
 <link rel=stylesheet href="https://cdn.forge.tylertech.com/v1/css/tyler-font.css">
 <style>{CSS}</style><header><b>OneTyler Foundry Team Agent Transcript Review</b>{who}</header>
-<body data-default-mine="{'1' if (ME and not all_view) else '0'}">
+<body data-default-mine="{'1' if (ME and not all_view) else '0'}" data-default-status="{'pending' if (ME and not all_view) else '__open__'}" data-show-all="{'1' if (is_admin() or not ME) else '0'}">
 <div class=shell>{side}<main class=wrap>{inner}</main></div>
 <div class=toast id=toast></div><script>{JS}</script>"""
 
@@ -1196,6 +1253,8 @@ def list_page(show_all=False):
     # two views that look identical, which is exactly how this read before. So under My
     # Transcripts the other rows are not present at all - clearing the column filters widens
     # the view within your own rows and never reveals someone else's.
+    # Everything owed to me: handed to me by name, plus everything my agents own - which for
+    # an admin includes every routing-level row, since those belong to all admins.
     mine_only = bool(ME) and not show_all
     total_all = len(recs)
     if mine_only:
@@ -1236,13 +1295,13 @@ def list_page(show_all=False):
             f" data-href=\"/t/{html.escape(r['rel'])}\">"
             f"<td class=nowrap><input type=checkbox class=ck value=\"{html.escape(r['rel'])}\""
             f"{' disabled' if r['status']!='pending' else ''}></td>"
+            f"<td class=fbcell>{fb_glyph(r['fb'])}</td>"
             f"<td class=qcell title=\"{html.escape(r['qfull'])}\">"
             f"<a href='/t/{html.escape(r['rel'])}'>{html.escape(r['q'])}</a></td>"
             f"<td>{html.escape(r['agent'])}"
             f"{'<div class=deleg>&rarr; '+html.escape(r['deleg'])+'</div>' if r['deleg'] else ''}</td>"
             f"<td class=nowrap>{html.escape(r['date'])}</td>"
             f"<td>{html.escape(r['ex'])}</td>"
-            f"<td>{'<span class=\'pill warn\'>'+html.escape(r['fb'])+'</span>' if r['fb'] not in ('none','') else ''}</td>"
             f"<td><span class='pill {r['status']}'>{html.escape(r['status'])}</span>"
             f"{'<div class=deleg>'+html.escape(r['suggested_by'])+' &rarr; '+html.escape(r['awaiting'] or 'anyone')+'</div>' if r['status']=='suggested' else ''}</td>"
             f"<td class=awcell>{awaiting_cell(r)}</td>"
@@ -1269,7 +1328,8 @@ def list_page(show_all=False):
     if ME:
         bits = []
         if mine_a:
-            bits.append(f"<b>{mine_a}</b> awaiting you")
+            bits.append(f"<a href='#' onclick='showStatus(\"\");return false'>"
+                        f"<b>{mine_a}</b> awaiting you</a>")
         if mine_r:
             bits.append(f"<b>{mine_r}</b> open in your area")
         youline = ("<p class=youline>"
@@ -1279,9 +1339,14 @@ def list_page(show_all=False):
 
     # (label, filter-kind, select-id). kind: "" = not filterable, "sel" = value dropdown,
     # "date" = From/To range. Order matches the columns rendered per row.
-    HEADS = [("First question", "", ""), ("Handled by", "sel", "f_agent"),
+    # Feedback sits FIRST, left of the question: a thumbs-down is the strongest signal on the
+    # page about which row to open, and it was buried five columns in where you had to already
+    # be reading the row to find it. Rare, too - 2 of 59 - so it has to be findable by scanning
+    # one narrow column rather than by reading.
+    HEADS = [("&#128077;&#128078;", "sel", "f_fb"),
+             ("First question", "", ""), ("Handled by", "sel", "f_agent"),
              ("Date", "date", ""), ("Ex", "sel", "f_ex"),
-             ("Foundry FB", "sel", "f_fb"), ("Status", "sel", "f_status"),
+             ("Status", "sel", "f_status"),
              ("Awaiting", "sel", "f_awaiting"), ("Routing", "sel", "f_routing"),
              ("Answer", "sel", "f_answer"), ("Diagnosis", "sel", "f_diag"),
              ("Fix target", "sel", "f_fix")]
@@ -1300,7 +1365,10 @@ def list_page(show_all=False):
             src = fid[2:]
             extra = ("<option value='__open__'>open (pending+suggested)</option>"
                      if fid == "f_status" else "")
-            inner = (f"<div class=ttl>{label}</div>"
+            # The feedback column's heading is a pair of glyphs, which makes a poor popover
+            # title - name it in words there.
+            ttl = "Foundry feedback" if fid == "f_fb" else label
+            inner = (f"<div class=ttl>{ttl}</div>"
                      f"<select id={fid}>{extra}{opts(src)}</select>")
             key = fid
         return (f"<th{cls}>{label}"
@@ -1425,6 +1493,26 @@ def doc_popover(k):
              f"<p>{html.escape(d['about'])}</p>{table}"
              f"<button type=button class='sec tipclose' onclick=\"tip(this)\">Close</button></div>")
     return icon, panel
+
+
+def fb_glyph(fb):
+    """The user's own rating, as one scannable character.
+
+    "THUMBS_DOWN" in a pill was 11 characters of shouting for something that occurs twice in
+    59 rows, and it pushed the question column right. A glyph keeps the column narrow enough
+    to scan and puts the wording in the tooltip, where it is still available.
+
+    Colour is NOT the only encoding: the two glyphs differ in shape, so this survives
+    colourblindness and a greyscale print.
+    """
+    if fb == "THUMBS_UP":
+        return ("<span class='fb up' title='The user gave this answer a thumbs up in Foundry'>"
+                "&#128077;</span>")
+    if fb == "THUMBS_DOWN":
+        return ("<span class='fb down' title='The user gave this answer a thumbs DOWN in "
+                "Foundry - read this one first'>&#128078;</span>")
+    # No rating is the norm, and an icon for it would drown the two that matter.
+    return "<span class=fb-none title='The user did not rate this answer'>&middot;</span>"
 
 
 def awaiting_cell(r):
@@ -1666,7 +1754,11 @@ class H(BaseHTTPRequestHandler):
 
     def do_GET(self):
         if self.path == "/" or self.path.startswith("/?"):
-            return self._send(200, list_page(show_all=("all=1" in self.path)))
+            # Honour the same rule as the nav: a hand-typed ?all=1 from a contributor
+            # lands on their own view rather than silently working. Not a security control
+            # (see is_admin) - just refusing to have two answers to the same question.
+            want_all = "all=1" in self.path
+            return self._send(200, list_page(show_all=want_all and (is_admin() or not ME)))
         if self.path == "/git":
             return self._send(200, git_page())
         if self.path.startswith("/t/"):

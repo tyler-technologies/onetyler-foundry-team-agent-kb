@@ -82,6 +82,9 @@ jobs:
       - name: Frontmatter is well-formed
         run: python3 scripts/review_status.py --check
 
+      - name: Review UI JavaScript parses
+        run: python3 scripts/check_ui_js.py
+
       - name: No two first-reviews of the same transcript
         run: python3 scripts/validate_reviews.py --base "origin/${{ github.base_ref }}"
 
