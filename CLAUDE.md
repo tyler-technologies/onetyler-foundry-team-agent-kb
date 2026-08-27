@@ -691,6 +691,92 @@ model you must internalize"), so ordinary content updates need no deletion. Only
 
 ---
 
+## Changing the team router prompt — ADMINS ONLY
+
+**You can do this yourself. Do not hand it back to the user as manual work.** It is the
+highest-blast-radius object in the system, so it needs a procedure — not avoidance. Everything
+below was verified end to end on 2026-08-27.
+
+**Who:** repo admins only. `team-config/` is admin-only (hard rule 6), and this is a
+production config change (hard rule 5), so **confirm the change with the user first** and
+never do it as a side effect of another task. If you are running for a contributor, stop and
+say the change needs an admin.
+
+**Why it is worth doing rather than deferring:** editing
+`team-config/team-routing-prompt.md` changes *nothing* at runtime — it is only a mirror. Until
+the live prompt changes, routing behaves exactly as before, so a repo-only "fix" to a routing
+bug is not a fix at all.
+
+### The procedure
+
+```bash
+T=e92bd437-cb84-4e18-88e6-757370b39c90      # OneTyler Cloud Living
+UA="claude-code-foundry-kb/1.0"; B="https://foundry.tylertechai.com"
+```
+
+**1. Native version snapshot — a real restore point.**
+
+```bash
+curl -s -X POST -A "$UA" -H "X-API-Key: $FOUNDRY_API_KEY" -H "Content-Type: application/json" \
+  -d '{"type":"full","name":"pre-<what-you-are-changing>-YYYYMMDD"}' "$B/api/teams/$T/versions"
+```
+
+`type` is **required** and must be `"full"` or `"draft"` — undocumented in the OpenAPI spec;
+omitting it returns a 400 Zod error that names the allowed values. Foundry also auto-creates a
+version when someone saves in the UI, so there is usually a recent one already.
+
+Restore path if anything goes wrong:
+`POST /api/teams/{teamId}/versions/{versionId}/restore`.
+
+**2. Back up the object to the repo as well, and commit it** (hard rule 8) —
+`team-config/backups/team-backup-<YYYYMMDD-HHMMSS>.json`. Scan it for credentials first.
+
+**3. Fetch the CURRENT live object and edit only `system_prompt`.** Never build the payload
+from an older backup: someone may have edited in the UI since. Assert your find-target appears
+**exactly once** before replacing it.
+
+**4. No angle brackets in prompt text.** Foundry HTML-escapes `>` and strips `<tag>`-shaped
+text, so a prompt containing them comes back altered. Use hyphens for dashes.
+
+**5. PUT the FULL object back.**
+
+```bash
+curl -s -X PUT -A "$UA" -H "X-API-Key: $FOUNDRY_API_KEY" -H "Content-Type: application/json" \
+  --data @payload.json "$B/api/teams/$T"
+```
+
+The spec documents **no request body** for this endpoint, so the semantics are not knowable
+from the docs. Measured: it is a **full replace**, and sending the whole 18-field object back
+loses nothing. Sending only `{"system_prompt": ...}` risks wiping `agent_ids`,
+`orchestrator_config`, `routing_rules` and `chatExperience` — which would take the team down.
+Send everything.
+
+**6. Verify — three checks, all of them.**
+
+- `system_prompt` matches your intended text **exactly** (not just "longer than before"), and
+  contains no `&gt;` / `&lt;` / `&amp;`.
+- **Field-by-field diff against the pre-PUT backup.** Only `system_prompt` and `updated_at`
+  may differ. This is the check that catches a bad payload contract.
+- **A behavioural test, plus a control.** Text landing is not the same as routing changing.
+
+```bash
+curl -s -N -X POST -A "$UA" -H "X-API-Key: $FOUNDRY_API_KEY" -H "Content-Type: application/json" \
+  -d '{"messages":[{"role":"user","content":"<the question that was misrouted>"}]}' \
+  "$B/api/team/$T/stream"
+```
+
+Note the payload shape: **`messages` array**, not `message` — the singular form returns
+`400 Messages array is required`. The response is SSE `text-delta` chunks, so **reassemble the
+deltas before matching on content**; grepping the raw stream fails because words are split
+across chunks. Read which collection the answer cites to see where it routed.
+
+Always run a **control** question that must still route somewhere else, or you have only shown
+you can pull everything toward one agent.
+
+**7. Update `team-config/team-routing-prompt.md` to match**, so
+`scripts/check_foundry_drift.py` reports the router in sync. Update `README.md` too if the
+team-level routing rules changed.
+
 ## Acting on transcript reviews
 
 `transcripts/` holds preserved conversation history, one markdown file per conversation,
@@ -760,6 +846,32 @@ So, in order:
 4. Decide the smallest set of changes that covers the whole batch, then apply them.
 5. Report per-transcript so the reviewer can follow their own feedback through, even where
    several transcripts resolved to one change.
+
+**WHEN YOU REFER TO A TRANSCRIPT, GIVE A LOCATOR THE HUMAN CAN OPEN.** Never identify one by
+its hash alone. `75043484` means nothing to the person who wrote the feedback — they reviewed
+it in a browser, not in a filename.
+
+Every time you mention a transcript in a question or a report, include:
+
+```
+http://127.0.0.1:7777/t/<agent>/<YYYY-MM-DD>--<hash>.md
+```
+
+plus **the question the user actually asked, quoted**, and the date. The question text is what
+they will recognise; the URL is what lets them check you. For example:
+
+> **http://127.0.0.1:7777/t/team/2026-08-26--75043484.md** — 2026-08-26 16:23, team agent,
+> asked: `add org admin to org`
+
+Use the repo-relative path as well when the point is about the file rather than the
+conversation (`transcripts/team/2026-08-26--75043484.md`), and quote the reviewer's own note
+back when you are asking what they meant by it — they wrote it hours or days ago.
+
+If the review server is not running, start it, or say plainly that the URL will not resolve
+until it is. A link that 404s is worse than a path.
+
+This came from getting it wrong: a question referring to "75043484" was unanswerable because
+nobody could find what it pointed at.
 
 **ASK WHEN FEEDBACK IS AMBIGUOUS. NEVER ASSUME.** If a piece of feedback could reasonably
 mean two different things, stop and ask which. Do not pick the more likely reading and

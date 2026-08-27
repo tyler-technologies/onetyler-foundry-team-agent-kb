@@ -396,6 +396,18 @@ Three things work together:
 concluded, and if you still disagree, hit **Re-review** — that raises `review_round` and both
 verdicts end up on the record. Re-reviewing is encouraged; it just has to be explicit.
 
+## Referring to a transcript
+
+Use the review UI URL, never the bare hash:
+
+```
+http://127.0.0.1:7777/t/<agent>/<YYYY-MM-DD>--<hash>.md
+```
+
+Quote the question that was asked alongside it. A hash like `75043484` is not something anyone
+recognises — reviewers see transcripts in a browser, listed by their opening question. Claude is
+instructed to do the same when it asks you about one.
+
 ## Working as a team
 
 Several people review; one person opens the PR. Since we coordinate verbally, the
