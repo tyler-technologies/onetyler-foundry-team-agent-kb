@@ -61,6 +61,47 @@ def agent_owners():
     return by, d.get("default_owner") or None
 
 
+# Foundry display name -> the agent slug used in `answered_by` and agent-owners.json.
+# `delegated_to` carries display names, so ownership cannot be resolved without this.
+DELEGATE_SLUG = {
+    "Ops Center": "ops-center",
+    "General Blueprint Docs Agent": "bp-general",
+    "Support Access Center": "sac",
+    "Tyler Identity Assistant": "identity",
+    "Aligned Releases": "aligned-releases",
+}
+
+
+def admins():
+    """Everyone on the admins team. Routing is admin territory, so a transcript whose ROUTING
+    is in question belongs to all of them rather than to one area owner."""
+    try:
+        d = json.loads(CONTRIB.read_text(encoding="utf-8"))
+        return {c["github"] for c in d.get("contributors", [])
+                if c.get("github") and (c.get("role") == "maintainer"
+                                        or "admins" in (c.get("team") or ""))}
+    except Exception:
+        return set()
+
+
+def effective_agents(fm):
+    """Which SUB-AGENT(S) a transcript really belongs to.
+
+    `answered_by: team` means the router handled the conversation, not that the team "owns" it.
+    Ownership follows the sub-agent that actually answered, which is in `delegated_to`. Keying
+    on answered_by instead put every routed conversation on the default owner — so five Entra
+    and Gateway questions that Identity answered showed as the Ops Center owner's area.
+
+    Team routing decisions are themselves admin territory, so a transcript the router handled
+    with no delegation recorded falls to the admins.
+    """
+    if (fm.get("answered_by") or "") != "team":
+        return [fm.get("answered_by") or ""]
+    names = [x.strip() for x in (fm.get("delegated_to") or "").split(",") if x.strip()]
+    slugs = [DELEGATE_SLUG.get(x) for x in names]
+    return [s for s in slugs if s] or ["__team__"]
+
+
 def owners_of(agent):
     by, default = agent_owners()
     if agent in by:
@@ -672,10 +713,27 @@ def list_page():
             "reviewer": fm.get("reviewer", ""),
             "suggested_by": fm.get("suggested_by", ""),
             "awaiting": fm.get("awaiting", ""),
+            "eff_agents": effective_agents(fm),
         })
     by_agent, default_owner = agent_owners()
+    admin_set = admins()
     for r in recs:
-        owners = by_agent.get(r["agent"], {default_owner} if default_owner else set())
+        # A review that says the ROUTING was wrong is a routing problem, and routing belongs to
+        # the admins - not to whichever area owner happens to be implicated by the delegation
+        # that is being disputed. Assume the router was right until a human says otherwise.
+        if r["routing"] == "wrong-agent":
+            owners = set(admin_set)
+            r["own_basis"] = "wrong-agent -> admins"
+        else:
+            eff = r["eff_agents"]
+            if eff == ["__team__"]:
+                owners = set(admin_set)
+                r["own_basis"] = "team, no delegation -> admins"
+            else:
+                owners = set()
+                for a in eff:
+                    owners |= by_agent.get(a, {default_owner} if default_owner else set())
+                r["own_basis"] = "sub-agent: " + ", ".join(eff)
         r["owners"] = sorted(o for o in owners if o)
         # Two DIFFERENT reasons a row is yours, deliberately kept apart:
         #   awaiting == you   -> handed to you personally. Strongest signal.
@@ -708,6 +766,8 @@ def list_page():
             f" data-fix=\"{html.escape(r['fix'])}\" data-reviewer=\"{html.escape(r['reviewer'])}\""
             f" data-awaiting=\"{html.escape(r['awaiting'])}\""
             f" data-owner=\"{html.escape(','.join(r['owners']))}\""
+            f" data-eff=\"{html.escape(','.join(r['eff_agents']))}\""
+            f" title=\"{html.escape(r.get('own_basis',''))}\""
             f" data-mine=\"{'awaiting' if r['mine_awaiting'] else ('area' if r['mine_area'] else '')}\">"
             f"<td class=qcell title=\"{html.escape(r['qfull'])}\">"
             f"<a href='/t/{html.escape(r['rel'])}'>{html.escape(r['q'])}</a></td>"

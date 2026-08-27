@@ -410,6 +410,25 @@ not have to read every line to find your work.
 There is a **mine only** checkbox in the filter bar, and `Awaiting` is filterable like any other
 column.
 
+### How ownership is worked out
+
+**By sub-agent, never by the team.** `answered_by: team` only means the router handled the
+conversation; the agent that actually answered is in `delegated_to`, and that is what ownership
+follows. Keying on `answered_by` was the original bug — it put every routed conversation on the
+default owner, so Entra and Gateway questions that Identity answered showed up as the Ops
+Center owner's area.
+
+| Transcript | Owned by |
+|---|---|
+| Answered directly by a sub-agent | That agent's owner |
+| `team`, delegated to one sub-agent | That agent's owner — **assume the router was right** |
+| `team`, delegated to several | **Every** owner involved, so nothing falls through. Either can act, or `Suggest` to the other |
+| `routing_verdict: wrong-agent` | **All admins.** The routing itself is disputed, and routing is admin territory — not the area owner implicated by a delegation being questioned |
+| `team`, no delegation recorded | All admins |
+
+Hover any row to see the basis (`sub-agent: identity`, `wrong-agent -> admins`, …), so a tint
+you disagree with is diagnosable rather than mysterious.
+
 Ownership comes from [`agent-owners.json`](../agent-owners.json) — hand-maintained, and
 deliberately *not* `contributors.json`, which is generated from GitHub teams and would overwrite
 anything added by hand. It uses a default owner plus per-agent overrides, so adding an agent
