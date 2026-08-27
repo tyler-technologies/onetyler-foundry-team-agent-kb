@@ -200,7 +200,7 @@ python  scripts\start.py             # Windows
 
 Humans double-click `Start-reviewing.command` (macOS) or `Start-reviewing.bat` (Windows) and
 never need you for this — say so rather than offering to run it for them. See
-`RUNNING-WITHOUT-AI.md`, which is the page to point a contributor at.
+`DAILY-WORKFLOW.md`, which is the page to point a contributor at.
 
 Run the bare server only when you need it detached from a session or on a different port:
 

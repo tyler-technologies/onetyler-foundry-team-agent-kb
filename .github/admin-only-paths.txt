@@ -41,7 +41,7 @@
 ^contributor-initial-prompt\.md$
 ^contributor-update-prompt\.md$
 ^contributor-prompting-guide\.md$
-^RUNNING-WITHOUT-AI\.md$
+^DAILY-WORKFLOW\.md$
 ^transcripts/README\.md$
 ^transcripts/ONBOARDING\.md$
 # Tooling and the checks that gate everyone's contributions.

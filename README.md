@@ -13,7 +13,9 @@ this file to pick a sub-agent; the sub-agent reads its own `_START_HERE.md` to p
 
 ## Running the review tool
 
-**No AI assistant needed for this.** Reviewing transcripts is a double-click.
+**Reviewing transcripts is a double-click — no assistant needed.** Turning that feedback into
+knowledge-file changes *does* need one, and that is the actual goal; the Save & Publish page
+generates the prompt for it. See [`DAILY-WORKFLOW.md`](DAILY-WORKFLOW.md) for the whole loop.
 
 | | |
 |---|---|
@@ -32,7 +34,7 @@ Loopback only — the address works on your machine and nowhere else.
 - **It never discards your work.** With unsaved reviews it leaves the branch alone and says so.
 
 Full walkthrough, including what to do after you send reviews in and the admin-only Foundry
-steps: [`RUNNING-WITHOUT-AI.md`](RUNNING-WITHOUT-AI.md).
+steps: [`DAILY-WORKFLOW.md`](DAILY-WORKFLOW.md).
 
 ---
 

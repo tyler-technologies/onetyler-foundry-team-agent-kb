@@ -671,6 +671,12 @@ CSS = r"""
        .reviewed       #2e7d32 on #e6f2e7 = 4.45:1   -> #206b26 = 5.71:1  (4.45 LOOKS fine,
                        which is exactly why it survived; it is still a fail)
      Pill text is 11px, so 4.5:1 applies - the 3:1 large-text allowance does not. */
+  /* Stat-tile tints. Pale enough that ordinary text sits on them at full contrast - the
+     numeral is NOT tinted, so the tint carries the state and the digit stays legible. */
+  --t-red-bg:#fdecea;     --t-red-bd:#f3c9c4;
+  --t-yellow-bg:#fff8e1;  --t-yellow-bd:#eddfb0;
+  --t-green-bg:#e9f5ea;   --t-green-bd:#c3e0c6;
+  --t-grey-bg:#f1f3f4;    --t-grey-bd:#dcdfe2;
   --bnr-ok-bg:#eef7ee;    --bnr-ok-bd:#c6e3c6;    --bnr-ok-fg:#1c3d1f;
   --bnr-sug-bg:#f3ecfd;   --bnr-sug-bd:#cdb8f0;   --bnr-sug-fg:#33215c;
   --bnr-done-bg:#fff6e5;  --bnr-done-bd:#e8d3a8;  --bnr-done-fg:#4a3610;
@@ -755,6 +761,12 @@ CSS = r"""
   /* Dark needs no separate ink: the accents are already light and the tints already dark, so
      the accent IS the right pill colour. Measured on the dark tints - warn 8.20:1,
      success 7.24:1, error 7.55:1, suggested 7.84:1, pushed 7.22:1. */
+  /* Dark: the same four states, re-stepped for a dark surface rather than the light tints
+     darkened - a dimmed pastel goes muddy and stops reading as a colour at all. */
+  --t-red-bg:#3a1e1e;     --t-red-bd:#5e2f2f;
+  --t-yellow-bg:#322916;  --t-yellow-bd:#574727;
+  --t-green-bg:#17301f;   --t-green-bd:#2f5d40;
+  --t-grey-bg:#2b313a;    --t-grey-bd:#444b56;
   --bnr-ok-bg:#17301f;    --bnr-ok-bd:#2f5d40;    --bnr-ok-fg:#c8e6d2;
   --bnr-sug-bg:#261c3a;   --bnr-sug-bd:#443463;   --bnr-sug-fg:#ddccf5;
   --bnr-done-bg:#322916;  --bnr-done-bd:#574727;  --bnr-done-fg:#f0e0bd;
@@ -983,6 +995,14 @@ ol.prog li.none b{text-decoration:line-through}
 ol.prog li.none::before{content:"\2013";color:var(--forge-theme-text-low)}
 ol.prog li.fdry::before{content:"";border:1.5px dashed var(--forge-theme-warning);
 box-sizing:border-box}
+/* The assistant stage. Marked out because it is categorically different from the others: not
+   waiting on this button, and not something the page can do at all. */
+ol.prog li.ai{background:var(--bnr-sug-bg);border-radius:4px;padding:12px 12px 12px 30px;
+margin:6px 0}
+ol.prog li.ai::before{content:"\2726";background:none;color:var(--accent-purple);
+font-size:13px;left:8px;top:13px}
+ol.prog li.ai b{color:var(--bnr-sug-fg)}
+ol.prog li.ai span{color:var(--bnr-sug-fg);opacity:.9}
 /* The file list is context for the steps, not a step - a recessed panel says that without
    needing another bordered card. */
 .whatsent{background:var(--forge-theme-surface-container-minimum);border-radius:4px;
@@ -1058,7 +1078,11 @@ input.bigsearch:focus{outline:2px solid var(--forge-theme-primary);outline-offse
    fail, two blues nobody can separate. Ownership was pulled out of the colour space entirely
    (it lives in the nav and in the row tint), leaving pending/suggested/reviewed/pushed, which
    pass every check. `excluded` is deliberately neutral grey - not a categorical slot. */
-.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(126px,1fr));
+/* EQUAL WIDTH, auto-fitting to the window. `1fr` columns from auto-fit means every tile is
+   the same width and the count per row follows the viewport - six across on a wide screen,
+   folding to three then two as it narrows, with no tile ever wider than another. Nothing spans
+   any more, which is what made equal width possible. */
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
 gap:10px;margin-bottom:var(--forge-spacing-medium)}
 .kpi[title]{cursor:help}
 td.fbcell,th.fbcell{width:1%;text-align:center;padding-left:6px;padding-right:6px}
@@ -1081,15 +1105,14 @@ color:var(--bnr-done-fg)}
 .who{display:inline-flex;align-items:center;gap:7px}
 .whocell{display:inline-flex;align-items:center;gap:6px}
 .whocell .av+.av{margin-left:-7px;box-shadow:0 0 0 2px var(--forge-theme-surface)}
-.kpi{background:var(--forge-theme-surface);border:1px solid var(--forge-theme-outline);
-border-radius:4px;padding:12px 14px;box-shadow:var(--shadow-card);
-border-top:3px solid var(--kc,var(--forge-theme-outline-low))}
-.kpi .v{font:600 26px/1.15 Roboto,sans-serif;color:var(--kc,var(--forge-theme-text-high))}
+.kpi{background:var(--t-grey-bg);border:1px solid var(--t-grey-bd);
+border-radius:4px;padding:12px 14px;box-shadow:var(--shadow-card);}
+.kpi .v{font:600 26px/1.15 Roboto,sans-serif;color:var(--forge-theme-text-high)}
+.kpi.t-red{background:var(--t-red-bg);border-color:var(--t-red-bd)}
+.kpi.t-yellow{background:var(--t-yellow-bg);border-color:var(--t-yellow-bd)}
+.kpi.t-green{background:var(--t-green-bg);border-color:var(--t-green-bd)}
+.kpi.t-grey{background:var(--t-grey-bg);border-color:var(--t-grey-bd)}
 .kpi .l{font:400 12px/1.4 Roboto,sans-serif;color:var(--forge-theme-text-medium);margin-top:2px}
-.kpi.progress{grid-column:span 2}
-.kpi .meter{height:6px;border-radius:3px;background:var(--forge-theme-primary-container-low);
-margin-top:9px;overflow:hidden}
-.kpi .meter i{display:block;height:100%;border-radius:3px;background:var(--kc)}
 /* Column-header filter popovers, following the Ops Center Activity pattern: the caret on a
    heading opens a small panel with that column's control and Clear / Close / Update. This
    replaced a permanent filter row under the headings, which cost a whole row of vertical space
@@ -1304,6 +1327,28 @@ await saveDoc(path)}
 // rendered, which is the honest picture - they are somebody's next action, not this click's.
 // The output panel's heading tracks what is in it: the pending diff before any step runs,
 // a step's output afterwards. One heading for both would be wrong half the time.
+// Copy the assistant prompt. navigator.clipboard needs a secure context, and http://127.0.0.1
+// counts as one in Chrome and Firefox - but not everywhere, and not if permission is refused.
+// The textarea fallback is the reason this is more than one line: a copy button that silently
+// does nothing is worse than no button, because the reviewer walks away believing they have it.
+function copyPrompt(btn){
+ const text=window.AI_PROMPT||'';
+ const done=ok=>{btn.textContent = ok ? '\u2713 Copied — paste it to your assistant'
+                                      : 'Could not copy — select the text below instead';
+   if(!ok){const ta=document.createElement('textarea');ta.value=text;
+     ta.style.cssText='width:100%;margin-top:8px;font:inherit';ta.rows=4;
+     btn.parentNode.appendChild(ta);ta.select()}
+   else setTimeout(()=>{btn.textContent='Copy the prompt for my assistant'},4000);};
+ if(navigator.clipboard&&window.isSecureContext){
+   navigator.clipboard.writeText(text).then(()=>done(true),()=>done(false));
+ } else {
+   const ta=document.createElement('textarea');ta.value=text;
+   ta.style.position='fixed';ta.style.opacity='0';document.body.appendChild(ta);
+   ta.select();
+   let ok=false; try{ok=document.execCommand('copy')}catch(e){ok=false}
+   document.body.removeChild(ta); done(ok);
+ }
+}
 function setOutHead(action){
  const h=document.getElementById('outhead'), s=document.getElementById('outsub');
  if(!h||!s)return;
@@ -1923,14 +1968,17 @@ def list_page(show_all=False):
                 "<button type=button onclick='fpopUpdate(this)'>Update</button>"
                 "</div></div></th>")
 
-    def kpi(label, value, colour=None, span=False, meter=None, why=""):
-        style = f" style='--kc:{colour}'" if colour else ""
-        cls = "kpi progress" if span else "kpi"
-        bar = (f"<div class=meter><i style='width:{meter}%'></i></div>"
-               if meter is not None else "")
+    def kpi(label, value, tone="grey", why=""):
+        """One stat tile. `tone` picks a tinted background, not a text colour.
+
+        Colour is a BACKGROUND here rather than the old coloured numeral, because a tint
+        groups the row at a glance - the two reds read as one problem - while a coloured digit
+        reads as decoration. The numeral stays in ordinary ink so it is legible in both display
+        modes; the tints are what carry the state.
+        """
         tip = f" title=\"{html.escape(why)}\"" if why else ""
-        return (f"<div class='{cls}'{style}{tip}><div class=v>{value}</div>"
-                f"<div class=l>{label}</div>{bar}</div>")
+        return (f"<div class='kpi t-{tone}'{tip}><div class=v>{value}</div>"
+                f"<div class=l>{label}</div></div>")
 
     # Lifecycle states only, in lifecycle order. Ownership is deliberately absent - see the
     # CSS comment. No links on any tile.
@@ -1938,35 +1986,44 @@ def list_page(show_all=False):
     # bar, and a 2px-tall bar in a 150px tile is unreadable. It spans two columns to earn the
     # bar its width. When there is nothing in scope there is no progress to draw, so it drops
     # to a plain tile rather than rendering an empty trough.
-    tiles = [kpi("Reviewed of in-scope" + (" (yours)" if mine_only else ""),
-                 f"{done}/{scope}", "var(--kpi-green)", span=bool(scope),
-                 meter=pct if scope else None,
-                 why=("Of the transcripts in this view that are in scope, how many carry a "
-                      "human verdict. In scope means everything except pre-go-live testing. "
-                      "Wider than the other tiles because it is the only one with a bar."
-                      + (" This view is filtered to your rows only." if mine_only else "")))]
-    if counts["pending"]:
-        tiles.append(kpi("Awaiting review", counts["pending"], "var(--kpi-amber)",
-                         why="Nobody has looked at these yet."))
-    if counts["suggested"]:
-        tiles.append(kpi("Suggested", counts["suggested"], "var(--kpi-purple)",
-                         why="Someone worked these up but left the decision to the area "
-                             "owner. Not yet a verdict."))
-    if counts["reviewed"]:
-        tiles.append(kpi("Reviewed, not yet actioned", counts["reviewed"], "var(--kpi-green)",
-                         why="A human verdict is recorded and Claude has not yet processed "
-                             "it. This is the queue work comes from."))
-    if counts["pushed"]:
-        # "Live in Foundry" read as though the TRANSCRIPTS were in Foundry. They are not - the
-        # knowledge-file changes they caused are. Renamed to describe the transcript's own
-        # state, with the Foundry part explained in the tooltip.
-        tiles.append(kpi("Closed out", counts["pushed"],
-                         why="Fully done: reviewed, processed, and any resulting knowledge "
-                             "change is live in Foundry and verified. Nothing further owed."))
-    tiles.append(kpi("Excluded", excl,
-                     why="Pre-go-live internal testing - conversations from before the chatbot "
-                         "shipped on 2026-08-19. Not real user feedback, so out of scope."))
-    tiles.append(kpi("Transcripts", tot, why="Every conversation collected, in scope or not."))
+    # Six tiles, fixed set, in lifecycle order. Specified by the repo owner, and the pair in
+    # the middle is the point of the redesign: "Reviewed, Not saved" versus "Reviewed, Saved
+    # locally" is the distinction a reviewer actually worries about, and no tile expressed it
+    # before - both used to fall under one "Reviewed" count.
+    #
+    # The progress meter that used to lead this row is gone with it. It spanned two columns,
+    # which is incompatible with all-equal-width, and it measured "reviewed of in scope" - a
+    # number the six tiles now give you directly.
+    dirty, saved_ahead = saved_state()
+    rev_unsaved = rev_saved = 0
+    for r in recs:
+        if r["status"] != "reviewed":
+            continue
+        rel = "transcripts/" + r["rel"]
+        if rel in dirty:
+            rev_unsaved += 1
+        else:
+            rev_saved += 1
+
+    tiles = [
+        kpi("Pending", counts["pending"], tone="red",
+            why="Nobody has looked at these yet. This is the queue to work through."),
+        kpi("Reviewed, Not saved", rev_unsaved, tone="red",
+            why="You have ruled on these but the verdict is only in a file on this laptop. "
+                "Nothing protects it yet — Save progress on the Save & Publish page does."),
+        kpi("Reviewed, Saved locally", rev_saved, tone="yellow",
+            why="Ruled on and checkpointed, but not finished: the knowledge change either has "
+                "not been written yet or is not live in Foundry. Includes anything already "
+                "merged but not yet closed out."),
+        kpi("Closed out", counts["pushed"], tone="green",
+            why="Fully done: reviewed, processed, and any resulting knowledge change is live "
+                "in Foundry and verified. Nothing further owed."),
+        kpi("Excluded", excl, tone="grey",
+            why="Pre-go-live internal testing — conversations from before the chatbot shipped "
+                "on 2026-08-19. Not real user feedback, so out of scope."),
+        kpi("Total transcripts", tot, tone="grey",
+            why="Every conversation collected in this view, in scope or not."),
+    ]
     # Sync sits at the top of both list views: it is the first thing you want when you sit
     # down, and burying it behind the terminal defeats the point of a UI.
     title = "My Transcripts" if (ME and not show_all) else "All Transcripts"
@@ -2492,6 +2549,60 @@ def review_scope():
                                     if d.is_dir() and d.name.startswith("Knowledge-"))
 
 
+def awaiting_analysis():
+    """Reviewed transcripts whose feedback has not been turned into knowledge changes yet.
+
+    This is the count that makes the assistant step honest. A reviewer's verdict is not the
+    deliverable - the deliverable is the knowledge file that stops the agent giving that answer
+    again - and nothing on this page could previously tell you whether that work had been done.
+    """
+    n = 0
+    for f in tfiles():
+        fm, body = parse(f)
+        if fm is None:
+            continue
+        if (fm.get("review_status") or "") != "reviewed":
+            continue
+        # Either an unresolved action, or prose nobody has classified yet. Both are work.
+        if (fm.get("action_status") or "") in ("open", "", "needs-triage") or needs_triage(fm, body):
+            n += 1
+    return n
+
+
+def analysis_prompt(n):
+    """The exact words to hand an assistant. Generated, not written by the reviewer.
+
+    Deliberately short and deliberately NOT a description of the mechanics. The instructions an
+    assistant needs are already in CLAUDE.md, which it reads on its own; repeating them here
+    would create a second copy to drift. What it cannot know is that a batch is ready and what
+    the human wants out of it.
+    """
+    return (f"I have finished reviewing {n} transcript(s) in this repo. "
+            "Read all of my feedback as one body before changing anything, then update the "
+            "knowledge files so the agents stop giving those answers. Summarise what you "
+            "changed, per transcript, so I can follow my own feedback through. "
+            "Do not change my verdicts, and ask me rather than guessing if any of my feedback "
+            "is ambiguous.")
+
+
+def saved_state():
+    """Which transcript files are unsaved, and which are saved but not finished.
+
+    Lets the tiles distinguish "reviewed but the verdict is still only in a file on this
+    laptop" from "reviewed and checkpointed". That difference is the one a reviewer actually
+    loses sleep over, and no tile expressed it before.
+
+    Returns (dirty, saved_ahead) as sets of repo-relative paths.
+    """
+    _, st = git("status", "--porcelain", "--", "transcripts")
+    dirty = {porcelain_path(l) for l in st.splitlines() if l.strip()}
+    # Committed here but not yet on the shared copy. `--not --remotes` for the same reason
+    # unsent_saves() uses it: a lane has no upstream and no matching remote branch.
+    rc, out = git("diff", "--name-only", "origin/main...HEAD", "--", "transcripts")
+    ahead = {l.strip() for l in out.splitlines() if l.strip()} if rc == 0 else set()
+    return dirty, ahead - dirty
+
+
 def git_fragments():
     """The parts of Save & Share that go stale the moment you click something.
 
@@ -2561,6 +2672,26 @@ def git_page():
     state, files, saves_html = frag["state"], frag["files"], frag["saves"]
 
     fdry = pending_foundry_uploads()
+    n_ai = awaiting_analysis()
+    if n_ai:
+        # A stage with its own state, `ai`, because it is neither waiting on this button nor
+        # something the page can do. The prompt is a copy button rather than text to retype:
+        # the words matter (read all the feedback as one body, ask rather than guess) and
+        # nobody should have to remember them.
+        ai_stage = (
+            "<li data-stage=ai class='wait ai'><b>Update the knowledge files</b>"
+            f"<span><b>{n_ai}</b> reviewed transcript(s) are waiting on this. It needs an AI "
+            "assistant — it is judgement and writing, not a command: which file, where in it, "
+            "and worded so the retriever finds it.<br>"
+            "<button type=button class=sec id=aiprompt onclick='copyPrompt(this)' "
+            "style='margin-top:8px'>Copy the prompt for my assistant</button>"
+            "</span></li>")
+    else:
+        ai_stage = (
+            "<li data-stage=ai class=none><b>Update the knowledge files</b>"
+            "<span>nothing to update — no review in this batch asked for a change</span></li>")
+
+    prompt_json = json.dumps(analysis_prompt(n_ai))
 
     def step(num, title, desc, inner):
         return (f"<div class=step><div class=stepnum>{num}</div><div class=stepbody>"
@@ -2575,8 +2706,12 @@ def git_page():
 
       "<div class=card>"
       "<h3>Publish your reviews</h3>"
-      "<p class=sub>Nothing leaves your machine until you send it in. The first step is "
-      "optional.</p>"
+      # The honest division of labour, stated at the top because it is the thing people get
+      # wrong about this repo: a verdict is not the deliverable. The knowledge file that stops
+      # the agent repeating that answer is, and writing it is the ONE job here that needs an
+      # assistant. Everything else on this page is a button.
+      "<p class=sub>Part 1 is yours. Part 2 needs an assistant for one step — updating the "
+      "knowledge files — and buttons for the rest.</p>"
       "<div class=whatsent><b>About to be sent</b><div id=gitfiles>" + files + "</div></div>"
       # There used to be a step before these two: name a branch and click a button to create
       # it. It is gone. It was just a git branch, there was no decision in it - the name was
@@ -2591,7 +2726,7 @@ def git_page():
       # "(recommended)", not "(optional)". Both are true - step 2 saves first, so skipping this
       # breaks nothing - but "optional" invites skipping, and a reviewer who never saves has
       # no checkpoint to go back to if they change their mind mid-batch.
-      + step(1, "Save progress (recommended)",
+      + step("1", "Part 1 — Save progress (recommended)",
              "A checkpoint on this machine (local git commit) you can go back to. "
              "sending them in saves first anyway. Nothing is shared yet; if the laptop died "
              "now, the work would go with it.",
@@ -2605,14 +2740,15 @@ def git_page():
              "<button class=sec onclick=\"gitDo('commit')\">Save progress</button>"
              "<button class=sec onclick=\"gitDo('diff')\">Show me exactly what changed</button>"
              "</div>" + "<div id=githist>" + saves_html + "</div>")
-      + step(2, "Send them in — and on to Foundry",
-             "The first point your work exists anywhere other than this laptop, and the step "
-             "that reaches the team (PR into Repo). What follows depends on what you changed, "
-             "so the stages below say exactly what is still owed.",
+      + step("2", "Part 2 — Publish",
+             "Your verdicts are not the deliverable — the knowledge files that stop the agents "
+             "repeating those answers are. Updating them is the one step here that needs an "
+             "assistant; the rest is this button and a merge.",
              "<ol class=prog id=prog>"
+             + ai_stage +
              "<li data-stage=push class=wait><b>Upload to GitHub</b>"
-             "<span>your work, kept apart from everyone else's until it is checked "
-             "(git push of your own branch)</span></li>"
+             "<span>your work and the knowledge updates together, kept apart from everyone "
+             "else's until they are checked (git push of your own branch)</span></li>"
              "<li data-stage=pr class=wait><b>Create the change request</b>"
              "<span>someone checks it before it becomes official (a GitHub pull "
              "request)</span></li>"
@@ -2630,6 +2766,7 @@ def git_page():
              "<div class=stepacts>"
              "<button onclick=\"gitDo('pr')\">Send my reviews in</button></div>")
       + "</div>"
+      f"<script>window.AI_PROMPT={prompt_json};</script>"
 
       # The heading FOLLOWS the content, because this panel shows two different things.
       # "What happened" was wrong from the moment the panel started rendering a diff on load:
