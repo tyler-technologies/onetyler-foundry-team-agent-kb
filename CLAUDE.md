@@ -847,6 +847,20 @@ So, in order:
 5. Report per-transcript so the reviewer can follow their own feedback through, even where
    several transcripts resolved to one change.
 
+**`contributor-initial-prompt.md` AND `contributor-update-prompt.md` CONTAIN NOTHING BUT THE
+PROMPT.** No title, no headings, no copy-paste markers, no explanation, no "what should happen"
+section. Every explanatory word belongs in `contributor-prompting-guide.md` instead.
+
+The reason is observed, not theoretical: the first contributor copied an entire prompt file —
+surrounding commentary included — and pasted the lot. No damage, but it showed that asking
+someone to select the right block between markers is a design flaw, not a user error. Now the
+whole file IS the block, so copying everything is the correct action and there is no wrong part
+to pick.
+
+**So if you find yourself adding a heading or a note to either file, stop** — put it in the
+guide and link to it. Anything you add to those files is text a human will paste to an agent as
+if you had addressed it to them.
+
 **WHEN YOU REFER TO A TRANSCRIPT, GIVE A LOCATOR THE HUMAN CAN OPEN.** Never identify one by
 its hash alone. `75043484` means nothing to the person who wrote the feedback — they reviewed
 it in a browser, not in a filename.
