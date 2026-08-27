@@ -918,6 +918,18 @@ font:600 12px/24px Roboto,sans-serif;text-align:center}
 color:var(--forge-theme-text-high)}
 .stepbody .sub{margin-bottom:12px}
 .stepacts{margin-top:12px;display:flex;gap:10px;flex-wrap:wrap}
+/* Confirmation for a destructive action. In the page, not a native modal - a browser confirm()
+   is the dialog people dismiss without reading, and it cannot show which files are at stake. */
+.confirmbox{margin-top:10px;background:var(--tint-error);border:1px solid var(--t-red-bd);
+border-radius:4px;padding:12px 14px;max-width:560px}
+.confirmbox>b{font-weight:500}
+.confirmbox .cdetail{margin-top:6px;font-size:13px;line-height:1.55;
+color:var(--forge-theme-text-high)}
+.confirmbox .cdetail code{font-size:12px;background:var(--forge-theme-surface);
+padding:1px 4px;border-radius:2px}
+.confirmbox .cacts{margin-top:12px;display:flex;gap:8px}
+button.danger{background:var(--forge-theme-error);color:var(--on-accent);border:0}
+button.danger:hover{filter:brightness(.92)}
 /* The list of saves. A recessed panel, like "About to be sent" - it is a record of what has
    happened, not a control, and giving it a card border would make it compete with the steps. */
 .saves{margin-top:14px;background:var(--forge-theme-surface-container-minimum);
@@ -1331,6 +1343,49 @@ await saveDoc(path)}
 // counts as one in Chrome and Firefox - but not everywhere, and not if permission is refused.
 // The textarea fallback is the reason this is more than one line: a copy button that silently
 // does nothing is worse than no button, because the reviewer walks away believing they have it.
+// ---- destructive actions ------------------------------------------------------------------
+// Every destructive action goes through this, and it deliberately does NOT use confirm():
+// a native modal blocks the page and is the one dialog you dismiss on reflex. This shows the
+// consequence in the page, requires a second, differently-placed click, and times out - so an
+// abandoned prompt cannot be completed by a stray click ten minutes later.
+function confirmThen(btn, title, detail, run){
+ const host=btn.parentNode;
+ const old=host.querySelector('.confirmbox');
+ if(old){old.remove(); btn.style.display=''; return}      // second click on the trigger cancels
+ btn.style.display='none';
+ const box=document.createElement('div');
+ box.className='confirmbox';
+ box.innerHTML='<b>'+title+'</b><div class=cdetail>'+detail+'</div>'
+   +'<div class=cacts><button type=button class=danger>Yes, do it</button>'
+   +'<button type=button class=sec>Cancel</button></div>';
+ host.appendChild(box);
+ const close=()=>{box.remove(); btn.style.display=''};
+ const timer=setTimeout(close, 30000);
+ box.querySelector('.danger').addEventListener('click',()=>{
+   clearTimeout(timer); close(); run();
+ });
+ box.querySelector('.sec').addEventListener('click',()=>{clearTimeout(timer); close()});
+}
+
+function resetUnsaved(btn){
+ const files=[...document.querySelectorAll('#gitfiles li')].map(l=>l.textContent);
+ if(!files.length){toast('Nothing to reset',false);return}
+ confirmThen(btn,'Reset '+files.length+' unsaved file(s)?',
+   'These go back to their last saved state:<br>'
+   +files.slice(0,8).map(f=>'<code>'+f+'</code>').join('<br>')
+   +(files.length>8?'<br>… and '+(files.length-8)+' more':'')
+   +'<br><br>Undoable — the edits are set aside, not deleted.',
+   ()=>gitDo('reset'));
+}
+
+function discardSave(btn,hash,when,newer){
+ confirmThen(btn,'Discard the save from '+when+(newer?' and '+newer+' newer?':'?'),
+   (newer?'This rewinds past <b>'+(newer+1)+'</b> saves. Discarding cannot take one out of '
+        +'the middle, so everything newer goes too.':'This rewinds one save.')
+   +'<br><br>A recovery point is created first, and the output tells you how to use it.',
+   ()=>gitDo('discard',{hash}));
+}
+
 function copyPrompt(btn){
  const text=window.AI_PROMPT||'';
  const done=ok=>{btn.textContent = ok ? '\u2713 Copied — paste it to your assistant'
@@ -1362,9 +1417,9 @@ function stage(name,state){const el=document.querySelector('#prog li[data-stage=
  if(!el||el.classList.contains('none'))return;
  el.classList.remove('wait','run','done','fail'); el.classList.add(state);}
 // No `branch` field any more — the branch is chosen server-side per sitting and never shown.
-async function gitDo(action){const msg=(document.getElementById('cmsg')||{}).value||'';
+async function gitDo(action,extra){const msg=(document.getElementById('cmsg')||{}).value||'';
 if(action==='pr'){stage('push','run')}
-const r=await post('/git',{action,message:msg});
+const r=await post('/git',Object.assign({action,message:msg},extra||{}));
 if(action==='pr'){
  // One request does both the push and the PR, so the push is only knowable as "it got far
  // enough to try the PR". Read that off the output rather than claiming both succeeded.
@@ -1548,6 +1603,18 @@ if(es&&em){
  } else { es.style.display='none'; if(tb) tb.style.display=''; }
 }
 try{sessionStorage.setItem(FKEY_STORE,JSON.stringify(f))}catch(e){}
+// Publish the VISIBLE rows, in the order the table is showing them. The detail view walks
+// this instead of the filesystem, so Previous/Next and "Mark reviewed & next" stay inside the
+// filter you were looking at. Rewritten on every filter change, so it is always the list on
+// screen - not the list at page load.
+try{
+ const order=[...document.querySelectorAll('tr.row')]
+   .filter(tr=>tr.style.display!=='none')
+   .map(tr=>(tr.dataset.href||'').replace(/^\/t\//,''))
+   .filter(Boolean);
+ sessionStorage.setItem('torder',JSON.stringify({view:document.body.dataset.defaultMine==='1'
+   ?'mine':'all', order}));
+}catch(e){}
 if(window.ckSync)ckSync(); if(window.fpopMarks)fpopMarks();}
 // Sync pulls new conversations from Foundry. Long-running (it walks every agent), so the
 // button reports progress rather than appearing dead, and the page only reloads on success -
@@ -1645,6 +1712,44 @@ if(document.getElementById('tbl')) initFilters();
  paint();
 })();
 
+// ---- detail-view navigation follows the TABLE, not the filesystem --------------------------
+// The server renders Previous/Next from the full transcript list on disk, which is the only
+// order it can know. That sent "Mark reviewed & next" out of the filtered set and backwards
+// into months-old transcripts - it walked every file in the repo, not the 12 pending rows on
+// screen.
+//
+// A SNAPSHOT, deliberately, taken when the list was last rendered. Re-filtering live would
+// drop each row out of the sequence the moment you marked it reviewed (the default filter is
+// `pending`), so "next" would jump unpredictably. The snapshot means the batch you started is
+// the batch you walk.
+(function(){
+ const cur=document.body.dataset.rel; if(!cur) return;
+ let snap=null; try{snap=JSON.parse(sessionStorage.getItem('torder'))}catch(e){}
+ const order=(snap&&Array.isArray(snap.order))?snap.order:null;
+ if(!order||!order.length) return;
+ const i=order.indexOf(cur);
+ if(i<0) return;                    // arrived by direct link; leave the server's links alone
+ const prev=i>0?order[i-1]:'';
+ const next=i<order.length-1?order[i+1]:'';
+ const back=snap.view==='all'?'/?all=1':'/';
+ const url=r=>r?('/t/'+r):back;
+ // Previous is a link; Next and the two verdict buttons carry the target as an argument.
+ const pa=document.querySelector('.nav a[href^="/t/"], .nav a[href="/"]');
+ if(pa){ if(prev){pa.setAttribute('href',url(prev))} else {pa.remove()} }
+ document.querySelectorAll('[onclick]').forEach(el=>{
+   const on=el.getAttribute('onclick')||'';
+   if(/^(markAndNext|suggestAndNext)\(/.test(on)){
+     el.setAttribute('onclick', on.replace(/,'[^']*'\)/, ",'"+url(next)+"')"));
+   }
+ });
+ const na=[...document.querySelectorAll('.nav a')].find(a=>/Next/i.test(a.textContent));
+ if(na) na.setAttribute('href',url(next));
+ // Say where you are in the batch. Without it there is no way to tell whether "next" is about
+ // to run out, which is the moment people assume something broke.
+ const pos=document.querySelector('#batchpos');
+ if(pos) pos.textContent=`${i+1} of ${order.length} in this list`;
+})();
+
 // Carry the reviewer between transcripts so a clean batch is one click each.
 (function(){const rv=document.querySelector('[data-fm=reviewer]');
  if(!rv||rv.value) return;
@@ -1728,7 +1833,7 @@ def nav_counts():
     return open_n, mine_n, uncommitted
 
 
-def page(title, inner, active="", all_view=False):
+def page(title, inner, active="", all_view=False, rel=""):
     """Shell with a Forge-style SIDE NAV.
 
     The previous version put "All transcripts" and "Git & PR" as bare links in the app bar,
@@ -1776,7 +1881,7 @@ def page(title, inner, active="", all_view=False):
 <link rel=stylesheet href="https://cdn.forge.tylertech.com/v1/css/tyler-font.css">
 <link rel=icon type="image/svg+xml" href="/logo.svg">
 <style>{CSS}</style><header><img class=brand src="/logo.svg" alt="Tyler Technologies" width=28 height=28><b>OneTyler Foundry Team Agent Transcript Review</b><div class=hdrright>{MODE_SWITCH}{who}</div></header>
-<body data-default-mine="{'1' if (ME and not all_view) else '0'}" data-default-status="{'pending' if (ME and not all_view) else '__open__'}" data-show-all="{'1' if (is_admin() or not ME) else '0'}">
+<body data-default-mine="{'1' if (ME and not all_view) else '0'}" data-default-status="{'pending' if (ME and not all_view) else '__open__'}" data-show-all="{'1' if (is_admin() or not ME) else '0'}" data-rel="{html.escape(rel)}">
 <div class=shell>{side}<main class=wrap>{inner}</main></div>
 <div class=toast id=toast></div><script>{JS}</script>"""
 
@@ -2163,7 +2268,12 @@ def detail_page(rel):
     fm, body = parse(p)
     if fm is None:
         return page("error", "<div class=card>No frontmatter in this file.</div>")
-    order = [f.relative_to(TDIR).as_posix() for f in tfiles()]
+    # Fallback order for someone who arrived by direct link with no table snapshot. Sorted the
+    # SAME WAY the table sorts - date descending, then filename descending - so the two never
+    # disagree about which way "next" goes. tfiles() alone is filesystem order, which is how
+    # "next" used to walk backwards into months-old transcripts.
+    order = sorted((f.relative_to(TDIR).as_posix() for f in tfiles()),
+                   key=lambda r: (r.split("/")[-1][:10], r), reverse=True)
     i = order.index(rel) if rel in order else 0
     prev_ = f"/t/{order[i-1]}" if i > 0 else ""
     next_ = f"/t/{order[i+1]}" if i < len(order) - 1 else "/"
@@ -2243,7 +2353,12 @@ def detail_page(rel):
                  f"</div></div>")
 
     parts.append(
-        f"<div class=nav><div>{f'<a href=\"{prev_}\"><button class=sec>&larr; Previous</button></a>' if prev_ else ''}</div>"
+        f"<div class=nav><div style='display:flex;gap:12px;align-items:center'>"
+        f"{f'<a href=\"{prev_}\"><button class=sec>&larr; Previous</button></a>' if prev_ else ''}"
+        # Filled in by the detail-nav script from the table's snapshot. Without it there is no
+        # way to tell whether "next" is about to run out of rows, which is exactly when people
+        # assume the button is broken.
+        f"<span class=hint id=batchpos></span></div>"
         f"<div style='display:flex;gap:8px'>"
         f"<button class=sec onclick=\"saveDoc('{html.escape(rel)}')\">Save</button>"
         f"<button class=sec onclick=\"suggestAndNext('{html.escape(rel)}','{next_}')\" "
@@ -2252,7 +2367,7 @@ def detail_page(rel):
         f"<button class=sec onclick=\"reReview('{html.escape(rel)}')\">Re-review</button>"
         f"<button onclick=\"markAndNext('{html.escape(rel)}','{next_}')\">Mark reviewed &amp; next &rarr;</button>"
         f"</div></div>")
-    return page(f"{fm.get('answered_by','')} {rel}", "".join(parts))
+    return page(f"{fm.get('answered_by','')} {rel}", "".join(parts), rel=rel)
 
 
 # The branch for this sitting, remembered for the lifetime of the server process.
@@ -2406,6 +2521,103 @@ def unsent_saves():
         if len(parts) == 3:
             rows.append({"h": parts[0], "when": parts[1], "subject": parts[2]})
     return rows
+
+
+def reset_unsaved():
+    """Return edited transcript files to their last saved state. Returns (rc, message).
+
+    STASHED, NOT DELETED - and that is the whole design. This is the only action on the page
+    with no other safety net: unsaved edits exist nowhere but the working tree, so a plain
+    `git checkout --` or `reset --hard` here is unrecoverable. On 2026-08-27 that exact command
+    destroyed a reviewer's verdicts in this repo. `git stash` does the same visible thing while
+    leaving the content retrievable, so the worst case is an inconvenience instead of a lost
+    afternoon.
+
+    Untracked files are deliberately left alone. An untracked file under transcripts/ is a
+    conversation Sync just pulled, not an edit - deleting it would throw away data the reviewer
+    never touched, and re-fetching it is not free.
+    """
+    _, dirty = git("status", "--porcelain", "--", *review_scope())
+    rows = [l for l in dirty.splitlines() if l.strip()]
+    tracked = [porcelain_path(l) for l in rows if not l.strip().startswith("??")]
+    if not tracked:
+        return 1, "Nothing to reset — there are no unsaved edits."
+
+    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    rc, out = git("stash", "push", "-m", f"reset-unsaved {stamp}", "--", *review_scope())
+    if rc != 0:
+        return 1, f"Could not reset, so nothing was changed:\n{out}"
+
+    lines = [f"Reset {len(tracked)} file(s) to their last saved state:"]
+    lines += [f"  {f}" for f in tracked[:20]]
+    if len(tracked) > 20:
+        lines.append(f"  … and {len(tracked) - 20} more")
+    lines.append("")
+    lines.append("NOT deleted — the edits were set aside, so this is undoable:")
+    lines.append("  git stash list          see them")
+    lines.append("  git stash pop           put them back")
+    return 0, "\n".join(lines)
+
+
+def discard_saves(target):
+    """Undo the save `target` and every save made after it. Returns (rc, message).
+
+    ONE DIRECTION ONLY, by design and at the owner's instruction: you cannot pull one save out
+    of the middle. Git history is a chain - removing a link from the middle means rewriting
+    every save above it, and the result is a history nobody can reason about. So discarding
+    means "rewind to just before this one".
+
+    Three guards, and the middle one exists because of a real incident:
+
+    1. ONLY UNSENT SAVES. If a save has reached any remote it is somebody else's history too,
+       and rewinding past it would rewrite shared history. Refused.
+
+    2. REFUSES WITH UNSAVED WORK IN THE TREE. `git reset --hard` destroys uncommitted changes,
+       and on 2026-08-27 exactly that destroyed a reviewer's verdicts in this repo -
+       unrecoverably, because they had never been committed. Anything not yet saved has no
+       recovery path, so this will not run until the tree is clean. Save first, then discard;
+       that way everything being thrown away is recoverable.
+
+    3. LEAVES A RECOVERY TAG. Before rewinding, the current tip is tagged. The commits also
+       survive in the reflog for ~90 days, but a named tag is something you can act on without
+       knowing what a reflog is - and the message says how.
+    """
+    saves = unsent_saves()
+    hashes = [s["h"] for s in saves]
+    if target not in hashes:
+        return 1, ("That save cannot be discarded — it has already been sent in, so it is part "
+                   "of the shared history now. Only saves that have not left this machine can "
+                   "be discarded.")
+
+    _, dirty = git("status", "--porcelain", "--", *review_scope())
+    if dirty.strip():
+        n = len([l for l in dirty.splitlines() if l.strip()])
+        return 1, (f"You have {n} edited file(s) that are not saved yet. Discarding rewinds the "
+                   "files on disk, which would destroy those edits with no way back — they "
+                   "have never been saved anywhere.\n\n"
+                   "Save progress first, then discard. Everything saved is recoverable.")
+
+    # Everything from `target` up to the tip, newest first, so the message can name it.
+    idx = hashes.index(target)
+    doomed = saves[:idx + 1]
+
+    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    tag = f"discarded/{stamp}"
+    rc, out = git("tag", tag)
+    if rc != 0:
+        return 1, f"Could not create the recovery point, so nothing was discarded:\n{out}"
+
+    rc, out = git("reset", "--hard", f"{target}~1")
+    if rc != 0:
+        git("tag", "-d", tag)
+        return 1, f"Could not rewind, so nothing was discarded:\n{out}"
+
+    lines = [f"Discarded {len(doomed)} save(s):"]
+    lines += [f"  {s['when']}  {s['subject']}" for s in doomed]
+    lines.append("")
+    lines.append(f"Recovery point: {tag}")
+    lines.append(f"To undo this, run:  git reset --hard {tag}")
+    return 0, "\n".join(lines)
 
 
 def auto_commit_message():
@@ -2624,7 +2836,7 @@ def git_fragments():
                  f"You have <b>{n}</b> edited file(s) not yet saved.")
     elif unpushed != "0":
         state = (f"<span class='pill reviewed'>saved</span> Saved, but "
-                 f"<b>{unpushed}</b> change(s) have not been sent in yet — do step 2.")
+                 f"<b>{unpushed}</b> change(s) have not been sent in yet — do Part 3.")
     else:
         state = ("<span class='pill pushed'>all sent</span> Nothing waiting. "
                  "Everything you have reviewed has been sent in.")
@@ -2648,10 +2860,21 @@ def git_fragments():
             "<span class=chev aria-hidden=true></span></summary>"
             "<table>" + "".join(
                 f"<tr><td class=swhen>{html.escape(s['when'])}</td>"
-                f"<td>{html.escape(s['subject'])}</td></tr>" for s in saves)
+                f"<td>{html.escape(s['subject'])}</td>"
+                # "and everything newer" is stated on every row, because the one-directional
+                # rule is the thing people will not expect. Git history is a chain: pulling a
+                # link out of the middle rewrites everything above it, so the only coherent
+                # discard is a rewind.
+                f"<td class=sstate><button type=button class=sec "
+                f"onclick=\"discardSave(this,'{s['h']}','{html.escape(s['when'])}',{i})\" "
+                f"title='Discard this save and every save newer than it'>"
+                f"Discard this{' and ' + str(i) + ' newer' if i else ''}</button></td></tr>"
+                for i, s in enumerate(saves))
             + "</table>"
             "<div class=hint>Sending them in covers all of these at once. A save drops off "
-            "this list as soon as it has been sent.</div></details>")
+            "this list as soon as it has been sent.<br>Discarding rewinds to just before the "
+            "save you pick — it cannot remove one from the middle, and it always leaves a "
+            "recovery point.</div></details>")
     else:
         saves_html = ("<div class=saves><span class=hint>Nothing saved and unsent — either "
                       "you have not saved yet this sitting, or everything is already sent "
@@ -2710,9 +2933,20 @@ def git_page():
       # wrong about this repo: a verdict is not the deliverable. The knowledge file that stops
       # the agent repeating that answer is, and writing it is the ONE job here that needs an
       # assistant. Everything else on this page is a button.
-      "<p class=sub>Part 1 is yours. Part 2 needs an assistant for one step — updating the "
-      "knowledge files — and buttons for the rest.</p>"
+      "<p class=sub>Parts 1 and 2 are yours. Part 3 needs an assistant for one step — "
+      "updating the knowledge files — and buttons for the rest.</p>"
       "<div class=whatsent><b>About to be sent</b><div id=gitfiles>" + files + "</div></div>"
+      # Part 1 is the escape hatch, and it goes FIRST because that is when you want it: you
+      # have just realised the last half hour of edits were wrong, before saving them.
+      + step("1", "Part 1 — Reset unsaved edits",
+             "Puts edited transcripts back to their last saved state. Only touches edits you "
+             "have not saved; anything already saved is untouched, and newly synced "
+             "conversations are left alone.",
+             "<div class=stepacts>"
+             "<button class=sec onclick='resetUnsaved(this)'>Reset unsaved edits</button>"
+             "</div>"
+             "<div class=hint style='margin-top:10px'>Undoable — the edits are set aside "
+             "rather than deleted, and the output tells you how to put them back.</div>")
       # There used to be a step before these two: name a branch and click a button to create
       # it. It is gone. It was just a git branch, there was no decision in it - the name was
       # generated, the timing forced, and the answer always "yes" - and the owner of this repo
@@ -2726,9 +2960,9 @@ def git_page():
       # "(recommended)", not "(optional)". Both are true - step 2 saves first, so skipping this
       # breaks nothing - but "optional" invites skipping, and a reviewer who never saves has
       # no checkpoint to go back to if they change their mind mid-batch.
-      + step("1", "Part 1 — Save progress (recommended)",
+      + step("2", "Part 2 — Save progress (recommended)",
              "A checkpoint on this machine (local git commit) you can go back to. "
-             "sending them in saves first anyway. Nothing is shared yet; if the laptop died "
+             "Optional in the strict sense — Part 3 saves first anyway. Nothing is shared yet; if the laptop died "
              "now, the work would go with it.",
              # Empty by DEFAULT, not prefilled. A prefilled box asks to be read, edited and
              # worried about; an empty one labelled "optional" asks for nothing. Blank is
@@ -2740,7 +2974,7 @@ def git_page():
              "<button class=sec onclick=\"gitDo('commit')\">Save progress</button>"
              "<button class=sec onclick=\"gitDo('diff')\">Show me exactly what changed</button>"
              "</div>" + "<div id=githist>" + saves_html + "</div>")
-      + step("2", "Part 2 — Publish",
+      + step("3", "Part 3 — Publish",
              "Your verdicts are not the deliverable — the knowledge files that stop the agents "
              "repeating those answers are. Updating them is the one step here that needs an "
              "assistant; the rest is this button and a merge.",
@@ -2980,6 +3214,10 @@ class H(BaseHTTPRequestHandler):
             try:
                 if act == "commit":
                     rc, out = save_reviews(msg)
+                elif act == "reset":
+                    rc, out = reset_unsaved()
+                elif act == "discard":
+                    rc, out = discard_saves((data.get("hash") or "").strip())
                 elif act == "diff":
                     rc, out = 0, review_diff()
                 elif act == "pr":
