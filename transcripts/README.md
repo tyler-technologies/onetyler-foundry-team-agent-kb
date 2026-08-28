@@ -72,7 +72,7 @@ answering from old text while the repo looks perfectly correct.
 
 ```bash
 python3 scripts/check_foundry_drift.py          # after EVERY merge
-python3 scripts/check_foundry_drift.py --deep   # byte-compare, not just file size
+python3 scripts/check_foundry_drift.py          # byte-compares content, not just file size
 ```
 
 It checks all five collections, every shared file against *every* one of its
