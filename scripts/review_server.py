@@ -4235,10 +4235,26 @@ def bp_available():
 
 
 def bp_git(*args, timeout=120):
-    """git, but in the Blueprint checkout."""
+    """git, but in the Blueprint checkout. Output is stripped — DO NOT use it for a patch."""
     r = subprocess.run(["git", *args], cwd=BP_REPO, capture_output=True, text=True,
                        timeout=timeout)
     return r.returncode, (r.stdout + r.stderr).strip()
+
+
+def bp_git_raw(*args, timeout=120):
+    """git in Blueprint, returning stdout EXACTLY as produced. (rc, stdout, stderr).
+
+    A patch is whitespace-significant: a blank context line is a single space, and `.strip()`
+    deletes the trailing ones while the hunk header goes on claiming they are there. That yields
+    `error: corrupt patch at line N` from `git apply` - which reads like a damaged file rather
+    than a caller that trimmed it. Measured on the first real staged patch: a hunk header saying
+    7 old lines with only 6 left after stripping.
+
+    Mixing stderr into stdout would corrupt a patch just as effectively, so they stay apart.
+    """
+    r = subprocess.run(["git", *args], cwd=BP_REPO, capture_output=True, text=True,
+                       timeout=timeout)
+    return r.returncode, r.stdout, r.stderr
 
 
 def bp_changes():
@@ -4251,6 +4267,188 @@ def bp_changes():
     if rc != 0:
         return []
     return sorted({l.strip() for l in out.splitlines() if l.strip()})
+
+
+# Per-transcript Blueprint attribution.
+#
+# WHY A STAGING AREA RATHER THAN JUST READING THE BLUEPRINT WORKING TREE.
+# ----------------------------------------------------------------------
+# `bp_changes()` can say WHAT changed in Blueprint but never WHICH TRANSCRIPT asked for it - a
+# working tree is one flat pile of edits. That was fine while all Blueprint work rode in a single
+# request, and is not fine now that each transcript gets its own: without attribution, "revert
+# this transcript" can only mean "revert everything", and one rejected answer would silently drop
+# another transcript's approved Blueprint fix.
+#
+# So each transcript's Blueprint edits are captured as a patch the moment they are made, and the
+# Blueprint working tree is returned to clean. The patch IS the attribution: one file per
+# transcript, named after it. A per-transcript branch is then built by applying just that patch
+# to a fresh branch off master, which is also what makes the requests independently mergeable.
+BP_STAGE = REPO / ".bp-stage"
+
+
+def bp_slug(rel):
+    """A filesystem-safe key for a transcript path. Stable, and reversible enough to read."""
+    return re.sub(r"[^A-Za-z0-9._-]", "_", rel)
+
+
+def bp_stage_path(rel):
+    return BP_STAGE / (bp_slug(rel) + ".patch")
+
+
+def bp_stage_add(rel):
+    """Capture the CURRENT Blueprint diff as this transcript's patch. (ok, message).
+
+    Takes everything Blueprint has against master right now, so it must be called once per
+    transcript, while the tree holds only that transcript's edits - edit, stage, edit, stage.
+    Staging resets the Blueprint tree afterwards, which is what keeps the next transcript's
+    capture from re-including this one.
+    """
+    ok, why = bp_available()
+    if not ok:
+        return False, why
+    bp_git("fetch", "-q", "origin", "master")
+    # -N so a brand-new page appears in `git diff` at all; without it an added file is untracked
+    # and the patch would silently omit the whole thing.
+    bp_git("add", "-AN")
+    # RAW, not bp_git: see bp_git_raw. Stripping this output produces a patch git refuses.
+    rc, patch, err = bp_git_raw("diff", "--binary", "origin/master")
+    if rc != 0:
+        return False, f"could not read the Blueprint diff: {err[:300]}"
+    if not patch.strip():
+        return False, ("Blueprint has no changes against master, so there is nothing to attribute "
+                       "to this transcript. Make the Blueprint edits first, then stage them.")
+    files = bp_changes()
+    BP_STAGE.mkdir(exist_ok=True)
+    bp_stage_path(rel).write_text(patch if patch.endswith("\n") else patch + "\n")
+    # Prove the patch is sound BEFORE throwing the working tree away. Writing a patch that
+    # cannot be replayed and then resetting would destroy the edits with nothing recoverable,
+    # and the failure would surface days later at send time with the work gone. That is not
+    # hypothetical - the first version of this function wrote a truncated patch and reset over
+    # the top of it.
+    #
+    # Checked with --reverse, against the tree as it is NOW. A plain --check would be wrong here
+    # and fails on every real call: the patch describes master -> working tree, and the working
+    # tree already holds those changes, so applying it forward has nothing to bite on. Reversing
+    # it proves the patch's post-image matches the tree exactly; its pre-image matches master by
+    # construction, since git generated it against master a moment ago.
+    chk = subprocess.run(["git", "apply", "--check", "--reverse", str(bp_stage_path(rel))],
+                         cwd=BP_REPO, capture_output=True, text=True, timeout=120)
+    if chk.returncode != 0:
+        bp_stage_path(rel).unlink(missing_ok=True)
+        return False, ("The captured Blueprint patch does not describe the Blueprint tree "
+                       "faithfully, so nothing was staged and your Blueprint edits are "
+                       "untouched:\n" + (chk.stdout + chk.stderr)[:400])
+    # Back to clean, so the next transcript's capture is only its own. Reset AND clean: reset
+    # restores tracked files, and a newly added page would otherwise survive as untracked and be
+    # captured again by the next stage.
+    bp_git("reset", "-q", "--hard", "origin/master")
+    bp_git("clean", "-qfd")
+    return True, (f"Attributed {len(files)} Blueprint file(s) to {rel}:\n"
+                  + "\n".join("  " + f for f in files)
+                  + "\n\nThe Blueprint tree is clean again — make the next transcript's edits.")
+
+
+def bp_staged():
+    """{transcript_rel: [blueprint files]} for everything currently staged."""
+    if not BP_STAGE.is_dir():
+        return {}
+    # The slug is lossy (any non-safe char becomes "_"), so recover the real path by matching
+    # slugs against the transcripts that exist rather than trying to un-slug the filename.
+    known = {bp_slug(r): r for r in (
+        str(p.relative_to(REPO)) for p in (REPO / "transcripts").rglob("*.md"))}
+    out = {}
+    for p in sorted(BP_STAGE.glob("*.patch")):
+        rel = known.get(p.stem, p.stem)
+        files = sorted({m.group(1) for m in
+                        re.finditer(r"^\+\+\+ b/(.+)$", p.read_text(errors="replace"), re.M)})
+        out[rel] = files
+    return out
+
+
+def bp_unstage(rel):
+    """Drop this transcript's Blueprint changes. (ok, message).
+
+    Called when a transcript goes back to pending: its Blueprint edits are part of the same
+    rejected change and leaving them staged would ship them on the next send, attached to a
+    verdict that no longer exists.
+
+    Also tears down a request if one was already opened - closing it and deleting the branch
+    rather than leaving an orphan open against a shared docs repo. Blueprint requests are only
+    created after eval approval, so in the normal case there is nothing there yet.
+    """
+    p = bp_stage_path(rel)
+    had = p.is_file()
+    if had:
+        p.unlink()
+    msgs = [f"Blueprint changes for {rel} dropped." if had else
+            f"No Blueprint changes were staged for {rel}."]
+    br = f"kb-review/bp-{bp_slug(rel)}"
+    ok, _ = bp_available()
+    if ok:
+        r = subprocess.run(["gh", "pr", "list", "--repo", BP_REMOTE, "--head", br,
+                            "--state", "open", "--json", "number", "-q", ".[].number"],
+                           cwd=BP_REPO, capture_output=True, text=True, timeout=90)
+        for num in (r.stdout or "").split():
+            subprocess.run(["gh", "pr", "close", num, "--repo", BP_REMOTE, "--delete-branch",
+                            "--comment", "The transcript behind this went back to pending, so "
+                            "these Blueprint edits are withdrawn."],
+                           cwd=BP_REPO, capture_output=True, text=True, timeout=120)
+            msgs.append(f"Closed Blueprint request #{num} and deleted its branch.")
+    return True, " ".join(msgs)
+
+
+def bp_open_pr_for(rel, hint):
+    """One Blueprint request for ONE transcript, from its staged patch. (ok, message).
+
+    Built on a branch off origin/master carrying only this transcript's patch, so each request
+    stands alone and can be merged without waiting on the others. Two transcripts touching the
+    same Blueprint page will conflict on the second merge - which is correct and visible, rather
+    than one silently overwriting the other inside a combined request.
+    """
+    ok, why = bp_available()
+    if not ok:
+        return False, why
+    p = bp_stage_path(rel)
+    if not p.is_file():
+        return False, (f"{rel} is marked BP updates but no Blueprint edits are attributed to it. "
+                       "The assistant needs to make them and run:\n"
+                       f"  python3 scripts/bp_stage.py --transcript {rel}")
+    bp_git("fetch", "-q", "origin", "master")
+    bp_git("reset", "-q", "--hard")
+    bp_git("clean", "-qfd")
+    br = f"kb-review/bp-{bp_slug(rel)}"
+    bp_git("branch", "-qD", br)
+    rc, out = bp_git("switch", "-q", "-c", br, "origin/master")
+    if rc != 0:
+        return False, f"could not branch in Blueprint for {rel}: {out[:300]}"
+    r = subprocess.run(["git", "apply", "--index", str(p)], cwd=BP_REPO,
+                       capture_output=True, text=True, timeout=120)
+    if r.returncode != 0:
+        bp_git("switch", "-q", "master")
+        return False, (f"could not apply the staged Blueprint patch for {rel} — Blueprint's "
+                       f"master has probably moved under it:\n{(r.stdout + r.stderr)[:400]}")
+    title = f"Blueprint updates from transcript review — {Path(rel).name}"
+    body = ("Opened from transcript review feedback in "
+            "`onetyler-foundry-team-agent-kb`.\n\n"
+            f"Transcript: `{rel}`\n\n"
+            "Most of the indexed knowledge is derived from Blueprint, so the knowledge-file "
+            "fix for this transcript does not hold unless this lands too — the next "
+            "reconciliation would restore the old wording.")
+    rc, out = bp_git("commit", "-qm", title + "\n\n" + body)
+    if rc != 0 and "nothing to commit" not in out.lower():
+        return False, f"could not commit in Blueprint for {rel}: {out[:300]}"
+    rc, out = bp_git("push", "-qu", "--force-with-lease", "origin", br, timeout=240)
+    if rc != 0:
+        return False, f"could not push the Blueprint branch for {rel}: {out[:300]}"
+    r = subprocess.run(["gh", "pr", "create", "--repo", BP_REMOTE, "--base", "master",
+                        "--head", br, "--title", title, "--body", body],
+                       cwd=BP_REPO, capture_output=True, text=True, timeout=180)
+    made = ((r.stdout or "") + (r.stderr or "")).strip()
+    bp_git("switch", "-q", "master")
+    if r.returncode != 0 and "already exists" not in made.lower():
+        return False, f"could not open the Blueprint request for {rel}: {made[:300]}"
+    tail = made.splitlines()[-1] if made.splitlines() else ""
+    return True, f"{Path(rel).name}: {tail}"
 
 
 def bp_open_pr(branch_hint, title, body):
@@ -4327,8 +4525,19 @@ def analysis_prompt(n):
             "anything on the same subject that now conflicts. Most of the indexed knowledge is "
             "derived from Blueprint, so a `Docusaurus-` knowledge file fixed on its own is "
             "reverted by the next reconciliation - fixing Blueprint is what makes it stick.\n\n"
-            "Do not commit or push in the Blueprint checkout. Leave the edits in the working "
-            "tree; Part 2 opens the change request for both repos together.")
+            "EACH of those transcripts gets its OWN Blueprint change request, so work through "
+            "them ONE AT A TIME and tell the flow which edits belong to which transcript:\n\n"
+            "  1. make the Blueprint edits for ONE transcript\n"
+            "  2. run: python3 scripts/bp_stage.py --transcript <that transcript's path>\n"
+            "  3. that captures those edits and resets the Blueprint tree, so repeat from 1 "
+            "for the next one\n\n"
+            "Staging in step 2 is not tidiness - it is the only thing that keeps one "
+            "transcript's Blueprint edits separable from another's. Without it, rejecting one "
+            "transcript's answer would drag back another transcript's approved Blueprint fix. "
+            "Check with `python3 scripts/bp_stage.py --list` before you finish; anything marked "
+            "BP updates with nothing staged is refused at send time.\n\n"
+            "Do not commit or push in the Blueprint checkout yourself. The requests are opened "
+            "per transcript, after the eval is approved.")
 
 
 def saved_state():
@@ -6688,6 +6897,41 @@ def _eval_optin():
         "check &mdash; it just means the send is refused until the check has run.</div></div>")
 
 
+def _bp_panel():
+    """What Blueprint will receive, per transcript. "" when no transcript asks for it.
+
+    Shown because the pairing is otherwise invisible until the send: a transcript ticked BP
+    updates with no edits attributed to it looks identical to one that is ready, and the
+    difference only surfaces as a refusal at the worst moment.
+    """
+    marked = bp_batch()
+    if not marked:
+        return ""
+    staged = bp_staged()
+    rows, missing = [], []
+    for rel in marked:
+        files = staged.get(rel) or []
+        if files:
+            rows.append(f"<li><b>{html.escape(Path(rel).name)}</b> &rarr; "
+                        + ", ".join(f"<code>{html.escape(f)}</code>" for f in files) + "</li>")
+        else:
+            missing.append(rel)
+            rows.append(f"<li><b>{html.escape(Path(rel).name)}</b> &rarr; "
+                        "<span class=warn>nothing attributed yet</span></li>")
+    cls = "bnr-router" if missing else "bnr-note"
+    return (f"<div class='bar {cls}'><b>Blueprint: one change request per transcript.</b>"
+            "<ul style='margin:6px 0 0 18px;padding:0'>" + "".join(rows) + "</ul>"
+            + ("<br>Each request is built on its own branch off Blueprint's master, so they "
+               "merge independently. Putting a transcript back to pending withdraws its "
+               "Blueprint changes too."
+               if not missing else
+               f"<br>{len(missing)} transcript(s) ask for Blueprint work with no edits "
+               "attributed. The send will be refused for those. The assistant needs to make "
+               "the edits and run <code>scripts/bp_stage.py --transcript &lt;path&gt;</code> "
+               "for each one.")
+            + "</div>")
+
+
 def _router_warning():
     """Light-red warning when the batch touches routing. The paths are admin-only, so in practice
     only an admin sees it - but it renders on what the batch contains, not on who is looking."""
@@ -6947,6 +7191,7 @@ def git_page():
              "request)</span></li>"
              + "</ol>"
              + _eval_optin()
+             + _bp_panel()
              + _router_warning()
              + "<div class=stepacts>"
              f"<button onclick='sendReviews(this)' data-ai-pending='{n_ai}'>"
@@ -7463,7 +7708,7 @@ class H(BaseHTTPRequestHandler):
                     # Status only. Corrections, summaries and field values stay - the verdict was
                     # premature, not wrong to have been written, and throwing the prose away
                     # would make the reviewer redo the part that took the thinking.
-                    changed = []
+                    changed, bpmsgs = [], []
                     _, listed = git("diff", "--name-only", "origin/main", "--", "transcripts")
                     for rel in (l.strip() for l in listed.splitlines()):
                         if not rel.endswith(".md") or Path(rel).name in (
@@ -7476,9 +7721,19 @@ class H(BaseHTTPRequestHandler):
                         if (fm or {}).get("review_status") in ("reviewed", "suggested"):
                             set_fields(f, {"review_status": "pending"})
                             changed.append(rel)
+                            # THE BLUEPRINT EDITS GO BACK TOO. They are part of the same rejected
+                            # change: left staged, they would ride out on the next send attached
+                            # to a verdict that no longer exists, and Blueprint would carry a
+                            # wording nobody approved. Only this transcript's are dropped -
+                            # that is what the per-transcript patch is for.
+                            if (fm or {}).get("bp_updates", "").strip().lower() in (
+                                    "yes", "true", "1"):
+                                _ok, bmsg = bp_unstage(rel)
+                                bpmsgs.append("  " + bmsg)
                     refresh_index()
                     rc = 0
                     out = (("Put back to pending:\n" + "\n".join("  " + c for c in changed)
+                            + ("\n\nBlueprint:\n" + "\n".join(bpmsgs) if bpmsgs else "")
                             + "\n\nCorrections, summaries and field values were left alone. "
                               "Keep working, then send the batch in when the answers come out "
                               "right.") if changed else
@@ -7546,21 +7801,28 @@ class H(BaseHTTPRequestHandler):
                     # Blueprint - so a Docusaurus- knowledge file fixed on its own is reverted by
                     # the next reconciliation. Shipping one without the other is shipping a fix
                     # with a countdown on it.
+                    # ONE REQUEST PER TRANSCRIPT, not one per batch. A combined request cannot be
+                    # unwound per transcript: rejecting one answer would drag back another
+                    # transcript's approved Blueprint fix, and Blueprint's reviewers would be
+                    # reading one diff answering to several unrelated verdicts. Each is built
+                    # from its own staged patch on its own branch off master, so they merge
+                    # independently and a conflict between two of them is visible rather than
+                    # resolved silently inside one diff.
                     bp_marked = bp_batch()
                     if prc == 0 and bp_marked:
-                        bok, bmsg = bp_open_pr(
-                            cur.strip().replace("review/", "").replace("/", "-"),
-                            "Blueprint updates from a transcript review batch",
-                            "Opened alongside a change request in "
-                            "onetyler-foundry-team-agent-kb, from transcript review feedback "
-                            "marked as needing Blueprint updates:\n\n"
-                            + "\n".join("  - " + r for r in bp_marked)
-                            + "\n\nMost of the indexed knowledge is derived from Blueprint, so "
-                            "the knowledge-file fix does not hold unless this lands too.")
-                        out += "\n\n" + bmsg
-                        if not bok:
-                            out += ("\n\nThe knowledge request WAS created. Blueprint was not — "
-                                    "fix the above and re-run, or open it by hand.")
+                        hint = cur.strip().replace("review/", "").replace("/", "-")
+                        lines, bad = [], []
+                        for rel in bp_marked:
+                            bok, bmsg = bp_open_pr_for(rel, hint)
+                            lines.append(("  " if bok else "  FAILED ") + bmsg)
+                            if not bok:
+                                bad.append(rel)
+                        out += ("\n\nBlueprint change requests (one per transcript):\n"
+                                + "\n".join(lines))
+                        if bad:
+                            out += ("\n\nThe knowledge request WAS created. "
+                                    f"{len(bad)} Blueprint request(s) were not — fix the above "
+                                    "and re-run, or open them by hand.")
                     if prc == 0:
                         r = subprocess.run(["gh", "pr", "create", "--fill"], cwd=REPO,
                                            capture_output=True, text=True, timeout=180)

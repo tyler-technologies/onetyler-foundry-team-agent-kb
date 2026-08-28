@@ -36,3 +36,8 @@ __pycache__/
 # they hold a copy of live Foundry content, so they belong on the machine that made them and
 # nowhere else. `eval_batch.py --restore-only <dir>` reads them.
 .eval/
+
+# Per-transcript Blueprint patches, awaiting their own change requests. Local working state for
+# a DIFFERENT repo's tree, so committing them here would put Blueprint content in this repo's
+# history under a path Blueprint knows nothing about. `scripts/bp_stage.py --list` reads them.
+.bp-stage/
