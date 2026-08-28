@@ -425,6 +425,24 @@ DERIVED_KEYS = ("review_round",)
 # that differ need an entry.
 FILTER_SRC = {"sugg": "suggested_to"}
 
+# Set by the WORKFLOW, not by a contributor. A contributor sees the value and cannot change it.
+#
+#   review_status  the buttons set it - Mark reviewed, Suggest, Re-review. Typing it by hand is
+#                  how a transcript ends up `pushed` without ever reaching Foundry, or `excluded`
+#                  without anybody deciding to exclude it.
+#   reviewer       always the current person. There is no case where a contributor should record
+#                  somebody else as having made a call.
+#   action_status  follows kb_action, or is Claude's claim that the work is done. Neither is a
+#                  contributor's to assert.
+#
+# Admins keep them editable: closing out a batch, correcting a bad state and re-opening something
+# excluded by mistake all need a hand on these, and an admin is who does that.
+#
+# The buttons still drive them for everyone - the field renders as text plus a HIDDEN input
+# carrying the same `data-fm`, so every existing querySelector('[data-fm=review_status]').value
+# assignment keeps working. Locking the input does not lock the workflow.
+ADMIN_ONLY_FIELDS = ("review_status", "reviewer", "action_status")
+
 # Picked from the repo, not typed. See the MULTI_KEYS branch in field().
 MULTI_KEYS = ("kb_files",)
 
@@ -1665,9 +1683,6 @@ span.owner{color:var(--forge-theme-text-medium);font-size:12px}
    form does not develop a step where the read-only field is. */
 /* Knowledge-file picker. A dialog because ctrl/cmd-click on a multi-select is the least
    discoverable interaction on the web, and 42 files across 7 corpora will not fit inline. */
-.kbpicked{font:12.5px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;
-color:var(--forge-theme-text-high);padding:6px 0}
-.kbpicked i{font-family:Roboto,sans-serif;color:var(--forge-theme-text-medium)}
 .kbmodal{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.45);
 display:flex;align-items:center;justify-content:center;padding:24px}
 .kbmodal[hidden]{display:none}
@@ -1682,6 +1697,8 @@ font:400 13px/1.4 Roboto,sans-serif;color:var(--forge-theme-text-high);cursor:po
 text-transform:none;letter-spacing:0;margin:0}
 .kbrow:hover{background:var(--forge-theme-primary-container-minimum)}
 .kbrow input{width:auto;margin:0;flex:0 0 auto}
+.kbrow.kball{border-bottom:1px solid var(--forge-theme-outline);border-radius:0;
+margin-bottom:6px;padding-bottom:9px}
 .kbacts{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
 .roval{padding:7px 0;font-size:13px;color:var(--forge-theme-text-high);
 font-weight:500;display:flex;align-items:center}
@@ -1848,26 +1865,37 @@ if(r.ok){toast('Saved to '+r.path);if(then)location.href=then}else toast(r.error
 // back - without that, ticking six boxes and pressing Cancel would leave them ticked, and the
 // hidden value would disagree with what the dialog shows the next time it opens.
 let KB_SNAP = null;
-function kbBoxes(){return [...document.querySelectorAll('#kbmodal input[type=checkbox]')]}
+// The master checkbox is itself a checkbox inside the modal, so it has to be excluded or it
+// would toggle itself and be counted as a file.
+function kbBoxes(){return [...document.querySelectorAll('#kbmodal input[type=checkbox]')]
+  .filter(b=>b.id!=='kball')}
+function kbAll(master){kbBoxes().forEach(b=>b.checked=master.checked); kbSyncAll()}
+// Keeps the master honest as individual boxes are ticked: checked when all are, indeterminate
+// when some are. Without the indeterminate state a half-selected list shows an empty master,
+// which reads as "nothing is selected".
+function kbSyncAll(){
+ const all=kbBoxes(), n=all.filter(b=>b.checked).length, m=document.getElementById('kball');
+ if(!m) return;
+ m.checked = n===all.length && n>0;
+ m.indeterminate = n>0 && n<all.length;
+}
 function kbOpen(){
  KB_SNAP = kbBoxes().map(b=>b.checked);
+ kbSyncAll();
  document.getElementById('kbmodal').hidden = false;
  const first = kbBoxes()[0]; if(first) first.focus();
 }
 function kbClose(){document.getElementById('kbmodal').hidden = true}
 function kbCancel(){
  if(KB_SNAP) kbBoxes().forEach((b,i)=>b.checked = KB_SNAP[i]);
+ kbSyncAll();
  kbClose();
 }
 function kbOk(){
  const picked = kbBoxes().filter(b=>b.checked).map(b=>b.value);
  document.getElementById('kbvalue').value = picked.join(', ');
- const el = document.getElementById('kbpicked');
- if(el){
-   el.innerHTML = !picked.length ? '<i>none selected</i>'
-     : picked.length <= 3 ? picked.join('<br>')
-     : picked.slice(0,3).join('<br>') + '<br><i>and ' + (picked.length-3) + ' more</i>';
- }
+ const btn = document.getElementById('kbbtn');
+ if(btn) btn.innerHTML = picked.length ? 'Selected (' + picked.length + ')' : 'Select\u2026';
  kbClose();
 }
 // Escape cancels, and a click on the backdrop cancels - both are what a dialog is expected to
@@ -1879,6 +1907,10 @@ document.addEventListener('keydown', e=>{
 document.addEventListener('click', e=>{
  const m = document.getElementById('kbmodal');
  if(m && !m.hidden && e.target === m) kbCancel();
+});
+// Delegated, because the rows are rendered server-side and there are 42 of them.
+document.addEventListener('change', e=>{
+ if(e.target.matches('#kbmodal .kblist input[type=checkbox]')) kbSyncAll();
 });
 
 function handedOff(){
@@ -1910,10 +1942,20 @@ async function suggestAndNext(path,next){
  if(rv&&!rv.value){toast('Pick your name in Reviewer first',false);return}
  document.querySelector('[data-fm=review_status]').value='suggested';
  await saveDoc(path,next)}
-async function reReview(path){const r=document.querySelector('[data-fm=review_round]');
-r.value=String((parseInt(r.value||'1',10)||1)+1);
-document.querySelector('[data-fm=review_status]').value='reviewed';
-await saveDoc(path)}
+// Re-review RE-OPENS a transcript; it does not record a verdict. So the status goes back to
+// `pending` and the verdict fields are left for the reviewer to fill in again - the point is to
+// look afresh, and a button that jumped straight to `reviewed` recorded a decision nobody had
+// made yet.
+//
+// It does NOT touch `review_round`, which used to be incremented here. The round is derived from
+// what is on origin/main, so once a verdict is merged the next one is already on the following
+// round - computing it in two places was how they could disagree.
+async function reReview(path){
+ const st=document.querySelector('[data-fm=review_status]');
+ st.value='pending';
+ await saveDoc(path);
+ toast('Re-opened for a fresh look — record your verdict when you are done');
+}
 // Stage states for step 3's progress list. Only `push` and `pr` are driven from here,
 // because they are the only two this button performs; `merge` and `foundry` stay as they were
 // rendered, which is the honest picture - they are somebody's next action, not this click's.
@@ -3128,17 +3170,6 @@ def _render_fields(rel, prefill):
         _round_for_this_doc = None
 
 
-def _kb_summary(chosen):
-    """What the field shows when the dialog is closed. Names files rather than counting them:
-    "2 files selected" makes you open the dialog to find out which."""
-    if not chosen:
-        return "<i>none selected</i>"
-    if len(chosen) <= 3:
-        return "<br>".join(html.escape(c) for c in chosen)
-    return ("<br>".join(html.escape(c) for c in chosen[:3])
-            + f"<br><i>and {len(chosen) - 3} more</i>")
-
-
 def field(k, val):
     # Label = field name + ⓘ, nothing else. All guidance is in the panel; see FIELD_DOC.
     #
@@ -3149,6 +3180,18 @@ def field(k, val):
     icon, panel = doc_popover(k)
     words = k.replace("_", " ")
     lab = f"<label>{FIELD_LABEL.get(k, words[:1].upper() + words[1:])}{icon}</label>"
+    if k in ADMIN_ONLY_FIELDS and not is_admin():
+        # `reviewer` is forced to the current user rather than shown blank: for a contributor it
+        # is not a choice, and an empty locked field looks broken.
+        if k == "reviewer":
+            val = ME or val
+        shown = html.escape(val) if val else "&mdash;"
+        why = {"review_status": "set by the buttons below",
+               "reviewer": "you", "action_status": "follows KB action"}[k]
+        return (f"<div class=fld>{lab}"
+                f"<div class=roval>{shown}<span class=hint style='margin-left:8px'>"
+                f"{why}</span></div>"
+                f"<input type=hidden data-fm={k} value=\"{html.escape(val)}\">{panel}</div>")
     if k in PEOPLE_KEYS or k == "suggested_to":
         # Default `reviewer` to the person using the tool. They opened the transcript; they are
         # the reviewer. Leaving it blank made the commonest action - open, agree, mark reviewed -
@@ -3209,16 +3252,26 @@ def field(k, val):
         scope = ("" if is_admin() or not ME else
                  "<div class=hint style='margin-bottom:8px'>Showing the corpora you own. "
                  "An admin can name any file.</div>")
+        # The BUTTON carries the state - "Select…" or "Selected (5)". A separate summary line
+        # above it listed the chosen paths, which pushed this field taller than every other
+        # control in the grid and knocked the row out of alignment. The count is what a reviewer
+        # needs at a glance; the names are one click away and were never legible in a narrow
+        # column anyway.
+        n_sel = len(chosen)
+        btn_label = f"Selected ({n_sel})" if n_sel else "Select&hellip;"
         return (f"<div class=fld>{lab}"
-                f"<div class=kbpicked id=kbpicked>{_kb_summary(chosen)}</div>"
-                "<button type=button class=sec onclick='kbOpen()' "
-                "style='margin-top:6px'>Select&hellip;</button>"
+                f"<button type=button class=sec id=kbbtn onclick='kbOpen()'>"
+                f"{btn_label}</button>"
                 f"<input type=hidden data-fm={k} id=kbvalue value=\"{html.escape(val)}\">"
                 "<div class=kbmodal id=kbmodal hidden>"
                 "<div class=kbbox role=dialog aria-modal=true aria-label='Select knowledge files'>"
                 "<h3 style='margin:0 0 4px'>Knowledge files</h3>"
                 "<p class=sub style='margin:0 0 10px'>Which file(s) the change belongs in.</p>"
-                f"{scope}<div class=kblist>{''.join(rows)}</div>"
+                f"{scope}"
+                "<label class='kbrow kball'><input type=checkbox id=kball "
+                "onchange='kbAll(this)'><span><b>Select all</b> &middot; untick to clear "
+                "all</span></label>"
+                f"<div class=kblist>{''.join(rows)}</div>"
                 "<div class=kbacts>"
                 "<button type=button class=sec onclick='kbCancel()'>Cancel</button>"
                 "<button type=button onclick='kbOk()'>OK</button>"
@@ -3280,13 +3333,14 @@ def button_legend():
          "yours. <code>Reviewer</code> stays as you &mdash; suggesting is still something you "
          "did, and it is the only record of who looked at this."),
         ("Re-review",
-         "reviewed", False,
-         "Records a <b>fresh verdict on something already reviewed</b>, and stays put.",
-         "<code>Review round</code> looks after itself &mdash; it is derived from what is "
-         "already merged on main, so a second verdict lands on the next round without anyone "
-         "typing a number. CI uses that to tell a deliberate re-review from two people "
-         "silently overwriting each other. If it says round 2, someone has decided this "
-         "before: pull main and read their verdict first."),
+         "pending", False,
+         "<b>Re-opens</b> something already decided, so you can look at it afresh.",
+         "Puts the status back to <code>pending</code> and leaves the verdict fields for you to "
+         "fill in again &mdash; it does not record a decision, because you have not made one "
+         "yet. <code>Review round</code> looks after itself: it is derived from what is already "
+         "merged on main, so a second verdict lands on the next round without anyone typing a "
+         "number. If it shows round 2, somebody has decided this before &mdash; pull main and "
+         "read their verdict first."),
         ("Mark reviewed &amp; next &rarr;",
          "reviewed", True,
          "<b>Your verdict, done</b> &mdash; then straight to the next transcript.",
@@ -3364,15 +3418,16 @@ def detail_page(rel):
             prefill["review_round"] = "1"
 
     if is_new:
+        # Four sentences, in the order the work happens. The previous version explained the
+        # pre-filled defaults, what to do if they were wrong, and who reads the prose - all true,
+        # and all of it above the transcript the reviewer had come to read. The defaults do not
+        # need explaining if they are correct, and the rest is on the buttons' own legend.
         banner = ("<div class='bar bnr-ok'>"
-                  "Pre-filled as <b>no changes needed</b> — routing correct, answer good, "
-                  "nothing to fix. If that is true, just pick your name and hit "
-                  "<b>Mark reviewed &amp; next</b>."
-                  "<br><b>If it is not true, you do not have to touch the dropdowns.</b> "
-                  "Write what the answer <i>should</i> have said under the exchange, and/or "
-                  "fill in <b>Overall suggestions and comments</b> under Summary. That prose is the "
-                  "valuable part; "
-                  "Claude reads it and fills the classification fields in for you."
+                  "Review exchanges and put a correction below each. Then fill out the "
+                  "<b>Summary</b> section for overall changes and suggestions. If the transcript "
+                  "is good as-is and no changes are necessary, set <b>Answer verdict = good</b> "
+                  "(optional) and click <b>Mark reviewed &amp; next &rarr;</b> to proceed to the "
+                  "next transcript."
                   "</div>")
     elif (fm.get("review_status") or "") == "suggested":
         # Nothing here is a verdict yet. Say so loudly, or the owner reads a filled-in form
@@ -4676,9 +4731,21 @@ def pr_page(force=False):
         if draft:
             acts.append(f"<button class=sec onclick=\"prDo(this,'ready',{pr['number']})\">"
                         "Mark ready for review</button>")
+        # APPROVE IS NOT A STEP ON THE WAY TO MERGE. It does the one thing Merge cannot: sanction
+        # somebody else's work while leaving the merge with them.
+        #
+        # An admin can always just merge - enforce_admins is false - so if the goal is "get this
+        # in", Merge alone is enough and Approve is redundant. The case Approve exists for is a
+        # CONTRIBUTOR's request: approving unblocks it so they merge their own work. Merging it
+        # for them takes the last step of their own change away, and they never see the flow
+        # close.
+        #
+        # Only ever shown on someone else's request - GitHub refuses self-approval, so on your own
+        # it would be a button that can only error.
         if not mine and not approved:
-            acts.append(f"<button class=sec onclick=\"prDo(this,'approve',{pr['number']})\">"
-                        "Approve</button>")
+            acts.append(f"<button class=sec onclick=\"prDo(this,'approve',{pr['number']})\" "
+                        "title='Sanction it and leave the merge to the author — use this on a "
+                        "contributor&#39;s request'>Approve, they merge</button>")
 
         # EXACTLY ONE merge button, and WHOSE REQUEST IT IS decides which one - not
         # mergeStateStatus. That was the original ask ("show either Merge or Merge anyway
@@ -4724,8 +4791,11 @@ def pr_page(force=False):
                         "your own work, and the only way through on a repo with one code "
                         f"owner.{behind}</div>")
         elif state == "BLOCKED":
-            selfnote = ("<div class=hint style='margin-top:8px'>Needs an approval before a "
-                        "plain merge will go through. <b>Approve</b> it first.</div>")
+            selfnote = ("<div class=hint style='margin-top:8px'>Somebody else's request. Two "
+                        "different things you can do: <b>Approve, they merge</b> unblocks it and "
+                        "leaves the last step with them &mdash; right for a contributor's work. "
+                        "<b>Merge</b> puts it in yourself, which is quicker but closes their "
+                        "change for them.</div>")
         elif state == "BEHIND":
             selfnote = ("<div class=hint style='margin-top:8px'>Main has moved and this repo "
                         "requires branches to be up to date. <b>Merge</b> brings it up to date "
