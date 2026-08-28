@@ -140,6 +140,7 @@ def main():
         base = fm_of(base_txt)
         b_status = base.get("review_status", "pending") or "pending"
         b_round = int(base.get("review_round") or 1)
+        b_actor = actor(base, b_status)
 
         if h_status not in PROTECTED:
             continue                                     # not claiming any state
@@ -150,6 +151,21 @@ def main():
 
         if b_status not in PROTECTED:
             firsts.append((path, h_actor, h_status))
+            continue
+
+        # UNCHANGED VERDICT = NOT A COLLISION. If the status, the actor and the round are all
+        # identical to the base, this PR is not claiming anything: the file was touched for some
+        # other reason - a frontmatter key renamed, a `notes` line appended, a reformat.
+        #
+        # Without this, any mechanical edit across the transcripts reads as "everyone re-reviewed
+        # everything". Measured 2026-08-28: renaming one frontmatter field failed 20 files at
+        # once with "COLLISION - already pushed by X (round 1); this PR sets pushed by X at round
+        # 1", which is self-evidently not two people disagreeing - it is the same verdict, by the
+        # same person, at the same round.
+        #
+        # A real collision still fails: base `reviewed by A`, head `reviewed by B` at the same
+        # round differs in actor and is caught below, which is the case this check exists for.
+        if (h_status, h_actor, h_round) == (b_status, b_actor, b_round):
             continue
 
         # base already carries work — only a declared advance or re-review is allowed.
