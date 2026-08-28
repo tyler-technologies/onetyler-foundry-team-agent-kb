@@ -2802,6 +2802,76 @@ def field(k, val):
     return f"<div class=fld>{lab}<input data-fm={k} value=\"{html.escape(val)}\">{panel}</div>"
 
 
+def button_legend():
+    """The four verdict buttons, explained where they are used.
+
+    Written from what the handlers actually do, not from their labels. The distinctions that
+    matter are invisible from the button faces:
+
+      * Save changes NO status - the other three all do.
+      * Suggest BLANKS `reviewer` and fills `suggested_by`. `reviewer` means "who made the
+        call", and mark_pushed.py and validate_reviews.py both rely on that, so the two fields
+        are not interchangeable.
+      * Re-review is the only one that bumps `review_round`, which is what stops CI rejecting a
+        second verdict as a silent overwrite of someone else's.
+      * Only the two "& next" buttons navigate.
+
+    And the one people get wrong: none of these four touch git. They write the transcript FILE.
+    Sharing happens on Save & Publish.
+    """
+    rows = [
+        ("Save",
+         "reviewed", False,
+         "Writes what you have typed into the transcript file and stays put.",
+         "Nothing is decided. The status is left exactly as it was, so a pending transcript "
+         "stays pending. Use it to park a half-finished review, or before walking away."),
+        ("Suggest &amp; next &rarr;",
+         "suggested", True,
+         "Records this as a <b>suggestion for whoever owns that area</b>, not as your verdict.",
+         "Your name goes in <code>suggested_by</code> and <code>reviewer</code> is deliberately "
+         "left empty, because <code>reviewer</code> means <i>who made the call</i> &mdash; and "
+         "you are explicitly not making it. The owner puts their own name there when they "
+         "accept. Use it when you have worked out what is wrong in a corpus that is not yours."),
+        ("Re-review",
+         "reviewed", False,
+         "Records a <b>fresh verdict on something already reviewed</b>, and stays put.",
+         "Raises <code>review_round</code> by one. That matters: CI rejects a second verdict on "
+         "an already-reviewed transcript unless the round goes up, because two people reviewing "
+         "the same thing would otherwise have the later merge silently overwrite the earlier "
+         "one. Never edit the round by hand to get around it &mdash; pull the base branch, read "
+         "the existing verdict, and re-review deliberately."),
+        ("Mark reviewed &amp; next &rarr;",
+         "reviewed", True,
+         "<b>Your verdict, done</b> &mdash; then straight to the next transcript.",
+         "Sets the status to <code>reviewed</code> with your name as <code>reviewer</code>. "
+         "&ldquo;Next&rdquo; follows the order and filter of the table you came from, so it will "
+         "not wander into transcripts you were not looking at, and it tells you when the batch "
+         "runs out."),
+    ]
+    out = ["<details class=card><summary>"
+           "<span class=info aria-hidden=true>i</span>"
+           "<h3>What do these buttons do?</h3>"
+           "<span class=chev aria-hidden=true></span></summary>"
+           "<div class=tblcard style='margin-top:10px'><table>"
+           "<tr><th>Button</th><th>Sets status to</th><th>Moves on?</th>"
+           "<th>What it is for</th></tr>"]
+    for label, status, moves, gist, detail in rows:
+        out.append(
+            f"<tr><td class=nowrap><b>{label}</b></td>"
+            + ("<td class=nowrap><span class='pill excluded'>unchanged</span></td>"
+               if label == "Save" else
+               f"<td class=nowrap><span class='pill {status}'>{status}</span></td>")
+            + f"<td class=nowrap>{'yes' if moves else 'stays'}</td>"
+            f"<td>{gist}<div class=sub style='margin-top:4px'>{detail}</div></td></tr>")
+    out.append("</table></div>"
+               "<div class='bar bnr-note' style='margin:12px 0 0'>"
+               "<b>None of these four share anything.</b> They write the transcript file on this "
+               "machine. Sending your work to everyone else happens on "
+               "<b>Save &amp; Share</b> &mdash; until then it exists only here."
+               "</div></details>")
+    return "".join(out)
+
+
 def detail_page(rel):
     p = (TDIR / rel).resolve()
     if not str(p).startswith(str(TDIR.resolve())) or not p.is_file():
@@ -2907,7 +2977,11 @@ def detail_page(rel):
         f"Suggest &amp; next &rarr;</button>"
         f"<button class=sec onclick=\"reReview('{html.escape(rel)}')\">Re-review</button>"
         f"<button onclick=\"markAndNext('{html.escape(rel)}','{next_}')\">Mark reviewed &amp; next &rarr;</button>"
-        f"</div></div>")
+        f"</div></div>"
+        # Directly under the buttons, collapsed. The four labels do not distinguish themselves -
+        # "Save" and "Mark reviewed" both sound like saving, and nothing on the faces hints that
+        # Suggest blanks `reviewer` or that Re-review bumps the round.
+        + button_legend())
     return page(f"{fm.get('answered_by','')} {rel}", "".join(parts), rel=rel)
 
 
