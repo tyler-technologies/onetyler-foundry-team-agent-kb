@@ -1026,6 +1026,9 @@ CSS = r"""
   --d-add-bg:#e6ffed;  --d-add-ln:#d0f5da;  --d-add-fg:#12401f;
   --d-del-bg:#ffebe9;  --d-del-ln:#ffd7d5;  --d-del-fg:#4a1416;
   --d-hunk-bg:#eef2f7; --d-hunk-fg:#41525f;
+  /* Routing warning. Light red rather than the amber used for ordinary attention: a
+     routing mistake has a different blast radius from a content one. */
+  --bnr-router-bg:#fdeced; --bnr-router-bd:#f0bcc0; --bnr-router-fg:#5c1a1f;
   --d-ln-fg:#8a97a3;   --d-plus:#116329;   --d-minus:#a40e26;
   --pill-warn-fg:#a83a00;
   --pill-ok-fg:#206b26;
@@ -1121,6 +1124,7 @@ CSS = r"""
   --d-add-bg:#12261a;  --d-add-ln:#1b3a26;  --d-add-fg:#c4e8cf;
   --d-del-bg:#2b1517;  --d-del-fg:#f3c9c9;  --d-del-ln:#43201f;
   --d-hunk-bg:#1b2430; --d-hunk-fg:#b6c6d4;
+  --bnr-router-bg:#33191c; --bnr-router-bd:#5e2d33; --bnr-router-fg:#f4cdd1;
   --d-ln-fg:#7c8a97;   --d-plus:#7ee2a8;   --d-minus:#ff9c9c;
   --pill-warn-fg:var(--forge-theme-warning);
   --pill-ok-fg:var(--forge-theme-success);
@@ -1539,6 +1543,15 @@ td.fbcell,th.fbcell{width:1%;text-align:center;padding-left:6px;padding-right:6p
 .bar.bnr-sug{background:var(--bnr-sug-bg);border-color:var(--bnr-sug-bd);color:var(--bnr-sug-fg)}
 .bar.bnr-note{background:var(--bnr-note-bg);border-color:var(--bnr-note-bd);
 color:var(--bnr-note-fg)}
+.bar.bnr-router{background:var(--bnr-router-bg);border-color:var(--bnr-router-bd);
+color:var(--bnr-router-fg)}
+.evalbox{background:var(--forge-theme-surface-container-minimum);
+border:1px solid var(--forge-theme-outline);border-radius:4px;
+padding:12px 14px;margin:var(--forge-spacing-medium) 0}
+.evalrow{display:flex;align-items:center;gap:9px;margin:0;text-transform:none;
+letter-spacing:0;font:400 13.5px/1.4 Roboto,sans-serif;
+color:var(--forge-theme-text-high);cursor:pointer}
+.evalrow input{width:auto;margin:0;flex:0 0 auto}
 /* ---- diff view -------------------------------------------------------------------
    Two number gutters and a code column, which is what makes a line number in a review
    comment mean something. The gutters are `user-select:none` so copying a hunk gives
@@ -2070,8 +2083,63 @@ function sendReviews(btn){
      +'instructions been completed?'
    : 'No transcript in this batch is waiting on a knowledge update, so there is nothing for '
      +'the assistant to have done.<br><br>Send it in?';
+ const wantEval = (document.getElementById('doeval')||{}).checked;
+ const evalNote = wantEval
+   ? '<br><br><b>The check runs first.</b> It saves your work, uploads the changed knowledge '
+     +'files, asks the agents this batch\u2019s questions, then puts Foundry back. Nothing is '
+     +'sent in until you have read the answers.'
+   : '';
  confirmThen(btn, n ? 'Has the assistant finished the knowledge updates?' : 'Send these in?',
-   detail, ()=>gitDo('pr'));
+   detail + evalNote, ()=>{ wantEval ? runEval(btn) : gitDo('pr'); });
+}
+
+// The eval is a GATE, not a step that flows into the send. It runs, shows the answers, and
+// stops - because the entire point is a human deciding whether the change is good, and a flow
+// that continued automatically would be an eval nobody read.
+//
+// Minutes long, so the panel says what is happening rather than looking hung. Foundry is put
+// back by the script's own final phase, so a failure part-way still restores.
+function runEval(btn){
+ const out=document.getElementById('gitout');
+ const was=btn.textContent;
+ btn.disabled=true; btn.textContent='Checking\u2026';
+ if(out){out.style.display='block';
+   out.textContent='Saving your work, uploading the candidate files, asking the agents.\n'
+     +'This takes a few minutes - two Bedrock syncs plus one question at a time.\n'
+     +'Foundry is restored automatically when it finishes.\n\nWorking\u2026';}
+ fetch('/git',{method:'POST',headers:{'Content-Type':'application/json'},
+               body:JSON.stringify({action:'eval'})})
+  .then(r=>r.json()).then(d=>{
+    if(out){out.textContent=d.output||'(no output)';}
+    btn.disabled=false; btn.textContent=was;
+    const host=btn.parentNode;
+    if(!host.querySelector('.evalgate')){
+      const g=document.createElement('div');
+      g.className='evalgate';
+      g.innerHTML='<div class="bar bnr-note" style="margin:12px 0 8px">'
+        +'<b>Read the answers above before going further.</b> If they are right, send the batch '
+        +'in. If they are not, the change is not ready \u2014 put the transcripts back to '
+        +'pending and keep working. Nothing has been sent.</div>'
+        +'<button onclick="gitDo(\'pr\')">Answers look right \u2014 send it in</button> '
+        +'<button class=sec onclick="resetPending(this)">Put transcripts back to pending</button>';
+      host.appendChild(g);
+    }
+  })
+  .catch(e=>{ if(out){out.textContent='The check failed to run: '+e
+    +'\n\nIf it had already uploaded, restore with:\n'
+    +'  python3 scripts/eval_batch.py --restore-only .eval/<newest>';}
+    btn.disabled=false; btn.textContent=was; });
+}
+
+// When the answers are wrong, the batch goes back to pending so the work can continue. Only the
+// STATUS moves - every correction, summary and field value is kept, because the verdict was
+// premature rather than wrong to have been written.
+function resetPending(btn){
+ confirmThen(btn,'Put this batch back to pending?',
+   'Clears the reviewed status on the transcripts in this batch so you can keep working on '
+   +'them. Your corrections, summaries and field values are all kept \u2014 only the status '
+   +'changes.',
+   ()=>gitDo('reset-pending'));
 }
 function copyPrompt(btn){
  const text=window.AI_PROMPT||'';
@@ -5916,6 +5984,82 @@ def analytics_page(force=False):
     return page("OT Analytics", "<div class=lg>" + "".join(body) + "</div>", active="analytics")
 
 
+# Paths that change how a conversation is ROUTED rather than what an answer says. A bad content
+# edit gives one wrong answer; a bad routing edit misroutes every conversation, and the transcript
+# that reveals it looks like a content problem, so it gets misdiagnosed. Hence its own warning.
+ROUTER_PATHS = ("team-config/", "README.md")
+
+
+def router_changes():
+    """Router-affecting files in this batch, committed or not. [] if none."""
+    rc, out = git("diff", "--name-only", "origin/main", "--", *ROUTER_PATHS)
+    if rc != 0:
+        return []
+    return sorted({l.strip() for l in out.splitlines() if l.strip()})
+
+
+def eval_estimate():
+    """(files, n_questions, minutes) for the batch, so the checkbox can state a real cost.
+
+    Reuses eval_batch.py's own detection rather than reimplementing it - two functions deciding
+    "what is in this batch" would eventually disagree, and the one the UI showed would be the one
+    nobody had tested.
+    """
+    try:
+        sys.path.insert(0, str(REPO / "scripts"))
+        import eval_batch
+        files = eval_batch.candidate_files()
+        n_q = 0
+        for rel in eval_batch.batch_transcripts():
+            _, qs, fm = eval_batch.parse_transcript(rel)
+            if qs and (fm.get("review_status") or "") in ("reviewed", "suggested", "pending"):
+                n_q += len(qs)
+        mins = max(1, (2 * eval_batch.SECS_PER_SYNC + n_q * eval_batch.SECS_PER_QUESTION) // 60)
+        return files, n_q, mins
+    except Exception:                                                 # noqa: BLE001
+        return [], 0, 0
+
+
+def _eval_optin():
+    """The eval checkbox, with the real cost stated rather than implied.
+
+    ON by default: the whole point of an eval is that it runs when nobody remembered to ask for
+    one. Off by default would mean it ran on the days somebody was already being careful.
+    """
+    files, n_q, mins = eval_estimate()
+    if not files or not n_q:
+        return ""
+    return (
+        "<div class=evalbox>"
+        "<label class=evalrow><input type=checkbox id=doeval checked>"
+        "<span><b>Check the change against these transcripts first</b></span></label>"
+        f"<div class=hint style='margin:6px 0 0 26px'>Uploads the "
+        f"{len(files)} changed knowledge file(s) to Foundry, asks the agents the "
+        f"{n_q} question(s) from this batch, shows you the answers, then puts Foundry back "
+        f"exactly as it was.<br>"
+        f"<b>~{mins} minutes</b> &mdash; two Bedrock syncs at 2&ndash;3 min each, plus about "
+        "18s a question. One upload for the whole batch, not one per transcript.<br>"
+        "<b>While it runs, live agents answer from the candidate content.</b> Bedrock's "
+        "ingestion is the slow part and cannot be shortened, so this is best done outside "
+        "working hours.<br>"
+        "Your own work is saved first, so a crash during the check cannot lose it.</div></div>")
+
+
+def _router_warning():
+    """Light-red warning when the batch touches routing. The paths are admin-only, so in practice
+    only an admin sees it - but it renders on what the batch contains, not on who is looking."""
+    rc = router_changes()
+    if not rc:
+        return ""
+    return ("<div class='bar bnr-router'>"
+            "<b>This batch changes ROUTING.</b> "
+            + ", ".join(f"<code>{html.escape(f)}</code>" for f in rc)
+            + "<br>A content mistake gives one wrong answer. A routing mistake misroutes "
+            "<i>every</i> conversation &mdash; and the transcript that reveals it looks like a "
+            "content problem, so it gets misdiagnosed for days. Doubly worth doing outside "
+            "working hours, and worth having somebody else read the diff first.</div>")
+
+
 def git_page():
     """Send a finished batch of reviews in.
 
@@ -5997,7 +6141,9 @@ def git_page():
              "<span>someone checks it before it becomes official (a GitHub pull "
              "request)</span></li>"
              + "</ol>"
-             "<div class=stepacts>"
+             + _eval_optin()
+             + _router_warning()
+             + "<div class=stepacts>"
              f"<button onclick='sendReviews(this)' data-ai-pending='{n_ai}'>"
              "Send my reviews in</button></div>"
              # Part 2 ENDS here. Merging and the Foundry upload are decisions ABOUT a request
@@ -6429,6 +6575,65 @@ class H(BaseHTTPRequestHandler):
                     rc, out = discard_saves((data.get("hash") or "").strip())
                 elif act == "diff":
                     rc, out = 0, review_diff()
+                elif act == "eval":
+                    # SAVE THE REVIEWER'S WORK FIRST, for the same reason "Send my reviews in"
+                    # does. The eval reads the WORKING TREE, so it evaluates uncommitted edits -
+                    # and then spends five minutes talking to Foundry, which is a long window in
+                    # which to lose them to a crash or a closed laptop.
+                    #
+                    # THIS is the auto-save. The .eval/ directory is NOT: that holds the bytes
+                    # FOUNDRY was serving before the upload, so the old live content can be put
+                    # back. It protects the collections, not the reviewer.
+                    pre = ""
+                    if git("status", "--porcelain", "--", *review_scope())[1].strip():
+                        rc0, out0 = save_reviews(auto_commit_message())
+                        if rc0 != 0:
+                            return self._send(200, json.dumps({"ok": False, "output": (
+                                "Could not save your work, so the check did NOT run — five "
+                                "minutes of Foundry calls is too long to hold uncommitted "
+                                "edits:\n\n" + out0.strip()[:400])}), "application/json")
+                        pre = "Saved your work first:\n" + out0.strip()[:400]
+                    else:
+                        pre = "Nothing to save — your work is already committed."
+
+                    # Minutes long by nature - two Bedrock syncs. Runs the script rather than
+                    # reimplementing it, so the restore-point-to-disk guarantee and the
+                    # --restore-only recovery path are the same ones a terminal would get.
+                    if not os.environ.get("FOUNDRY_API_KEY"):
+                        rc, out = 1, (pre + "\n\nFOUNDRY_API_KEY is not set in the environment "
+                                      "this server was started from, so the check cannot talk "
+                                      "to Foundry.")
+                    else:
+                        r = subprocess.run(
+                            [sys.executable, str(REPO / "scripts" / "eval_batch.py"), "--yes"],
+                            cwd=REPO, capture_output=True, text=True, timeout=1800)
+                        out = pre + "\n\n" + ((r.stdout or "") + (r.stderr or "")).strip()
+                        rc = r.returncode
+                elif act == "reset-pending":
+                    # Status only. Corrections, summaries and field values stay - the verdict was
+                    # premature, not wrong to have been written, and throwing the prose away
+                    # would make the reviewer redo the part that took the thinking.
+                    changed = []
+                    _, listed = git("diff", "--name-only", "origin/main", "--", "transcripts")
+                    for rel in (l.strip() for l in listed.splitlines()):
+                        if not rel.endswith(".md") or pathlib.Path(rel).name in (
+                                "README.md", "INDEX.md", "ONBOARDING.md"):
+                            continue
+                        f = REPO / rel
+                        if not f.is_file():
+                            continue
+                        fm, _ = parse(f)
+                        if (fm or {}).get("review_status") in ("reviewed", "suggested"):
+                            set_fields(f, {"review_status": "pending"})
+                            changed.append(rel)
+                    refresh_index()
+                    rc = 0
+                    out = (("Put back to pending:\n" + "\n".join("  " + c for c in changed)
+                            + "\n\nCorrections, summaries and field values were left alone. "
+                              "Keep working, then send the batch in when the answers come out "
+                              "right.") if changed else
+                           "Nothing in this batch was reviewed or suggested, so there was "
+                           "nothing to put back.")
                 elif act == "pr":
                     # Save FIRST, always. "Send my reviews in" used to push and open a PR
                     # without committing, so a reviewer who never clicked Save sent an empty
