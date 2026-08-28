@@ -38,6 +38,19 @@ Double-click **`Start-reviewing.bat`** in the repo folder.
 > If a window flashes and vanishes, Python is probably not installed or not on PATH. Install it
 > from python.org and tick **"Add python.exe to PATH"** in the installer.
 
+### You need Python 3.12 or newer
+
+**macOS ships 3.9, which is too old** — the review UI will not even start on it. The launcher
+checks this first and tells you what to do, so you get a sentence rather than a `SyntaxError`.
+
+```bash
+python3 -V                    # want 3.12 or higher
+brew install python@3.12      # macOS, if it is older
+```
+
+On Windows the python.org installer is current, so this only bites Mac users who have never
+installed a Python of their own.
+
 ### Either, from a terminal
 
 ```bash
