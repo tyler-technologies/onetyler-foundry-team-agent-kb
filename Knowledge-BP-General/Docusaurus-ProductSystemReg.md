@@ -134,7 +134,7 @@ Definitions live as YAML files (`{registration_id}.yaml`) in `/product-catalogs/
 
 **For initial product registration setup:** Check the Coda doc to see if a generated definition already exists:
 - Coda: https://coda.io/d/Gateway-Rollout_dKV_6fSnfBc/0-Start-Here_suxF9#_lukrO
-- Contact Vijay Venkataraman and Product Owners for guidance if the product is not listed.
+- Contact Vijay Venkataraman for guidance if the product is not listed.
 
 **Access requests (GitHub, Coda, Harness):** https://tylertech.atlassian.net/wiki/spaces/TTI/pages/386600308/Tyler+Cloud+Platform+TCP+Ops+Center+Related+Tickets+and+Permissions
 

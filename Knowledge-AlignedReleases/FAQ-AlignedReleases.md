@@ -194,7 +194,7 @@ Two other things that make the number smaller than it looks:
   window — the presenters suggested starting with something like 1–10. Whether it ever flips
   to opt-out has explicitly **not** been decided.
 - **There is a bulk API.** The UI is intended for ongoing modifications, not initial loading.
-  Kyle Hall offered to help put together a script for a large batch; ask rather than clicking
+  Nate Hanna offered to help put together a script for a large batch; ask rather than clicking
   400 times.
 
 Changes after that are expected to be exceptions — a client raising a support ticket to move
