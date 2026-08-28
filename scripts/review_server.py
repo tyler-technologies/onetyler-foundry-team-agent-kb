@@ -890,7 +890,10 @@ color:var(--forge-theme-text-high);text-decoration:none;font-size:14px}
 nav.side a:hover{background:var(--forge-theme-primary-container-minimum)}
 nav.side a.on{background:var(--forge-theme-primary-container-low);
 color:var(--forge-theme-primary);font-weight:500}
-nav.side a .ic{width:20px;text-align:center;font-size:15px;opacity:.8}
+nav.side a .ic{width:20px;text-align:center;font-size:15px;line-height:1;
+/* No opacity here: these are colour emoji, and dimming them washes the hue out so they
+   read as faded rather than muted. Font-size does the visual-weight job instead. */
+font-family:'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji',sans-serif}
 nav.side a .ct{margin-left:auto;font-size:12px;color:var(--forge-theme-text-medium);
 background:var(--forge-theme-surface-container-low);border-radius:10px;padding:0 7px}
 nav.side a.on .ct{background:var(--forge-theme-surface);color:var(--forge-theme-primary)}
@@ -2109,21 +2112,21 @@ def page(title, inner, active="", all_view=False, rel=""):
     side = (
         "<nav class=side>"
         "<div class=grp>Review</div>"
-        + (item("/", "&#9873;", "My Transcripts", mine_n or None, "mine") if ME else "")
+        + (item("/", "&#128681;", "My Transcripts", mine_n or None, "mine") if ME else "")
         # Admins only. For a contributor the item would be a link to other people's work they
         # cannot push to - an invitation to a dead end. An unidentified user gets it too,
         # because with no `me` there is no "mine" to fall back to and an empty app is worse.
-        + (item("/?all=1", "&#9776;", "All Transcripts", open_n or None, "all")
+        + (item("/?all=1", "&#128203;", "All Transcripts", open_n or None, "all")
            if (is_admin() or not ME) else "")
         # MONITOR sits above SAVE & PUBLISH and is visible to everyone. Foundry's own sidebar
         # groups Analytics under MONITOR, so the vocabulary matches the tool it mirrors.
         + "<div class=grp>Monitor</div>"
         + item("/analytics", "&#128202;", "OT Analytics", None, "analytics")
         + "<div class=grp>Save &amp; Publish</div>"
-        + item("/git", "&#8593;", "Save &amp; Share", uncommitted or None, "git")
+        + item("/git", "&#128228;", "Save &amp; Share", uncommitted or None, "git")
         # Admins only, same rule as All Transcripts: a contributor cannot merge, so the item
         # would be a link to a page of buttons that all refuse.
-        + (item("/prs", "&#10003;", "PRs", open_pr_count or None, "prs")
+        + (item("/prs", "&#128256;", "PRs", open_pr_count or None, "prs")
            if is_admin() else "")
         + "</nav>")
     return f"""<!doctype html><meta charset=utf-8><title>{html.escape(title)}</title>
