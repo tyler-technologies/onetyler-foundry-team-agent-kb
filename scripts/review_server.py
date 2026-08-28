@@ -1218,8 +1218,19 @@ button:hover{filter:brightness(.92)}
 button.sec{background:var(--forge-theme-surface);color:var(--forge-theme-primary);
 border:1px solid var(--forge-theme-outline-medium)}
 button.sec:hover{background:var(--forge-theme-primary-container-minimum);filter:none}
+/* pointer-events:none IS THE POINT, not a nicety.
+   This div lives at bottom-right permanently at opacity:0 - it is never removed, only faded -
+   and an invisible element still receives clicks. "Mark reviewed & next" is the bottom-right
+   button in the action bar, so the two overlapped and the toast swallowed clicks aimed at the
+   button. MEASURED: toast 865-911px vertical, button 894-929 - a 17px dead band across the top
+   of the primary action, present from page load whether or not a toast had ever shown.
+   It was intermittent, which is why it read as "the button doesn't work" rather than as an
+   overlap: whether your click landed depended on where in the button you hit and how far the
+   page was scrolled.
+   A toast is a notification. It should never be a target. */
 .toast{position:fixed;bottom:18px;right:18px;background:#323232;color:#fff;padding:12px 18px;
-border-radius:4px;opacity:0;transition:.25s;z-index:50;box-shadow:0 3px 8px rgba(0,0,0,.3)}
+border-radius:4px;opacity:0;transition:.25s;z-index:50;box-shadow:0 3px 8px rgba(0,0,0,.3);
+pointer-events:none}
 .toast.on{opacity:1}
 .nav{display:flex;justify-content:space-between;margin:var(--forge-spacing-medium) 0}
 td.qcell{white-space:normal;max-width:430px;min-width:300px}
@@ -2466,6 +2477,16 @@ def field(k, val):
     icon, panel = doc_popover(k)
     lab = f"<label>{k.replace('_',' ')}{icon}</label>"
     if k in PEOPLE_KEYS:
+        # Default `reviewer` to the person using the tool. They opened the transcript; they are
+        # the reviewer. Leaving it blank made the commonest action - open, agree, mark reviewed -
+        # fail on its first click for every new contributor, and the error it produced was about
+        # a field they had no reason to think was theirs to fill.
+        #
+        # ONLY when blank, so it never overwrites a name already recorded, and only for
+        # `reviewer` - `suggested_by` and `awaiting` are deliberate choices about other people
+        # and must stay empty until someone makes them.
+        if k == "reviewer" and not val and ME and ME in contributors():
+            val = ME
         people = contributors()
         if not people:
             return (f"<div class=fld>{lab}<input data-fm={k} value=\"{html.escape(val)}\" "
