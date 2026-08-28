@@ -1466,6 +1466,29 @@ function prOverride(btn,number){
    +'action here that removes a safety gate rather than passing through it.',
    ()=>prDo(btn,'merge-override',number));
 }
+// Sending in is where the batch leaves this machine, and the assistant step sits BEFORE it in
+// Part 2 for a reason: the knowledge edits and the verdicts belong in the same change request.
+// Send without having run the assistant and you get a request carrying verdicts and no fix -
+// which reads as complete, merges, and leaves the agent still giving the answer that was
+// reviewed. This gate exists because that failure is silent and only shows up weeks later in a
+// repeat transcript.
+//
+// It ASKS rather than blocks: whether the assistant work was needed at all is a judgement
+// (plenty of batches are no-change reviews), and a hard block would be wrong for those. The
+// wording changes with the count so it is a real question, not a rubber stamp.
+function sendReviews(btn){
+ const n = parseInt(btn.dataset.aiPending||'0',10)||0;
+ const detail = n
+   ? '<b>'+n+' reviewed transcript(s)</b> are still waiting on the knowledge-file update in '
+     +'Part 2.<br><br>If you have not run the assistant prompt yet, the change request will '
+     +'carry your verdicts with no fix behind them \u2014 it will look complete, merge, and the '
+     +'agents will keep giving the answers you just reviewed.<br><br>Have the assistant '
+     +'instructions been completed?'
+   : 'No transcript in this batch is waiting on a knowledge update, so there is nothing for '
+     +'the assistant to have done.<br><br>Send it in?';
+ confirmThen(btn, n ? 'Has the assistant finished the knowledge updates?' : 'Send these in?',
+   detail, ()=>gitDo('pr'));
+}
 function copyPrompt(btn){
  const text=window.AI_PROMPT||'';
  const done=ok=>{btn.textContent = ok ? '\u2713 Copied — paste it to your assistant'
@@ -3562,7 +3585,8 @@ def git_page():
              "request)</span></li>"
              + "</ol>"
              "<div class=stepacts>"
-             "<button onclick=\"gitDo('pr')\">Send my reviews in</button></div>"
+             f"<button onclick='sendReviews(this)' data-ai-pending='{n_ai}'>"
+             "Send my reviews in</button></div>"
              # Part 2 ENDS here. Merging and the Foundry upload are decisions ABOUT a request
              # that already exists, not steps in submitting one, and they live on the PRs tab
              # where the request can be seen next to its checks. Listing them here as

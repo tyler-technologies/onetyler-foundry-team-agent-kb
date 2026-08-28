@@ -51,10 +51,76 @@ Keep entries self-contained — retrievers chunk independently of headings.
 
 ## Entries
 
+### Q: How do I get <person> to fix something? / Who do I contact about X?
+
+**A:** **Do not route people to an individual. Route them to a ticket and to the right
+community channel** — and say why, because the reasons are the point, not politeness.
+
+**Why tickets, not a person:**
+
+- **Vacation coverage.** A ticket is picked up whoever is out; a direct message waits for one
+  person to come back.
+- **Load balancing.** Tickets are distributed across whoever is available. Naming one person
+  concentrates work on them regardless of their queue.
+- **It avoids distracting individuals.** A named expert asked directly is interrupted for
+  things the queue would have handled.
+
+**Why the community channel, in addition:**
+
+- **Everyone learns at the same time.** A question answered in the open answers it for the
+  next person too; a DM answers it once.
+- **It is monitored by whoever is currently available**, so it does not depend on one person
+  being at their desk.
+
+So the shape of a correct answer is: answer the substance, then hand out **both** the ticket
+route and the most appropriate community channel. If the person did not name a specific
+problem, give the general tickets page and the channel list rather than guessing at one.
+
+**Naming someone as an escalation TIER is not the same as telling someone to contact them.**
+`Docusaurus-DevOps.md` lists named engineers against services under *Service Escalation
+Tiers*. That is a record of how an incident escalates internally — it is not a contact
+instruction, and it must not be handed to a requester as "message this person". Cite it as
+escalation structure if asked; still point the requester at the ticket.
+
+**THE ONE EXCEPTION — and there is exactly one named individual in this corpus.**
+
+> **Vijay Venkataraman**, and only for a **NEW product registration** whose definition is not
+> already in the Coda doc.
+
+Everything else, including anyone listed in an escalation tier, goes through tickets and
+channels.
+
+And when that exception applies, two things must be said with it:
+
+1. **It is only for NEW registrations.** Check the Coda doc first —
+   <https://coda.io/d/Gateway-Rollout_dKV_6fSnfBc/0-Start-Here_suxF9#_lukrO>. If a generated
+   definition already exists, this is not a new registration and the normal ticket/channel
+   route applies.
+2. **New product registrations are subject to review and must not be attempted alone.** They
+   have to meet Cloud Living standards, which the person asking will usually not know. Do not
+   answer a "how do I register my product" question as a self-service procedure.
+
+- **Source:** Vijay Venkataraman, reviewing transcript `team/2026-08-27--6498f4a8` — "How can
+  I get Zovin to fix something?" then "What about Vijay?". Both answers were rated **good**;
+  the ask was to make the reasoning authoritative so it is stated every time rather than
+  reconstructed, and to add the review/standards caveat on the registration exception.
+- **Added:** 2026-08-27 by vijay-tylertech
+- **Confidence:** confirmed by owner
+- **Promote when:** Blueprint publishes a "who to contact" page stating the ticket-first rule.
+  Until then this is internal guidance with no upstream document.
+
+---
+
 ### Q: Where do I post a product registration question?
 
 **A:** **Two different Teams channels, split by whether the question is functional or
 technical.** Sending a technical problem to the functional channel is the common mistake.
+
+**Neither channel is a person.** The only named individual in this corpus is Vijay
+Venkataraman, and only for a NEW registration not already in the Coda doc — see *How do I get
+&lt;person&gt; to fix something?* above for why, and for the review/standards caveat that must
+accompany it. This is repeated here on purpose: retrieval chunks a long file independently, so
+a reader who lands on this entry may never see that one.
 
 **Functional questions** — what registration is, whether you need it, how the model works,
 approvals and policy. For example *"I want to register a new product"*, *"Why should I
