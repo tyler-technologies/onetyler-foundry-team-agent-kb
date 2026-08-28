@@ -30,3 +30,4 @@ __pycache__/
 # committing it would make every sync a spurious diff and every pull a conflict.
 .last-transcript-sync
 .last-pr-sync
+.last-analytics-sync

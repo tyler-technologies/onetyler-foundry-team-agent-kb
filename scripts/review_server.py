@@ -41,6 +41,21 @@ def contributors():
         return []
 
 
+def _foundry_get(path, timeout=60):
+    """GET from Foundry with the two headers it insists on.
+
+    The User-Agent is not optional: a request without one is refused by the WAF with a 403 that
+    looks exactly like an auth failure.
+    """
+    import urllib.request
+    base = os.environ.get("FOUNDRY_API_URL", "https://foundry.tylertechai.com").rstrip("/")
+    req = urllib.request.Request(base + path)
+    req.add_header("X-API-Key", os.environ.get("FOUNDRY_API_KEY", ""))
+    req.add_header("User-Agent", "claude-code-foundry-kb/1.0")
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        return json.loads(r.read().decode("utf-8", "replace") or "null")
+
+
 def contributor_map():
     """Full contributor records by github login, for avatars and display names."""
     try:
@@ -940,6 +955,19 @@ button.danger:hover{filter:brightness(.92)}
 .dzrow .sub{margin-top:3px}
 .dzact{flex:0 0 auto}
 .prpills{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+/* Analytics groups. A plain heading above each tile row, quieter than a card title - the tiles
+   are the content, the heading only says which measure they are. */
+h3.angroup{font:500 14px/1.4 Roboto,sans-serif;text-transform:uppercase;letter-spacing:.07em;
+color:var(--forge-theme-text-medium);margin:26px 0 10px}
+h3.angroup:first-of-type{margin-top:8px}
+.antables{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:20px;
+margin-top:26px}
+table.antab{width:100%;border-collapse:collapse;margin-top:10px;font-size:14px}
+table.antab th{text-align:left;font:500 12px/1.4 Roboto,sans-serif;text-transform:uppercase;
+letter-spacing:.06em;color:var(--forge-theme-text-medium);padding:0 0 6px;
+border-bottom:1px solid var(--row-line)}
+table.antab td{padding:6px 0;border-bottom:1px solid var(--row-line)}
+table.antab td:last-child,table.antab th:last-child{text-align:right}
 /* Amber, matching "not finished yet" elsewhere on the page rather than red: an outstanding
    request is not an error, it is work in flight. */
 .prbadge{margin-top:3px;font-size:11px}
@@ -1785,6 +1813,8 @@ async function autoTick(reason){
    try{ await syncNow(true) } finally { autoBusy=false }
  } else if(kind==='prs'){
    location.href='/prs?refresh=1';
+ } else if(kind==='analytics'){
+   location.href='/analytics?refresh=1';
  }
 }
 
@@ -2085,6 +2115,10 @@ def page(title, inner, active="", all_view=False, rel=""):
         # because with no `me` there is no "mine" to fall back to and an empty app is worse.
         + (item("/?all=1", "&#9776;", "All Transcripts", open_n or None, "all")
            if (is_admin() or not ME) else "")
+        # MONITOR sits above SAVE & PUBLISH and is visible to everyone. Foundry's own sidebar
+        # groups Analytics under MONITOR, so the vocabulary matches the tool it mirrors.
+        + "<div class=grp>Monitor</div>"
+        + item("/analytics", "&#128202;", "OT Analytics", None, "analytics")
         + "<div class=grp>Save &amp; Publish</div>"
         + item("/git", "&#8593;", "Save &amp; Share", uncommitted or None, "git")
         # Admins only, same rule as All Transcripts: a contributor cannot merge, so the item
@@ -3098,7 +3132,8 @@ def saved_state():
 # about a browser: two tabs and a reload must agree, and the PRs page navigates on refresh so a
 # per-tab clock would reset every time it did its job.
 SYNC_STAMPS = {"transcripts": REPO / ".last-transcript-sync",
-               "prs": REPO / ".last-pr-sync"}
+               "prs": REPO / ".last-pr-sync",
+               "analytics": REPO / ".last-analytics-sync"}
 
 
 def last_sync_age(kind="transcripts"):
@@ -3114,6 +3149,120 @@ def note_sync(kind="transcripts"):
         SYNC_STAMPS[kind].write_text(str(time.time()))
     except OSError:
         pass                        # a read-only checkout should not break the sync itself
+
+
+TEAM_ID = "e92bd437-cb84-4e18-88e6-757370b39c90"          # OneTyler Cloud Living
+TEAM_NAME = "OneTyler Cloud Living"
+
+# What Foundry's own Analytics tab shows for this team, recomputed from the transcripts API.
+#
+# WHY RECOMPUTED RATHER THAN PROXIED. Foundry builds that dashboard from
+# /api/analytics/advanced/summary-statistics, which returns 403 for a normal API key -
+# "User lacks required permissions for this action". So the numbers cannot be fetched; they
+# have to be derived. The transcripts API is the same source the review queue uses, which has
+# the side benefit that these totals agree with the transcript list rather than being a second,
+# differently-derived set.
+#
+# WHAT CANNOT BE DERIVED, and is therefore shown as unavailable rather than guessed:
+# identified subjects, authenticated users and anonymous identities. A team transcript carries
+# only {conversationId, teamName, conversation[]}, and an exchange carries only
+# {question, response, feedback, thumbsDownTextFeedback} - there is no subject, email or user id
+# anywhere in the payload. Foundry has that data server-side; this key cannot see it. Inventing
+# a proxy for it (unique first questions, say) would put a number on screen that looks like an
+# identity count and is not one.
+_AN_CACHE = {"at": 0.0, "data": None}
+_AN_TTL = 30 * 60.0
+
+
+def ot_analytics(force=False):
+    """Team-scoped usage figures. Returns (data, error). Cached; `force` refetches."""
+    now = time.monotonic()
+    if not force and _AN_CACHE["data"] and (now - _AN_CACHE["at"]) < _AN_TTL:
+        return _AN_CACHE["data"], None
+    if not os.environ.get("FOUNDRY_API_KEY"):
+        return None, ("FOUNDRY_API_KEY is not set in the environment this server was started "
+                      "from, so Foundry cannot be reached.")
+    try:
+        lst = _foundry_get(f"/api/transcripts/team_conversation_ids?team_id={TEAM_ID}"
+                           "&startDate=01/01/2020")
+    except Exception as e:                                     # noqa: BLE001
+        return None, f"could not list team conversations: {e}"
+    if not isinstance(lst, list):
+        return None, "unexpected response listing team conversations"
+
+    # Message counts need one fetch per conversation. Threaded because serially this is ~30
+    # round trips; measured 1.3s for 31 conversations at 8 workers against 0.34s for the list.
+    import concurrent.futures as cf
+
+    def detail(c):
+        try:
+            d = _foundry_get(f"/api/transcripts/team/{c['conversationId']}")
+            return c, (d[0] if isinstance(d, list) and d else None)
+        except Exception:                                      # noqa: BLE001
+            return c, None
+
+    pairs = []
+    with cf.ThreadPoolExecutor(max_workers=8) as ex:
+        pairs = list(ex.map(detail, lst))
+
+    per_day_conv, per_day_q = {}, {}
+    total_q = 0
+    sessions = []
+    fb = {"total": 0, "pos": 0, "neg": 0}
+    missing = 0
+    for c, d in pairs:
+        day = (c.get("conversationDate") or "")[:10]
+        per_day_conv[day] = per_day_conv.get(day, 0) + 1
+        ft = (c.get("feedbackType") or "").upper()
+        if ft in ("THUMBS_UP", "POSITIVE"):
+            fb["total"] += 1; fb["pos"] += 1
+        elif ft in ("THUMBS_DOWN", "NEGATIVE"):
+            fb["total"] += 1; fb["neg"] += 1
+        if d is None:
+            missing += 1
+            continue
+        n = len(d.get("conversation") or [])
+        total_q += n
+        per_day_q[day] = per_day_q.get(day, 0) + n
+        sessions.append({"id": c["conversationId"], "date": day, "messages": n})
+
+    days = sorted(per_day_conv)
+    span = 1
+    if days:
+        from datetime import date
+        try:
+            a = date.fromisoformat(days[0]); b = date.fromisoformat(days[-1])
+            span = max(1, (b - a).days + 1)
+        except ValueError:
+            span = max(1, len(days))
+
+    def peak(dd):
+        if not dd:
+            return 0, ""
+        k = max(dd, key=lambda x: dd[x])
+        return dd[k], k
+
+    pq, pqd = peak(per_day_q)
+    pc, pcd = peak(per_day_conv)
+    data = {
+        "conversations": len(lst),
+        "questions": total_q,
+        "q_per_day": round(total_q / span, 1),
+        "c_per_day": round(len(lst) / span, 1),
+        "peak_q": pq, "peak_q_day": pqd,
+        "peak_c": pc, "peak_c_day": pcd,
+        "feedback": fb,
+        "active_days": len(days),
+        "span_days": span,
+        "first_day": days[0] if days else "",
+        "last_day": days[-1] if days else "",
+        "top_days": sorted(per_day_conv.items(), key=lambda x: (-x[1], x[0]))[:5],
+        "top_sessions": sorted(sessions, key=lambda s: (-s["messages"], s["date"]))[:5],
+        "detail_missing": missing,
+    }
+    _AN_CACHE.update(at=now, data=data)
+    note_sync("analytics")
+    return data, None
 
 
 def git_fragments():
@@ -3503,6 +3652,117 @@ def pr_page(force=False):
     return page("Change Requests", "<div class=lg>" + "".join(body) + "</div>", active="prs")
 
 
+def analytics_page(force=False):
+    """OT Analytics — the OneTyler Cloud Living team's usage, mirroring Foundry's Analytics tab.
+
+    Visible to everyone. It is read-only usage data about the team's own agent, with no verdicts
+    and no permissions attached, so there is nothing here a contributor should be kept from -
+    and knowing whether anyone is actually using the thing they review is part of the job.
+    """
+    data, err = ot_analytics(force=force)
+    age = last_sync_age("analytics")
+
+    head = ("<div style='display:flex;align-items:center;gap:12px;flex-wrap:wrap;"
+            "margin-bottom:6px'>"
+            "<h2 class=sec style='margin:0'>OT Analytics</h2>"
+            "<a href='/analytics?refresh=1' style='margin-left:auto;text-decoration:none'>"
+            "<button class=sec>&#8635; Refresh</button></a>"
+            f"<span class=fresh id=freshness data-age='{age if age is not None else -1}' "
+            "data-kind=analytics></span></div>"
+            f"<p class=sub style='margin:0 0 22px'>Usage for the <b>{html.escape(TEAM_NAME)}</b> "
+            "team agent. Recomputed from the transcripts API each refresh.</p>")
+
+    if err:
+        return page("OT Analytics",
+                    "<div class=lg>" + head +
+                    f"<div class='bar bnr-done'>{html.escape(err)}</div></div>",
+                    active="analytics")
+
+    d = data
+    fb = d["feedback"]
+
+    def tile(label, value, tone="grey", why="", sub=""):
+        tip = f" title=\"{html.escape(why)}\"" if why else ""
+        s = f"<div class=l style='color:var(--forge-theme-text-low)'>{sub}</div>" if sub else ""
+        return (f"<div class='kpi t-{tone}'{tip}><div class=v>{value}</div>"
+                f"<div class=l>{label}</div>{s}</div>")
+
+    def group(title, tiles):
+        return (f"<h3 class=angroup>{title}</h3><div class=kpis>" + "".join(tiles) + "</div>")
+
+    body = [head]
+    body.append(group("Questions", [
+        tile("Total questions", d["questions"], "grey",
+             "Every question asked of the team agent, all time."),
+        tile("Average per day", d["q_per_day"], "grey",
+             f"Across the {d['span_days']} days from {d['first_day']} to {d['last_day']}, "
+             "including days with no activity."),
+        tile("Peak-day questions", d["peak_q"], "yellow",
+             "The busiest single day.", d["peak_q_day"]),
+        tile("Active days", d["active_days"], "grey",
+             f"Days with at least one conversation, out of {d['span_days']}."),
+    ]))
+    body.append(group("Conversations", [
+        tile("Total conversations", d["conversations"], "grey",
+             "Distinct conversations with the team agent."),
+        tile("Average per day", d["c_per_day"], "grey",
+             "Over the same span, including quiet days."),
+        tile("Peak-day conversations", d["peak_c"], "yellow",
+             "The busiest single day.", d["peak_c_day"]),
+        tile("Questions per conversation", round(d["questions"] / d["conversations"], 1)
+             if d["conversations"] else 0, "grey",
+             "How many turns a typical conversation runs to."),
+    ]))
+    body.append(group("Feedback", [
+        tile("Total feedback", fb["total"], "grey",
+             "Conversations where someone rated the answer."),
+        tile("Positive", fb["pos"], "green" if fb["pos"] else "grey", "Thumbs up."),
+        tile("Negative", fb["neg"], "red" if fb["neg"] else "grey",
+             "Thumbs down. These are the transcripts worth reading first."),
+        tile("Rated", f"{round(100*fb['total']/d['conversations'])}%"
+             if d["conversations"] else "0%", "grey",
+             "Share of conversations carrying any rating. Expect this to be low; most people "
+             "do not rate."),
+    ]))
+
+    # Said plainly rather than omitted. A dashboard that silently drops three of Foundry's
+    # panels invites the reader to assume the numbers are zero.
+    body.append(
+        "<h3 class=angroup>Identities</h3>"
+        "<div class='bar bnr-done'><b>Not available to this tool.</b> Foundry's Analytics tab "
+        "shows identified subjects, authenticated users and anonymous identities. Those come "
+        "from <code>/api/analytics/advanced/summary-statistics</code>, which returns "
+        "<b>403 &mdash; user lacks required permissions</b> for a normal API key, and the "
+        "transcripts API carries no identity at all: a team transcript has only "
+        "<code>conversationId</code>, <code>teamName</code> and the exchanges, and an exchange "
+        "has only question, response and feedback. Rather than substitute a lookalike number, "
+        "these are left blank. Read them in Foundry.</div>")
+
+    rows = "".join(
+        f"<tr><td class=swhen>{html.escape(day)}</td><td>{n}</td></tr>"
+        for day, n in d["top_days"])
+    srows = "".join(
+        f"<tr><td class=swhen>{html.escape(s['date'])}</td>"
+        f"<td><code>{html.escape(s['id'][:8])}</code></td>"
+        f"<td><a href='/?all=1'>{s['messages']}</a></td></tr>"
+        for s in d["top_sessions"])
+    body.append(
+        "<div class=antables>"
+        "<div class=card><h3>Busiest days (Top 5)</h3>"
+        "<p class=sub>Conversations per day.</p>"
+        f"<table class=antab><tr><th>Date</th><th>Conversations</th></tr>{rows}</table></div>"
+        "<div class=card><h3>Longest sessions (Top 5)</h3>"
+        "<p class=sub>Most exchanges in one conversation.</p>"
+        f"<table class=antab><tr><th>Date</th><th>Conversation</th><th>Exchanges</th></tr>"
+        f"{srows}</table></div></div>")
+
+    if d["detail_missing"]:
+        body.append(f"<div class=hint style='margin-top:14px'>{d['detail_missing']} "
+                    "conversation(s) could not be fetched, so the question counts are a "
+                    "floor rather than a total.</div>")
+    return page("OT Analytics", "<div class=lg>" + "".join(body) + "</div>", active="analytics")
+
+
 def git_page():
     """Send a finished batch of reviews in.
 
@@ -3677,6 +3937,10 @@ class H(BaseHTTPRequestHandler):
             self.send_header("Cache-Control", "public, max-age=86400")
             self.end_headers()
             return self.wfile.write(body)
+        if self.path == "/analytics" or self.path.startswith("/analytics?"):
+            # No admin gate: it is read-only usage data about the team's own agent, with no
+            # verdicts and no permissions attached.
+            return self._send(200, analytics_page(force="refresh=1" in self.path))
         if self.path == "/prs" or self.path.startswith("/prs?"):
             # Same gate as All Transcripts, and for the same reason: a contributor cannot
             # merge, so every button here would refuse. Not a security boundary - the page
