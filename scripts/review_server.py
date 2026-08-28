@@ -3384,6 +3384,86 @@ def _needs_override(out):
     return any(k in low for k in ("review", "approv", "protected", "required"))
 
 
+def behind_main():
+    """How many commits origin/main is ahead of this checkout, and on which branch.
+
+    Returns (count, branch, err). Reads refs only - no fetch - so it is cheap enough to call
+    on a page render. Something else has to do the fetching.
+    """
+    rc, cur = git("rev-parse", "--abbrev-ref", "HEAD")
+    if rc != 0:
+        return 0, "", cur
+    cur = cur.strip()
+    rc, out = git("rev-list", "--count", "origin/main", f"^{cur}")
+    if rc != 0:
+        return 0, cur, out
+    try:
+        return int(out.strip() or 0), cur, ""
+    except ValueError:
+        return 0, cur, out
+
+
+def pull_main():
+    """Bring the checkout up to date with origin/main after something merged.
+
+    WHY THIS EXISTS. Merging only changes the REMOTE - `gh pr merge` and the GitHub web UI
+    both leave the working tree exactly as it was. The review UI reads the working TREE, so
+    the moment a merge lands, every file it touched is stale on disk and the app is out of
+    date because of its own action. Observed 2026-08-28: a transcript reviewed, merged and
+    closed out reappeared in the pending queue, because the checkout was one commit behind and
+    the file on disk was still the pre-review copy. That reads as "my verdict was thrown away",
+    which is the worst possible way for staleness to present.
+
+    FAST-FORWARD ONLY, deliberately. `--ff-only` REFUSES when there is local work rather than
+    moving it, and git refuses outright if the update would overwrite a modified file. Both
+    matter here: a `git reset --hard` earlier in this repo's history destroyed a reviewer's
+    unsaved verdicts, and nothing in an auto-action after a merge is worth risking that again.
+    A refusal is reported; it is never forced.
+
+    On a review lane the tree is NOT touched. The lane is someone's sitting in progress, and
+    rebasing it under them mid-review could conflict halfway through. The local `main` ref is
+    advanced without a checkout (`fetch origin main:main`, itself fast-forward-only) so the
+    next return to main is already correct, and the caller is told the tree is still behind.
+    """
+    rc, out = git("fetch", "--prune", "origin", timeout=120)
+    if rc != 0:
+        return False, "Could not fetch from origin, so the checkout may be stale:\n" + out
+
+    _, cur = git("rev-parse", "--abbrev-ref", "HEAD")
+    cur = cur.strip()
+    behind, _, _ = behind_main()
+
+    if cur.startswith("review/"):
+        # Not checked out, so this cannot touch the working tree; still fast-forward-only.
+        git("fetch", "origin", "main:main")
+        if behind:
+            return True, ("Your in-progress work is left exactly as it is, so "
+                          + (f"{behind} changes" if behind > 1 else "1 change")
+                          + " other people sent in is not on your copy yet. It arrives on its "
+                          "own once this batch is sent in.")
+        return True, ""
+
+    if cur != "main":
+        return True, ""
+
+    if not behind:
+        return True, ""
+
+    rc, out = git("merge", "--ff-only", "origin/main", timeout=120)
+    if rc != 0:
+        # NOT reported as a failure. Having unsaved verdicts on main is the normal state
+        # before the first save of a sitting, and the sync runs on a timer - so calling this
+        # an error would put a red banner in front of every reviewer every half hour for
+        # doing exactly what they are supposed to be doing. It is a note, and it resolves
+        # itself the moment they save. The raw git text is dropped on purpose: "Updating
+        # 16fe4c1..bc889c2" is not something anyone here should have to read.
+        return True, ("You have unsaved edits, so the newest copies of a few files are not in "
+                      f"yet ({behind} waiting). Nothing was changed or discarded. They come in "
+                      "on their own once you save.")
+    return True, (f"Brought in {behind} updates from the shared copy." if behind > 1
+                  else "Brought in 1 update from the shared copy.")
+
+
 def merge_pr(num, override):
     """Merge a change request, bringing the branch up to date first if that is what is needed.
 
@@ -4093,6 +4173,21 @@ class H(BaseHTTPRequestHandler):
             # ADDS transcript files and never overwrites an existing one, so a stray click
             # cannot lose review work.
             try:
+                # FIRST bring the local copy in line with the shared one, THEN ask Foundry for
+                # new conversations. Order matters: a transcript merged by someone else - or by
+                # you in the browser, which this server never sees - is stale on disk until
+                # this runs, and a reviewed transcript that reads as `pending` looks like a
+                # lost verdict rather than a stale file.
+                #
+                # This is why it lives in the SYNC and not only after the merge button. A merge
+                # can happen anywhere: GitHub's own UI, another contributor's machine, a
+                # different clone. Hooking only our own button would cover the one case we
+                # already control and miss every other. Fast-forward only, so it can never
+                # move or discard work in progress.
+                # Return value ignored: every outcome it can report - fetch failure, declined
+                # because of unsaved edits - already says so in the message, which is shown.
+                _, pulled_msg = pull_main()
+
                 if not os.environ.get("FOUNDRY_API_KEY"):
                     raise ValueError("FOUNDRY_API_KEY is not set in the environment this "
                                      "server was started from — start it from a shell where "
@@ -4115,9 +4210,16 @@ class H(BaseHTTPRequestHandler):
                 refresh_index()
                 if r.returncode == 0:
                     note_sync()
-                return self._send(200, json.dumps({"ok": r.returncode == 0, "added": added,
+                # `ok` reports the Foundry sync only. The pull is best-effort by design -
+                # it declines while there are unsaved edits, which is the normal mid-review
+                # state, and that must not read as a failed sync.
+                return self._send(200, json.dumps({"ok": r.returncode == 0,
+                                                   "added": added,
                                                    "updated": updated,
-                                                   "output": out[-4000:],
+                                                   "pulled": pulled_msg,
+                                                   "output": ((pulled_msg + "\n\n")
+                                                              if pulled_msg else "")
+                                                             + out[-4000:],
                                                    "age": last_sync_age()}),
                                   "application/json")
             except Exception as e:
@@ -4214,8 +4316,12 @@ class H(BaseHTTPRequestHandler):
                     if rc == 0:
                         head = ("Merged WITH the review gate bypassed (admin override).\n\n"
                                 if override else "Merged.\n\n")
-                        out = head + out + (
-                            "\n\nTwo things follow:\n"
+                        # Merging only moved the REMOTE. Without this the app is stale because
+                        # of its own action, and merged transcripts come back as pending.
+                        okp, msgp = pull_main()
+                        refresh_index()
+                        out = head + out + (("\n\n" + msgp) if msgp else "") + (
+                            "\n\nOne thing follows:\n"
                             "  python3 scripts/check_foundry_drift.py   "
                             "(main is now ahead of the live agents)\n"
                             "  python3 scripts/publish_to_foundry.py    "
