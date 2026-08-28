@@ -232,8 +232,8 @@ def keep_exchange(e):
 # Review fields a human fills in. Kept in the file so the schema is self-documenting.
 REVIEW_TEMPLATE = """review_status: pending
 reviewer:
-suggested_by:
-awaiting:
+reviewer:
+suggested_to:
 routing_verdict:
 reassign_to:
 answer_verdict:
@@ -254,8 +254,8 @@ notes:"""
 # who opens one has no signal that it is out of scope until they read the date.
 EXCLUDED_TEMPLATE = f"""review_status: excluded
 reviewer:
-suggested_by:
-awaiting:
+reviewer:
+suggested_to:
 routing_verdict:
 reassign_to:
 answer_verdict:

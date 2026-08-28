@@ -32,12 +32,12 @@ def contributors():
         return set()
 
 FIELDS = ["conversation_id", "answered_by", "date", "exchanges", "foundry_feedback",
-          "review_status", "reviewer", "suggested_by", "awaiting", "routing_verdict",
+          "review_status", "reviewer", "reviewer", "suggested_to", "routing_verdict",
           "reassign_to", "answer_verdict", "diagnosis", "fix_target", "kb_action", "kb_files",
           "action_status", "notes", "review_round"]
 
 # Fields that must name a real contributor. See review_server.PEOPLE_KEYS.
-PEOPLE_KEYS = ("reviewer", "suggested_by", "awaiting")
+PEOPLE_KEYS = ("reviewer", "reviewer", "suggested_to")
 
 # Not closed out. `suggested` is open work with a name on it, not a verdict.
 OPEN = ("pending", "suggested")
@@ -151,8 +151,8 @@ def main():
                            f"testing and belong in 'excluded', not the review queue"))
         # An unattributed suggestion is the failure this state exists to prevent: the owner
         # inherits verdict-shaped fields with nobody to ask what they meant.
-        if d.get("review_status") == "suggested" and not d.get("suggested_by"):
-            bad.append((f, "review_status=suggested but no suggested_by set"))
+        if d.get("review_status") == "suggested" and not d.get("reviewer"):
+            bad.append((f, "review_status=suggested but no reviewer set"))
         rows.append((f, d))
 
     if a.check:
@@ -169,10 +169,10 @@ def main():
         # What an area owner runs to find work handed to them. `awaiting` unset means the
         # suggester named no owner, so it is everyone's to pick up — always show those.
         hits = [(f, d) for f, d in rows if d.get("review_status") == "suggested"
-                and (not a.for_ or d.get("awaiting", "") in ("", a.for_))]
+                and (not a.for_ or d.get("suggested_to", "") in ("", a.for_))]
         for f, d in hits:
-            print(f"{f.relative_to(REPO)}  from {d.get('suggested_by','?')}"
-                  f"  -> {d.get('awaiting') or 'anyone'}"
+            print(f"{f.relative_to(REPO)}  from {d.get('reviewer','?')}"
+                  f"  -> {d.get('suggested_to') or 'anyone'}"
                   f"  [{d.get('answered_by','?')}]  {d.get('notes','')[:70]}")
         if not hits:
             print("no suggestions waiting" + (f" for {a.for_}" if a.for_ else ""))
@@ -215,7 +215,7 @@ def main():
                 fb = body_feedback(txt)
                 where = ", ".join(f"exchange {n}" for n in sorted(fb["corrections"])) or "-"
                 print(f"   {f.relative_to(REPO)}")
-                print(f"      by {d.get('reviewer') or d.get('suggested_by') or '?'}"
+                print(f"      by {d.get('reviewer') or d.get('reviewer') or '?'}"
                       f" | corrections in: {where}"
                       f" | proposed fix: {'yes' if fb['proposed'] else 'no'}")
                 print(f"      \"{feedback_summary(txt)}\"")
@@ -223,8 +223,8 @@ def main():
             print(f"\n-- not actionable yet: {len(inflight)} transcript(s) have an open action "
                   f"but review_status is not 'reviewed' --", file=sys.stderr)
             for f, d in inflight:
-                who = (f"suggested_by={d.get('suggested_by') or 'unset'}, "
-                       f"awaiting={d.get('awaiting') or 'anyone'}"
+                who = (f"reviewer={d.get('reviewer') or 'unset'}, "
+                       f"suggested_to={d.get('suggested_to') or d.get('reassign_to') or 'unassigned'}"
                        if d.get("review_status") == "suggested"
                        else f"reviewer={d.get('reviewer') or 'unset'}")
                 print(f"   {f.relative_to(REPO)}  ({d.get('review_status')}, {who})",
@@ -256,7 +256,7 @@ def main():
     if sugg:
         # Name the owners, because the whole point of the state is that it is waiting on a
         # specific person. A bare count reads as progress rather than as a queue.
-        wait = Counter(d.get("awaiting") or "anyone" for _, d in rows
+        wait = Counter(d.get("suggested_to") or "anyone" for _, d in rows
                        if d.get("review_status") == "suggested")
         print(f"  ** {sugg} suggestion(s) awaiting a decision: "
               + ", ".join(f"{k} ({v})" for k, v in sorted(wait.items()))
@@ -302,7 +302,7 @@ def main():
             f.stem, rel, d.get("answered_by", ""), (d.get("date", "") or "")[:10],
             d.get("exchanges", ""), d.get("foundry_feedback", ""),
             (d.get("review_status", "")
-             + (f" ({d.get('suggested_by','?')}→{d.get('awaiting') or 'anyone'})"
+             + (f" ({d.get('reviewer','?')}→{d.get('suggested_to') or 'anyone'})"
                 if d.get("review_status") == "suggested" else "")),
             d.get("routing_verdict", "") + ("→" + d["reassign_to"] if d.get("reassign_to") else ""),
             d.get("answer_verdict", ""), d.get("diagnosis", ""),

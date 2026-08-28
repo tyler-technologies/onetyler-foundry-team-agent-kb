@@ -119,6 +119,29 @@ LOGO = ASSETS / "tyler-brand-dark-theme.svg"   # white — the app bar is dark
 OWNERS = REPO / "agent-owners.json"
 
 
+def owners_of_agent(slug):
+    """Everyone who owns this agent's corpus, or an empty set if the slug is not an agent.
+
+    Lets a routing field name an AGENT rather than a person. That is usually the answer a
+    reviewer has - you know it is a SAC problem long before you know who owns SAC - and it
+    survives ownership changing hands, which a hard-coded username does not.
+
+    "team" is not a corpus, so it resolves to the admins: a routing-level problem belongs to
+    whoever owns routing.
+    """
+    by, default = agent_owners()
+    if slug == "team":
+        return set(admins())
+    if slug in by:
+        return set(by[slug])
+    # Not named in by_agent, but still a real agent - so it falls to the default owner. The
+    # slug set comes from BK_AGENT_ID, which is the same list gen_codeowners.py uses, so one
+    # name means one thing across the repo.
+    if slug in BK_AGENT_ID:
+        return {default} if default else set()
+    return set()
+
+
 def agent_owners():
     """agent slug -> set of usernames who own it, from agent-owners.json.
 
@@ -344,15 +367,115 @@ NO_AVATARS = False
 # Ordered so rewritten frontmatter keeps a stable, diff-friendly shape.
 SOURCE_KEYS = ["conversation_id", "answered_by", "date", "exchanges",
                "dropped_sample_prompts", "foundry_feedback", "user_comments"]
-REVIEW_KEYS = ["review_status", "reviewer", "suggested_by", "awaiting", "review_round",
+REVIEW_KEYS = ["review_status", "reviewer", "suggested_to", "review_round",
                "routing_verdict", "reassign_to", "answer_verdict", "diagnosis", "fix_target",
-               "kb_action", "kb_files", "action_status", "notes"]
+               "kb_action", "kb_files", "action_status"]
 
-# Fields constrained to a contributors.json `github` value. `reviewer` records who made the
-# call; `suggested_by` records who drafted a suggestion they are NOT claiming as a verdict;
-# `awaiting` names the area owner it is being handed to. All three must be real people, or
-# the handoff has nobody to chase.
-PEOPLE_KEYS = ("reviewer", "suggested_by", "awaiting")
+# `notes` IS DELIBERATELY ABSENT from the form. It was a one-line free-text box, which is the
+# wrong shape for the only thing anyone wanted to put in it: prose. A reviewer with something to
+# say now writes it against the exchange it is about (Correction) or against the transcript as a
+# whole (Proposed fix), both of which are proper textareas and both of which Claude already
+# reads.
+#
+# The KEY still exists in the files and is still written by the tooling - mark_pushed.py records
+# what it closed, fetch_transcripts.py records the go-live exclusion reason. write_fields()
+# preserves any frontmatter key it does not recognise, so those values survive a save from a
+# form that never shows them. Removing it from REVIEW_KEYS hides the input; it does not delete
+# anybody's data.
+
+# `reviewer` IS ALWAYS THE PERSON DOING THE REVIEWING. It is defaulted to whoever opened the
+# transcript and is never blanked - not even by Suggest.
+#
+# That replaced a three-field arrangement that nobody could keep straight: `reviewer` (who made
+# the call), `suggested_by` (who drafted a suggestion without claiming it as a verdict) and
+# `awaiting` (the owner it was handed to). Two problems with it. The direction was ambiguous -
+# "suggested by" reads as provenance when what a reviewer wants to record is a DESTINATION - and
+# once `reviewer` always names the current person, `suggested_by` has no job left, because the
+# reviewer IS the suggester.
+#
+# So both collapse into ONE field, `suggested_to`: who this is being handed to. Safe to do
+# because neither old field had ever been given a value on any of the 61 transcripts - the
+# arrangement was confusing enough that nobody used it.
+#
+# `suggested_to` and `reassign_to` are the two fields that put a transcript in someone ELSE's
+# queue, and both accept a person OR an agent. An agent means "whoever owns that corpus", which
+# is the common case: you rarely know who owns SAC, but you always know it is a SAC problem.
+PEOPLE_KEYS = ("reviewer",)
+
+# Only the labels whose wording differs from the key. Everything else is the key with
+# underscores swapped for spaces and the first letter capitalised.
+FIELD_LABEL = {
+    "review_status": "Review status",
+    "reviewer":      "Reviewer (you)",
+    "suggested_to":  "Suggested to",
+    "reassign_to":   "Reassign to",
+    "review_round":  "Review round",
+    "kb_files":      "KB files",
+    "kb_action":     "KB action",
+}
+
+# Fields that route a transcript to another queue. Values may be a contributors.json `github`
+# login or an agent slug.
+ROUTING_KEYS = ("suggested_to", "reassign_to")
+
+# Maintained by the tooling, shown but not editable. See the DERIVED_KEYS branch in field().
+DERIVED_KEYS = ("review_round",)
+
+# Picked from the repo, not typed. See the MULTI_KEYS branch in field().
+MULTI_KEYS = ("kb_files",)
+
+
+def knowledge_files(scoped=True):
+    """Knowledge files grouped by corpus, as `Corpus/File.md`.
+
+    SCOPED TO WHAT YOU OWN unless you are an admin. A contributor can only APPROVE changes to
+    their own corpus - CODEOWNERS enforces that - so offering them the whole repo in a picker
+    invites naming a file whose change they cannot get merged. Worse, `kb_files` is read as
+    instructions by whoever applies the change, so a contributor pointing at Knowledge-Shared
+    is asking for an edit that alters what all five agents say.
+
+    Admins see everything, because they own the admin-only corpora and routing.
+
+    NOT a security control - this is a picker, and the same person can edit the frontmatter by
+    hand. It is there so the common path does not lead somewhere that cannot be merged.
+    Enforcement stays where it belongs: CODEOWNERS, branch protection, and
+    check_folder_ownership.py in CI.
+
+    Read from disk each time rather than cached: a reviewer who has just added a file should
+    find it in the list, and the alternative is a picker quietly missing the thing they are
+    about to name.
+    """
+    mine = None
+    if scoped and ME and not is_admin():
+        by, default = agent_owners()
+        owned = {AGENT_FOLDER_NAME[s] for s, who in by.items()
+                 if ME in (who if isinstance(who, (list, set, tuple)) else [who])
+                 and s in AGENT_FOLDER_NAME}
+        if default == ME:
+            owned |= {AGENT_FOLDER_NAME[s] for s in AGENT_FOLDER_NAME if s not in by}
+        mine = owned
+    out = {}
+    for d in sorted(REPO.iterdir()):
+        if not (d.is_dir() and d.name.startswith("Knowledge-")):
+            continue
+        if mine is not None and d.name not in mine:
+            continue
+        files = sorted(f.name for f in d.glob("*.md"))
+        if files:
+            out[d.name] = files
+    return out
+
+
+# Agent slug -> corpus folder. Same table as gen_codeowners.py's AGENT_FOLDER, kept here so the
+# picker and the permissions it mirrors cannot disagree about which folder an agent owns.
+AGENT_FOLDER_NAME = {
+    "ops-center":       "Knowledge-OpsCenter",
+    "bp-general":       "Knowledge-BP-General",
+    "sac":              "Knowledge-SupportAccessCenter",
+    "identity":         "Knowledge-TylerIdentity",
+    "aligned-releases": "Knowledge-AlignedReleases",
+    "status-page":      "Knowledge-StatusPageAndSLA",
+}
 
 # Most transcripts need no corpus change. Pre-selecting the "nothing wrong" answer means
 # "Mark reviewed & next" on an untouched form records a deliberate no-change review rather
@@ -399,8 +522,8 @@ FIELD_DOC = {
         "values": {
             "pending": "Nobody has reached a conclusion yet. Saving with fields filled in and "
                        "leaving it here is a deliberate note-to-self — nobody else will act on it.",
-            "suggested": "You worked it up but the call is not yours to make. Goes to the owner "
-                         "named in `awaiting`; requires `suggested_by`. Claude will NOT act on it.",
+            "suggested": "You worked it up but the call is not yours to make. Goes to whoever is "
+                         "named in `suggested_to`. Claude will NOT act on it.",
             "reviewed": "Your verdict, on the record. This is the queue Claude works from, so "
                         "only set it when you are content for changes to be made on this basis.",
             "pushed": "Processed AND live in Foundry. Claude sets this after verifying the "
@@ -410,28 +533,27 @@ FIELD_DOC = {
         },
     },
     "reviewer": {
-        "about": "Who made the call — set it when you mark this reviewed, NOT when you "
-                 "suggest. Required for `reviewed` and `excluded`. Restricted to "
-                 "contributors.json, which is generated from GitHub team membership — if your "
-                 "name is missing, you are not on the team yet, and typing it in will not help.",
+        "about": "You — whoever is reviewing this. Defaulted to the person who opened it and "
+                 "never cleared, including when you suggest: suggesting is still something you "
+                 "did. Restricted to contributors.json, which is generated from GitHub team "
+                 "membership — if your name is missing you are not on the team yet, and typing "
+                 "it in will not help.",
         "values": {},
     },
-    "suggested_by": {
-        "about": "Who drafted a suggestion they are explicitly NOT claiming as a verdict. "
-                 "Required when review_status is `suggested`. The Suggest button fills this in "
-                 "and clears `reviewer`, because those two fields answer different questions: "
-                 "who wrote this, versus who decided it.",
-        "values": {},
-    },
-    "awaiting": {
-        "about": "The area owner a suggestion is handed to — the person who should accept or "
-                 "override it. Optional: blank means anyone can pick it up. Naming someone is "
-                 "what makes `--suggestions --for <user>` find it. Cleared once reviewed, "
-                 "since it is no longer waiting on anybody.",
+    "suggested_to": {
+        "about": "The PERSON you are handing this to. Setting it moves the transcript into "
+                 "their queue and out of yours — you are giving up the decision, not just "
+                 "asking for a second opinion.\n\n"
+                 "`Reassign to` is the same act one level up: name an AGENT when the problem "
+                 "belongs to another corpus and you do not know or care who owns it this "
+                 "month. Set either one and **Mark reviewed** no longer applies, because the "
+                 "call is no longer yours to make — use **Suggest** instead.",
         "values": {},
     },
     "review_round": {
-        "about": "Which pass over this transcript this is. Raising it is how you re-open "
+        "about": "Which pass over this transcript this is — **maintained for you, not typed**. "
+                 "The Re-review button raises it by one; nothing else should. Raising it is how "
+                 "you re-open "
                  "something already decided without overwriting the previous verdict — both end "
                  "up on the record. Use the Re-review button rather than editing the number; CI "
                  "rejects a second first-review at the same round.",
@@ -449,10 +571,18 @@ FIELD_DOC = {
                          "Usually a signal the router should have asked a clarifying question.",
         },
     },
+    # reassign_to is the OTHER routing field. Same consequence as suggested_to - it puts the
+    # transcript in someone else's queue - for a different reason: the wrong agent answered,
+    # rather than the wrong person is deciding.
     "reassign_to": {
-        "about": "Which sub-agent SHOULD have handled it. Only meaningful when routing_verdict "
-                 "is `wrong-agent`. Repeated reassignments to the same target are the strongest "
-                 "evidence the team routing rules need changing.",
+        "about": "Which AGENT should own this instead — the same act as `Suggested to`, one "
+                 "level up. Use it when the problem belongs to another corpus and you do not "
+                 "know, or should not need to know, who owns that corpus this month; it "
+                 "resolves through ownership, so it survives the owner changing.\n\n"
+                 "Setting it moves the transcript into that agent's owners' queue and out of "
+                 "yours, and **Mark reviewed** no longer applies — the call is no longer yours. "
+                 "Repeated reassignments to the same target are the strongest evidence the team "
+                 "routing rules need changing.",
         "values": {
             "": "Not applicable.",
             "ops-center": "Ops Center — the Ops Center UI, orgs, workspaces, licensing, "
@@ -542,13 +672,21 @@ FIELD_DOC = {
     "action_status": {
         "about": "Whether the change has actually been made. This is the field that stops open "
                  "work being quietly buried — a transcript cannot be closed out while this says "
-                 "`open` and kb_action asks for something.",
+                 "`open` and kb_action asks for something.\n\n"
+                 "**Mostly set for you.** `none-needed` and `open` follow from `kb_action`, so "
+                 "picking them is not your job. `applied` is Claude's, after the work is done. "
+                 "`wontfix` is the only one that is genuinely a decision — and it wants a "
+                 "reason written in Correction or Proposed fix.",
         "values": {
             "": "Not assessed.",
-            "none-needed": "Nothing had to change.",
-            "open": "A change is required and has not been made yet. Claude's to-do list.",
-            "applied": "The change has been made. Set by Claude, not by you.",
-            "wontfix": "Decided against acting on it. Say why in `notes`.",
+            "none-needed": "Nothing had to change. **Set for you** when `kb_action` is `none`.",
+            "open": "A change is required and has not been made yet — Claude's to-do list. "
+                    "**Set for you** when `kb_action` asks for something.",
+            "applied": "The change has been made. Set by Claude after doing it, not by you, and "
+                       "never overwritten automatically — it is a claim about work, not a "
+                       "restatement of `kb_action`.",
+            "wontfix": "Decided against acting on it. Your call, never set for you — say why "
+                       "in Correction or Proposed fix, so the reason sits with the reasoning.",
         },
     },
     # Not frontmatter fields — the two free-text boxes. Same treatment so the page reads
@@ -599,6 +737,46 @@ def is_transcript(p):
 
 def tfiles():
     return sorted(f for f in TDIR.rglob("*.md") if is_transcript(f))
+
+
+def derived_round(rel):
+    """Which round this transcript's NEXT verdict belongs to. Derived, never typed.
+
+    Read off what `origin/main` already holds, because that is the question the round exists to
+    answer: has a verdict on this transcript already been merged, and is this a new pass over it?
+
+    The rules match validate_reviews.py exactly, which is the point - a round the reviewer
+    cannot set is a round CI cannot reject:
+
+        not on main yet          -> 1        first review
+        on main, no verdict      -> its round no decision has been merged, so still that pass
+        on main, suggested       -> its round the owner ACCEPTING a handoff is the same pass
+        on main, reviewed        -> +1       a genuine second opinion
+        on main, excluded        -> +1       same: re-opening something already decided
+        on main, pushed          -> +1       decided AND shipped; a new look is a new pass
+
+    Note `suggested` does NOT advance it. A suggestion is a handoff, not a decision, so the
+    owner's verdict completes the round rather than starting a new one - and CI treats
+    suggested -> reviewed at the same round as the normal path.
+    """
+    rc, out = git("show", f"origin/main:{rel}")
+    if rc != 0 or not out.strip():
+        return 1
+    fm = {}
+    m = re.match(r"^---\n(.*?)\n---", out, re.S)
+    if m:
+        for line in m.group(1).splitlines():
+            if ":" in line and not line.strip().startswith("#"):
+                k, _, v = line.partition(":")
+                fm[k.strip()] = v.strip()
+    status = fm.get("review_status") or "pending"
+    try:
+        base = int(fm.get("review_round") or 1)
+    except ValueError:
+        base = 1
+    # validate_reviews.py accepts ANY higher round as a deliberate re-review
+    # (`elif h_round > b_round`), whatever the base status, so advancing here cannot trip CI.
+    return base + 1 if status in ("reviewed", "excluded", "pushed") else base
 
 
 def parse(p):
@@ -1476,6 +1654,10 @@ tr.row.mine-awaiting td:first-child{box-shadow:inset 3px 0 0 var(--forge-theme-w
 tr.row.mine-area .pill.mineflag{background:var(--forge-theme-primary);color:var(--on-accent)}
 span.owner{color:var(--forge-theme-text-medium);font-size:12px}
 .fld{position:relative}
+/* A derived field's value, shown as text. Sized to sit level with a real input so the
+   form does not develop a step where the read-only field is. */
+.roval{padding:7px 0;font-size:13px;color:var(--forge-theme-text-high);
+font-weight:500;display:flex;align-items:center}
 button.info{background:var(--forge-theme-primary-container);color:var(--forge-theme-primary);
 border:0;border-radius:50%;width:16px;height:16px;padding:0;margin-left:5px;
 font:700 11px/16px Roboto,sans-serif;cursor:pointer;vertical-align:middle;
@@ -1569,26 +1751,100 @@ t.style.background=ok?'#0f6b34':'#a11';t.classList.add('on');setTimeout(()=>t.cl
 async function saveDoc(path,then){const fields={},ex={};
 const rv=document.querySelector('[data-fm=reviewer]');
 if(rv&&rv.value){try{localStorage.setItem('lastReviewer',rv.value)}catch(e){}}
-document.querySelectorAll('[data-fm]').forEach(e=>fields[e.dataset.fm]=e.value);
+// A multi-select's `.value` is only its FIRST selected option, so reading every control the
+// same way would silently drop all but one chosen kb_file. Comma-joined to match the format
+// the field has always been stored in.
+document.querySelectorAll('[data-fm]').forEach(e=>{
+  fields[e.dataset.fm] = e.dataset.multi
+    ? [...e.selectedOptions].map(o=>o.value).join(', ')
+    : e.value;
+});
 document.querySelectorAll('[data-ex]').forEach(e=>ex[e.dataset.ex]=e.value);
 const proposed=(document.getElementById('proposed')||{}).value||'';
 const r=await post('/save',{path,fields,exchanges:ex,proposed});
 if(r.ok){toast('Saved to '+r.path);if(then)location.href=then}else toast(r.error||'Save failed',false)}
-async function markAndNext(path,next){document.querySelector('[data-fm=review_status]').value='reviewed';
-await saveDoc(path,next)}
-// Suggest = "I worked this up but I am not the one who decides." The actor picker is the
-// `reviewer` select, so move that name into suggested_by and BLANK reviewer: `reviewer`
-// means "who made the call", and mark_pushed/validate_reviews both rely on that. The owner
-// puts their own name in reviewer when they accept.
-async function suggestAndNext(path,next){const rv=document.querySelector('[data-fm=reviewer]');
-const sb=document.querySelector('[data-fm=suggested_by]');
-const who=(sb.value||rv.value||'').trim();
-if(!who){toast('Pick your name first',false);return}
-// saveDoc remembers the actor from the `reviewer` select, which we are about to blank.
-try{localStorage.setItem('lastReviewer',who)}catch(e){}
-sb.value=who; rv.value='';
-document.querySelector('[data-fm=review_status]').value='suggested';
-await saveDoc(path,next)}
+// Handing off and deciding are mutually exclusive. If either routing field names somebody, the
+// transcript is THEIRS now - marking it reviewed would record your verdict on work you have
+// just given away, and it would also pull it back out of their queue, which is the opposite of
+// what setting the field was for. So the button refuses and says which field to clear.
+// Checked at click time rather than by disabling the button, because the selects can change
+// after the page renders and a button that is enabled-then-silently-inert is worse.
+// `action_status` follows from `kb_action` for the two mechanical values, so a reviewer is not
+// asked a question whose answer is already on the form:
+//
+//     kb_action none/blank  -> none-needed   nothing has to change
+//     kb_action add/update/split -> open     a change is required and has not been made
+//
+// The other two are NOT derivable and are left alone:
+//     applied  is a claim that the work was done - Claude sets it after doing it
+//     wontfix  is a decision to not act, and needs a reason in `notes`
+//
+// So it never overwrites applied or wontfix. Deriving those would either lie about work having
+// been done or silently discard somebody's decision.
+(function(){
+ const ka=document.querySelector('[data-fm=kb_action]');
+ const as=document.querySelector('[data-fm=action_status]');
+ if(!ka||!as) return;
+ ka.addEventListener('change',()=>{
+   if(as.value==='applied'||as.value==='wontfix') return;
+   const want=(!ka.value||ka.value==='none')?'none-needed':'open';
+   if(as.value===want) return;
+   as.value=want;
+   toast('Action status set to '+want+' — follows from KB action');
+ });
+})();
+
+// Reassigning to a DIFFERENT agent is a routing finding by definition: the content was fine,
+// the wrong agent got the question. So the diagnosis follows from the reassignment rather than
+// being a second thing to remember - and getting it wrong sends the fix to the wrong place,
+// since `routing-only` means "do not edit a knowledge file for this".
+//
+// Only fires when the target differs from the agent that actually answered. Reassigning to the
+// same agent is not a routing problem, and would be a strange thing to record at all.
+// A reviewer who then picks a different diagnosis keeps it - this defaults, it does not enforce.
+(function(){
+ const ra=document.querySelector('[data-fm=reassign_to]');
+ const dg=document.querySelector('[data-fm=diagnosis]');
+ if(!ra||!dg) return;
+ const current=(document.body.dataset.agent||'').trim();
+ ra.addEventListener('change',()=>{
+   const to=(ra.value||'').trim();
+   if(!to||to===current) return;
+   if(dg.value==='routing-only') return;
+   dg.value='routing-only';
+   toast('Diagnosis set to routing-only — reassigned away from '+(current||'this agent'));
+ });
+})();
+
+function handedOff(){
+ const s=(document.querySelector('[data-fm=suggested_to]')||{}).value||'';
+ const r=(document.querySelector('[data-fm=reassign_to]')||{}).value||'';
+ return [s.trim()&&['Suggested to',s.trim()], r.trim()&&['Reassign to',r.trim()]].filter(Boolean);
+}
+async function markAndNext(path,next){
+ const off=handedOff();
+ if(off.length){
+   toast(off.map(o=>o[0]+' = '+o[1]).join(' and ')
+     +' — use Suggest & next, or clear it to keep this one', false);
+   return;
+ }
+ document.querySelector('[data-fm=review_status]').value='reviewed';
+ await saveDoc(path,next)}
+// Suggest = "this is not my call." `reviewer` stays as YOU - suggesting is still something you
+// did, and blanking it lost the only record of who looked at the transcript. What moves the work
+// is `suggested_to` (a person) or `reassign_to` (an agent), which is also what puts it in their
+// queue. One of them has to be set, or the suggestion has no destination and sits where it is.
+async function suggestAndNext(path,next){
+ const off=handedOff();
+ if(!off.length){
+   toast('Set Suggested to (a person) or Reassign to (an agent) first — a suggestion needs '
+     +'somewhere to go', false);
+   return;
+ }
+ const rv=document.querySelector('[data-fm=reviewer]');
+ if(rv&&!rv.value){toast('Pick your name in Reviewer first',false);return}
+ document.querySelector('[data-fm=review_status]').value='suggested';
+ await saveDoc(path,next)}
 async function reReview(path){const r=document.querySelector('[data-fm=review_round]');
 r.value=String((parseInt(r.value||'1',10)||1)+1);
 document.querySelector('[data-fm=review_status]').value='reviewed';
@@ -2282,7 +2538,7 @@ def nav_counts():
         st = fm.get("review_status", "pending") or "pending"
         if st in ("pending", "suggested"):
             open_n += 1
-            if ME and (fm.get("awaiting") == ME
+            if ME and (fm.get("suggested_to") == ME or fm.get("awaiting") == ME
                        or ME in {o for a in effective_agents(fm) for o in owners_of(a)}):
                 mine_n += 1
     _, st = git("status", "--porcelain", "--", "transcripts")
@@ -2322,7 +2578,7 @@ def pr_count(force=False):
     return n
 
 
-def page(title, inner, active="", all_view=False, rel=""):
+def page(title, inner, active="", all_view=False, rel="", agent=""):
     """Shell with a Forge-style SIDE NAV.
 
     The previous version put "All transcripts" and "Git & PR" as bare links in the app bar,
@@ -2385,7 +2641,7 @@ def page(title, inner, active="", all_view=False, rel=""):
 <link rel=stylesheet href="https://cdn.forge.tylertech.com/v1/css/tyler-font.css">
 <link rel=icon type="image/svg+xml" href="/logo.svg">
 <style>{CSS}{icon_vars()}</style><header><img class=brand src="/logo.svg" alt="Tyler Technologies" width=28 height=28><b>OneTyler Foundry Team Agent Transcript Review</b><div class=hdrright>{MODE_SWITCH}{who}</div></header>
-<body data-default-mine="{'1' if (ME and not all_view) else '0'}" data-default-status="{'pending' if (ME and not all_view) else '__open__'}" data-show-all="{'1' if (is_admin() or not ME) else '0'}" data-rel="{html.escape(rel)}">
+<body data-default-mine="{'1' if (ME and not all_view) else '0'}" data-default-status="{'pending' if (ME and not all_view) else '__open__'}" data-show-all="{'1' if (is_admin() or not ME) else '0'}" data-rel="{html.escape(rel)}" data-agent="{html.escape(agent)}">
 <div class=shell>{side}<main class=wrap>{inner}</main></div>
 <div class=toast id=toast></div><script>{JS}</script>"""
 
@@ -2414,8 +2670,9 @@ def list_page(show_all=False):
             "diag": fm.get("diagnosis", ""),
             "fix": fm.get("fix_target", ""),
             "reviewer": fm.get("reviewer", ""),
-            "suggested_by": fm.get("suggested_by", ""),
-            "awaiting": fm.get("awaiting", ""),
+            # `awaiting` is the old name for this field, still read so a transcript written
+            # before the rename does not lose its handoff.
+            "suggested_to": fm.get("suggested_to", "") or fm.get("awaiting", ""),
             "eff_agents": effective_agents(fm),
             "openpr": None,          # filled in below from transcript_pr_map()
         })
@@ -2444,10 +2701,24 @@ def list_page(show_all=False):
                 r["own_basis"] = "sub-agent: " + ", ".join(eff)
         r["owners"] = sorted(o for o in owners if o)
         # Two DIFFERENT reasons a row is yours, deliberately kept apart:
-        #   awaiting == you   -> handed to you personally. Strongest signal.
-        #   you own the agent -> yours by area; nobody asked you specifically.
+        #   handed to you    -> somebody named you, or named an agent you own. Strongest signal.
+        #   you own the agent-> yours by area; nobody asked you specifically.
         # Collapsing them would hide the difference between "waiting on me" and "my patch".
-        r["mine_awaiting"] = bool(ME and r["awaiting"] == ME)
+        #
+        # BOTH routing fields count, and each accepts a person or an agent. An agent resolves
+        # through ownership, which is the whole point: a reviewer can hand a SAC problem to
+        # "sac" without knowing who owns SAC this month.
+        handed = []
+        for key in ROUTING_KEYS:
+            v = (r.get(key) or "").strip()
+            if not v:
+                continue
+            if ME and v == ME:
+                handed.append(key)
+            elif ME and ME in owners_of_agent(v):
+                handed.append(key)
+        r["handed_to_me"] = handed
+        r["mine_awaiting"] = bool(handed)
         r["mine_area"] = bool(ME and ME in owners and not r["mine_awaiting"])
 
     # My Transcripts is a HARD filter, applied here rather than by a checkbox in the browser.
@@ -2489,7 +2760,7 @@ def list_page(show_all=False):
             f" data-status=\"{html.escape(r['status'])}\" data-routing=\"{html.escape(r['routing'])}\""
             f" data-answer=\"{html.escape(r['answer'])}\" data-diag=\"{html.escape(r['diag'])}\""
             f" data-fix=\"{html.escape(r['fix'])}\" data-reviewer=\"{html.escape(r['reviewer'])}\""
-            f" data-awaiting=\"{html.escape(r['awaiting'])}\""
+            f" data-awaiting=\"{html.escape(r['suggested_to'])}\""
             f" data-owner=\"{html.escape(','.join(r['owners']))}\""
             f" data-eff=\"{html.escape(','.join(r['eff_agents']))}\""
             f" title=\"{html.escape(r.get('own_basis',''))}\""
@@ -2511,7 +2782,7 @@ def list_page(show_all=False):
             f"<td class=nowrap>{html.escape(r['date'])}</td>"
             f"<td>{html.escape(r['ex'])}</td>"
             f"<td><span class='pill {r['status']}'>{html.escape(r['status'])}</span>"
-            f"{'<div class=deleg>'+html.escape(r['suggested_by'])+' &rarr; '+html.escape(r['awaiting'] or 'anyone')+'</div>' if r['status']=='suggested' else ''}"
+            f"{'<div class=deleg>&rarr; '+html.escape(r['suggested_to'] or r['reassign'] or 'unassigned')+'</div>' if r['status']=='suggested' else ''}"
             # Already inside an unmerged change request. Says so on the row, because the
             # alternative is someone re-reviewing work that is already done - a sync from main
             # re-creates these as fresh `pending` stubs, since fetch_transcripts.py decides
@@ -2546,7 +2817,7 @@ def list_page(show_all=False):
         bits = []
         if mine_a:
             bits.append(f"<a href='#' onclick='showStatus(\"\");return false'>"
-                        f"<b>{mine_a}</b> awaiting you</a>")
+                        f"<b>{mine_a}</b> handed to you</a>")
         if mine_r:
             bits.append(f"<b>{mine_r}</b> open in your area")
         youline = ("<p class=youline>"
@@ -2754,14 +3025,14 @@ def fb_glyph(fb):
 def awaiting_cell(r):
     """Who a transcript is waiting on, plus why the row is highlighted.
 
-    Shows `awaiting` when set. When it is not, falls back to the agent's owner in muted text —
+    Shows `suggested_to` when set. When it is not, falls back to the agent's owner in muted text —
     so a row is never blank in this column, and "nobody has been asked, but this is Jon's area"
     is visible at a glance rather than requiring you to know the mapping.
     """
-    if r["awaiting"]:
+    if r["suggested_to"]:
         badge = " <span class='pill mineflag'>you</span>" if r["mine_awaiting"] else ""
-        return (f"<span class=whocell>{avatar(r['awaiting'], 20)}"
-                f"<b>{html.escape(r['awaiting'])}</b></span>{badge}")
+        return (f"<span class=whocell>{avatar(r['suggested_to'], 20)}"
+                f"<b>{html.escape(r['suggested_to'])}</b></span>{badge}")
     if r["owners"]:
         faces = "".join(avatar(o, 20) for o in r["owners"])
         tag = " <span class='pill mineflag'>your area</span>" if r["mine_area"] else ""
@@ -2770,35 +3041,116 @@ def awaiting_cell(r):
     return "<span class=owner>—</span>"
 
 
+# Set by detail_page() immediately before it renders the form, so field() can show the derived
+# round without `rel` being threaded through every call site.
+_round_for_this_doc = None
+
+
+def _render_fields(rel, prefill):
+    """Render the whole review form, with the round derived for THIS transcript."""
+    global _round_for_this_doc
+    _round_for_this_doc = derived_round(rel)
+    try:
+        return "".join(field(k, prefill.get(k, "")) for k in REVIEW_KEYS)
+    finally:
+        _round_for_this_doc = None
+
+
 def field(k, val):
     # Label = field name + ⓘ, nothing else. All guidance is in the panel; see FIELD_DOC.
+    #
+    # Sentence case, from FIELD_LABEL with a capitalise-the-first-word fallback. The labels used
+    # to be the raw key with underscores swapped for spaces, so the form read "review status /
+    # reviewer / suggested by" in all lowercase - which looks like unfinished markup rather than
+    # a form. Only the ones whose wording differs from the key need an entry.
     icon, panel = doc_popover(k)
-    lab = f"<label>{k.replace('_',' ')}{icon}</label>"
-    if k in PEOPLE_KEYS:
+    words = k.replace("_", " ")
+    lab = f"<label>{FIELD_LABEL.get(k, words[:1].upper() + words[1:])}{icon}</label>"
+    if k in PEOPLE_KEYS or k == "suggested_to":
         # Default `reviewer` to the person using the tool. They opened the transcript; they are
         # the reviewer. Leaving it blank made the commonest action - open, agree, mark reviewed -
         # fail on its first click for every new contributor, and the error it produced was about
         # a field they had no reason to think was theirs to fill.
         #
         # ONLY when blank, so it never overwrites a name already recorded, and only for
-        # `reviewer` - `suggested_by` and `awaiting` are deliberate choices about other people
-        # and must stay empty until someone makes them.
+        # `reviewer` - a routing field is a deliberate choice about someone else and must stay
+        # empty until a reviewer makes it.
         if k == "reviewer" and not val and ME and ME in contributors():
             val = ME
         people = contributors()
         if not people:
             return (f"<div class=fld>{lab}<input data-fm={k} value=\"{html.escape(val)}\" "
                     f"placeholder='contributors.json is empty or unreadable'>{panel}</div>")
+        # ONE TYPE PER FIELD. `suggested_to` is a PERSON, `reassign_to` is an AGENT - they are
+        # the same act at two different granularities, and a select that accepted either would
+        # blur exactly the distinction the two fields exist to draw.
+        allowed = [""] + people
         opts = "".join(f"<option{' selected' if o == val else ''}>{html.escape(o)}</option>"
-                       for o in [""] + people)
+                       for o in allowed)
         stale = ("<div class=hint style='color:var(--danger-fg)'>current value "
                  f"'{html.escape(val)}' is not in contributors.json</div>"
-                 if val and val not in people else "")
+                 if val and val not in allowed else "")
         return f"<div class=fld>{lab}<select data-fm={k}>{opts}</select>{stale}{panel}</div>"
     if k in CHOICES:
         opts = "".join(f"<option{' selected' if o == val else ''}>{html.escape(o)}</option>"
                        for o in CHOICES[k])
         return f"<div class=fld>{lab}<select data-fm={k}>{opts}</select>{panel}</div>"
+    if k in MULTI_KEYS:
+        # A PICKER, not a text box. `kb_files` holds repo-relative paths, and typing them was
+        # the worst input on the form: long, easy to misspell, and a typo is silent - the field
+        # is documentation for whoever applies the change, so a wrong path sends them looking
+        # for a file that does not exist rather than failing anywhere visible.
+        #
+        # Stored exactly as before, comma-separated, so nothing downstream changes. Grouped by
+        # corpus because that is how a reviewer thinks about it, and because 42 flat filenames
+        # with four `_START_HERE.md` among them is unreadable.
+        chosen = [x.strip() for x in (val or "").split(",") if x.strip()]
+        groups = knowledge_files()
+        known = {f"{d}/{f}" for d, fs in groups.items() for f in fs}
+        opts = []
+        for corpus, files in groups.items():
+            opts.append(f"<optgroup label=\"{html.escape(corpus)}\">")
+            for f in files:
+                full = f"{corpus}/{f}"
+                sel = " selected" if full in chosen else ""
+                opts.append(f"<option value=\"{html.escape(full)}\"{sel}>"
+                            f"{html.escape(f)}</option>")
+            opts.append("</optgroup>")
+        # A path in the file that is no longer in the repo has to stay selectable, or saving the
+        # form would silently drop it - a renamed or deleted file is exactly when this field
+        # matters most.
+        gone = [c for c in chosen if c not in known]
+        if gone:
+            opts.append("<optgroup label=\"No longer in the repo\">")
+            opts += [f"<option value=\"{html.escape(g)}\" selected>{html.escape(g)}</option>"
+                     for g in gone]
+            opts.append("</optgroup>")
+        scope = ("" if is_admin() or not ME else
+                 " &middot; showing the corpora you own; an admin can name any file")
+        hint = (f"<div class=hint>Ctrl/Cmd-click for more than one{scope}" +
+                (f" &middot; <span style='color:var(--danger-fg)'>{len(gone)} path(s) no longer "
+                 "in the repo, kept so they are not lost</span>" if gone else "") + "</div>")
+        return (f"<div class=fld>{lab}"
+                f"<select data-fm={k} data-multi=1 multiple size=7>{''.join(opts)}</select>"
+                f"{hint}{panel}</div>")
+    if k in DERIVED_KEYS:
+        val = str(_round_for_this_doc or val or "1")
+        # READ-ONLY. `review_round` is a counter the tooling maintains, not an opinion: the
+        # Re-review button raises it, and validate_reviews.py uses it to tell a deliberate
+        # second verdict from an accidental overwrite of somebody else's.
+        #
+        # It was a free-text input, which made the one thing CI checks the one thing a reviewer
+        # could quietly break - and the instructions had to say "do not edit this by hand",
+        # which is the tell that it should never have been editable. Typing 1 over a 2 makes CI
+        # reject the push; typing 3 over a 2 defeats the check silently. Neither is a judgement
+        # anyone should be asked to make.
+        #
+        # Still submitted, via a hidden input, so the value round-trips unchanged on every save.
+        shown = html.escape(val or "1")
+        return (f"<div class=fld>{lab}"
+                f"<div class=roval>{shown}<span class=hint style='margin-left:8px'>"
+                "set by Re-review</span></div>"
+                f"<input type=hidden data-fm={k} value=\"{html.escape(val)}\">{panel}</div>")
     return f"<div class=fld>{lab}<input data-fm={k} value=\"{html.escape(val)}\">{panel}</div>"
 
 
@@ -2809,11 +3161,13 @@ def button_legend():
     matter are invisible from the button faces:
 
       * Save changes NO status - the other three all do.
-      * Suggest BLANKS `reviewer` and fills `suggested_by`. `reviewer` means "who made the
-        call", and mark_pushed.py and validate_reviews.py both rely on that, so the two fields
-        are not interchangeable.
-      * Re-review is the only one that bumps `review_round`, which is what stops CI rejecting a
-        second verdict as a silent overwrite of someone else's.
+      * Suggest KEEPS `reviewer` as you. What moves the work is `suggested_to` (a person) or
+        `reassign_to` (an agent), and one of them must be set or the suggestion has nowhere to
+        go. `reviewer` is always whoever did the reviewing, suggestion included.
+      * Mark reviewed REFUSES while either routing field is set. Handing off and deciding are
+        mutually exclusive: recording your verdict on work you just gave away would also pull it
+        back out of the recipient's queue.
+      * `review_round` is derived from what is on origin/main, not set by any of these.
       * Only the two "& next" buttons navigate.
 
     And the one people get wrong: none of these four touch git. They write the transcript FILE.
@@ -2827,23 +3181,27 @@ def button_legend():
          "stays pending. Use it to park a half-finished review, or before walking away."),
         ("Suggest &amp; next &rarr;",
          "suggested", True,
-         "Records this as a <b>suggestion for whoever owns that area</b>, not as your verdict.",
-         "Your name goes in <code>suggested_by</code> and <code>reviewer</code> is deliberately "
-         "left empty, because <code>reviewer</code> means <i>who made the call</i> &mdash; and "
-         "you are explicitly not making it. The owner puts their own name there when they "
-         "accept. Use it when you have worked out what is wrong in a corpus that is not yours."),
+         "Hands this to someone else &mdash; <b>you are giving up the decision</b>, not asking "
+         "for a second opinion.",
+         "Needs a destination: <b>Suggested to</b> for a person, or <b>Reassign to</b> for an "
+         "agent when the problem belongs to another corpus and you should not have to know who "
+         "owns it this month. Either one moves the transcript into their queue and out of "
+         "yours. <code>Reviewer</code> stays as you &mdash; suggesting is still something you "
+         "did, and it is the only record of who looked at this."),
         ("Re-review",
          "reviewed", False,
          "Records a <b>fresh verdict on something already reviewed</b>, and stays put.",
-         "Raises <code>review_round</code> by one. That matters: CI rejects a second verdict on "
-         "an already-reviewed transcript unless the round goes up, because two people reviewing "
-         "the same thing would otherwise have the later merge silently overwrite the earlier "
-         "one. Never edit the round by hand to get around it &mdash; pull the base branch, read "
-         "the existing verdict, and re-review deliberately."),
+         "<code>Review round</code> looks after itself &mdash; it is derived from what is "
+         "already merged on main, so a second verdict lands on the next round without anyone "
+         "typing a number. CI uses that to tell a deliberate re-review from two people "
+         "silently overwriting each other. If it says round 2, someone has decided this "
+         "before: pull main and read their verdict first."),
         ("Mark reviewed &amp; next &rarr;",
          "reviewed", True,
          "<b>Your verdict, done</b> &mdash; then straight to the next transcript.",
-         "Sets the status to <code>reviewed</code> with your name as <code>reviewer</code>. "
+         "Refuses while <b>Suggested to</b> or <b>Reassign to</b> is set: you cannot hand a "
+         "transcript over and also decide it. Otherwise sets the status to "
+         "<code>reviewed</code> with your name as <code>reviewer</code>. "
          "&ldquo;Next&rdquo; follows the order and filter of the table you came from, so it will "
          "not wander into transcripts you were not looking at, and it tells you when the batch "
          "runs out."),
@@ -2928,9 +3286,10 @@ def detail_page(rel):
         # Nothing here is a verdict yet. Say so loudly, or the owner reads a filled-in form
         # as settled and rubber-stamps someone else's guess.
         banner = ("<div class='bar bnr-sug'>"
-                  f"<b>Suggestion from {html.escape(fm.get('suggested_by','?'))}</b>"
-                  + (f", handed to <b>{html.escape(fm['awaiting'])}</b>"
-                     if fm.get("awaiting") else " — no owner named")
+                  f"<b>Suggestion from {html.escape(fm.get('reviewer','?'))}</b>"
+                  + (f", handed to <b>{html.escape(fm.get('suggested_to') or fm.get('reassign_to') or '')}</b>"
+                     if (fm.get("suggested_to") or fm.get("reassign_to"))
+                     else " — no destination named")
                   + ". <b>Not a verdict.</b> Nothing has been accepted and Claude will not act "
                     "on it. Read the correction and the proposed fix, change what you disagree "
                     "with, then <b>Mark reviewed</b> to accept it under your own name — or "
@@ -2943,7 +3302,7 @@ def detail_page(rel):
                   f"use <b>Re-review</b> to start a new one.</div>")
 
     parts = [head, banner, "<div class=card><div class=grid>"
-             + "".join(field(k, prefill.get(k, "")) for k in REVIEW_KEYS) + "</div></div>"]
+             + _render_fields(rel, prefill) + "</div></div>"]
 
     ci, cp = doc_popover("correction")
     for n, tools, q, a, rv in exchanges_of(body):
@@ -2982,7 +3341,12 @@ def detail_page(rel):
         # "Save" and "Mark reviewed" both sound like saving, and nothing on the faces hints that
         # Suggest blanks `reviewer` or that Re-review bumps the round.
         + button_legend())
-    return page(f"{fm.get('answered_by','')} {rel}", "".join(parts), rel=rel)
+    # The agent that ANSWERED, as a slug, so the reassign-to rule can tell "a different agent"
+    # from "the same one". A delegated conversation is owned by the sub-agent that handled it,
+    # not by the team router that passed it along.
+    cur_agent = (DELEGATE_SLUG.get((fm.get("delegated_to") or "").strip(), "")
+                 or (fm.get("answered_by") or "").strip())
+    return page(f"{fm.get('answered_by','')} {rel}", "".join(parts), rel=rel, agent=cur_agent)
 
 
 # The branch for this sitting, remembered for the lifetime of the server process.
@@ -5559,9 +5923,11 @@ class H(BaseHTTPRequestHandler):
                 # A suggestion with nobody's name on it is the whole problem this state exists
                 # to solve: the owner inherits a verdict-shaped edit and cannot ask who wrote
                 # it or why. Refuse it here rather than letting CI catch it after a push.
-                if st == "suggested" and not (fields.get("suggested_by") or "").strip():
-                    raise ValueError("a suggestion needs suggested_by — pick your name, then "
-                                     "use Suggest (it fills this in for you)")
+                if st == "suggested" and not ((fields.get("suggested_to") or "").strip()
+                                             or (fields.get("reassign_to") or "").strip()):
+                    raise ValueError("a suggestion needs a destination — set 'Suggested to' "
+                                     "(a person) or 'Reassign to' (an agent), otherwise it "
+                                     "sits in your queue and nobody is asked to decide")
                 # Refuse to drag a pre-go-live conversation into the review queue. Without
                 # this, one click of Suggest or Mark reviewed silently overwrote an `excluded`
                 # verdict and put months-old internal testing back in front of a reviewer.

@@ -79,8 +79,8 @@ def main():
             if st == "suggested":
                 # Closing out a suggestion would deploy an un-approved verdict and strip the
                 # area owner of the decision the state exists to reserve for them.
-                why = (f"still a suggestion from {fm_get(t, 'suggested_by') or '?'} awaiting "
-                       f"{fm_get(t, 'awaiting') or 'an owner'} — it must be accepted "
+                why = (f"still a suggestion from {fm_get(t, 'reviewer') or '?'} awaiting "
+                       f"{fm_get(t, 'suggested_to') or 'an owner'} — it must be accepted "
                        f"(marked reviewed) by a human before it can be closed out")
             skipped.append((f, why))
             continue
