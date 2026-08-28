@@ -49,9 +49,9 @@ depth, but never assume they are present.)
    content problem, so it gets misdiagnosed.
 
    **OWNERSHIP IS PER CORPUS.** Each `Knowledge-<Domain>/` folder belongs to one or more
-   contributors,
-   and `agent-owners.json` says who. A contributor owns **everything under their own folder**,
-   `_START_HERE.md` included.
+   contributors, and `agent-owners.json` says who. An owner owns **everything under their
+   folder**, `_START_HERE.md` included. Where a corpus has several owners, **any one of them
+   can approve** a change to it — they do not have to wait on each other.
 
    `.github/CODEOWNERS` is **generated** from that file — `python3 scripts/gen_codeowners.py`,
    with `--check` in CI. Do not hand-edit it. Ownership used to be recorded in
