@@ -85,6 +85,98 @@ Operations**, or have them file *Request or Share Functional Information*
 - **Promote when:** the Confluence page is fixed. Then delete this entry; the corrected
   mapping belongs in `Knowledge-Shared/Conf-OneTylerTickets.md`.
 
+### Q: How do I federate with Entra ID? What does the customer configure on the Entra side?
+
+**A:** Federation has **two halves**, and answers that cover only the Tyler half are the
+common failure here. The customer must first register an application in their own Entra ID
+tenant, then hand the resulting client details to the Tyler side (Admin Center, or ticket
+`4128` if Admin Center cannot be used).
+
+**Use when:** the user asks how to federate with Entra / Azure AD, what to send a customer so
+they can federate, or what the customer has to do in their own tenant. Applies to **Identity
+Workforce** federation.
+
+**Prerequisites:** the customer's Entra ID must be reachable from the public internet, support
+OIDC or SAML 2.0, and be able to release the claims Email, Username, First name, Last name.
+
+**Client side — register the application in Entra ID:**
+
+1. Sign in to the organization's Entra ID portal — https://entra.microsoft.com
+2. In the left-hand navigation, expand **Identity → Applications** and select **App
+   registrations**.
+3. Click **+ New registration**.
+4. On *Register an application*, set:
+   - **Name:** `TylerIdentityWorkforceIntegration`
+   - **Supported account type:** *Accounts in this organizational directory only*
+   - **Redirect URI** platform: **Web**
+   - **Redirect URI** value: `https://tyler-<customeridentifier>.okta.com/oauth2/v1/authorize/callback`
+5. From the **Overview** page, copy the **Application (client) ID** and the **Directory
+   (tenant) ID**.
+6. Go to **Manage → Certificates & secrets**, select the **Client secrets** tab, and click
+   **+ New client secret**:
+   - **Description:** `TylerIdentityWorkforceIntegration`
+   - **Expires:** 730 days (24 months). Tyler recommends the longest available expiry, to
+     reduce how often the federation has to be reconfigured in TID-W when the secret expires —
+     but the customer's own security posture governs this. Say both parts; do not present 730
+     days as a requirement.
+7. Click **Add**, then back on *Certificates & secrets* find the secret **Value** and copy it.
+
+**What that produces, for the Tyler side of the configuration:** Application (client) ID,
+Directory (tenant) ID, and the client secret **Value** — plus the endpoints and scopes the
+Admin Center form asks for.
+
+**Never put the client secret in a ticket.** It goes via Kiteworks, or the TID team collects it
+in a follow-up. Same for any test-user password.
+
+- **Source:** Confluence — *Federating using Entra ID through Admin Center*,
+  https://tylernow.atlassian.net/wiki/spaces/KA/pages/950796345/Federating+using+Entra+ID+through+Admin+Center
+  Supplied by Jon Olson from transcript review, 2026-08-28: the agent explained the Tyler side
+  and the ticket route but gave no client-side procedure.
+- **Added:** 2026-08-28 by jon-olson-tylertech
+- **Confidence:** confirmed by owner
+- **Promote when:** Blueprint `docs/identity/` documents client-side IdP registration. Then move
+  this to `Docusaurus-Identity.md` and delete the entry.
+
+### Q: Can the customer get into Admin Center before the federation is in place?
+
+**A:** **It depends on which Workforce deployment model the organization uses — establish that
+before answering.** This is the trap: the bootstrap path differs by model, so a single
+confident answer is wrong for at least one of them.
+
+**Do this first.** Ask, or confirm from Ops Center, whether the org is **Workforce Direct**,
+**Workforce Managed**, or **Workforce Global**. If the user has not said, ask — do not assume
+Direct because it is the most common. (This is the within-Workforce counterpart to the
+Workforce-vs-Community check in `_START_HERE.md`.)
+
+**Workforce Direct** — initial access is granted through a **magic link**, not through
+credentials issued to the technical contact. If federation is broken or not yet in place, the
+route back in is the *Reestablish Federation* process:
+https://tylertech.atlassian.net/wiki/spaces/TTI/pages/386625934/Tyler+Cloud+Platform+TCP+Reestablish+Federation+Demo
+
+**Workforce Global** — **in Private Preview as of 2026-08-28.** This model integrates with a
+local user store that **automatically creates the admin user's account**, so the bootstrap
+problem does not arise the same way. Say that it is Private Preview whenever you mention it.
+
+**Workforce Managed** — the initial-access path is **not documented in this corpus.** Do not
+infer it from the Direct behaviour. Say it needs confirming with the Tyler Identity team, and
+point at the ticket route in `Conf-IdentityTickets.md`.
+
+**Do NOT say** that the Customer Technical Contact named during org creation "receives Admin
+Center access credentials" and that this is what solves the chicken-and-egg problem. That
+framing was given in a real conversation on 2026-08-25 and is not how Workforce Direct
+actually bootstraps — the magic link is the mechanism. Naming a technical contact during org
+creation and how that contact first authenticates are two different things.
+
+- **Source:** Jon Olson (Tyler Identity corpus owner), transcript review 2026-08-28, correcting
+  the answer given in the 2026-08-25 conversation `9c230f8d`. Reestablish Federation demo page
+  supplied in the same review.
+- **Added:** 2026-08-28 by jon-olson-tylertech
+- **Confidence:** confirmed by owner for Workforce Direct and for Workforce Global being in
+  Private Preview. **Workforce Managed is unconfirmed and deliberately left blank** — see the
+  paragraph above rather than filling the gap.
+- **Promote when:** Blueprint documents the per-model bootstrap paths, or Workforce Global
+  leaves Private Preview — at which point this entry needs revisiting either way.
+
 ---
 
 ## Notes for the chatbot
