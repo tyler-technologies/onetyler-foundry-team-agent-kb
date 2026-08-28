@@ -251,8 +251,7 @@ Exception: Org Admin promotion / "Add an Org Admin" / self-promote — **does NO
 ### Request permission to use +Create Internal
 
 - **Use when:** You maintain internal orgs for a Tyler group/division and need UI or API access to create them.
-- **Ticket link:** N/A — no self-service ticket. Reach out to **Vijay Venkataraman** directly.
-  - Confluence reference: `/wiki/people/557058:71326a8b-b1c7-460a-87d3-a0a58f108b97?ref=confluence`
+- **Ticket link:** the [**Ops Center Related Tickets and Permissions**](https://tylertech.atlassian.net/wiki/spaces/TTI/pages/386600308/Tyler+Cloud+Platform+TCP+Ops+Center+Related+Tickets+and+Permissions) Confluence page → *Orgs* → **Ops Center Access or Additional Permissions**. Ask for the `+Create Internal` permission in the request; creation itself is gated and largely manual.
 - **Notes:**
   - Provided to maintainers of internal orgs for groups/divisions.
   - UI or API access available.
@@ -510,7 +509,7 @@ org admin", the agent returned the correct two-path answer but handed out only
 - For workspace migration (WM → WD retargeting), there is no single ticket URL — route the user to the migration runbook on Confluence.
 - The **non-standard workspace request** now has a dedicated live form: `group/3333/create/7513`. Hand out that URL plus the suffix rules (standard set + numbered extensions like `impl1`/`test2`; >7 workspaces gets scrutiny). Do NOT send people to the general `4150` form for this any more.
 - The **Environment not working** ticket (4129) is in **group 3328**, not the usual 3333 — and is gated on the filer having already proven a platform-wide issue with logs. Don't recommend it for ordinary single-org outages.
-- Internal-org creation is gated and largely manual — direct users to Vijay Venkataraman for `+Create Internal`.
+- Internal-org creation is gated and largely manual — the `+Create Internal` permission is requested via the [**Ops Center Related Tickets and Permissions**](https://tylertech.atlassian.net/wiki/spaces/TTI/pages/386600308/Tyler+Cloud+Platform+TCP+Ops+Center+Related+Tickets+and+Permissions) Confluence page → *Orgs* → **Ops Center Access or Additional Permissions**.
 - **Never invent a ticket URL.** If the right form is not listed here, send the user to the portal root (https://help.center.tylertech.com/servicedesk/customer/portal/3168) and name the group to pick, or to *Request or Share Functional Information* (`group/3333/create/4141`).
 - **All feature requests and enhancement ideas go to a different portal** — `3185`, not `3168`. See *Feature requests* below.
 - Confluence wiki links in this document use Tyler-internal paths (e.g. `/wiki/spaces/...`). They are usable from inside Tyler systems; tell external readers they are internal references.

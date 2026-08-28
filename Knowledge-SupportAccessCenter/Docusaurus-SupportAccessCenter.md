@@ -128,7 +128,7 @@ SAC is **not compatible with all combinations** of Organization Identity Tier an
 | Identity Tier | Workspace OnPrem Target | SAC Support |
 |---|---|---|
 | **Workforce Managed** | **Okta** | **No SAC support.** |
-| **Workforce Managed** | **Gateway** | **SAC supported after enablement.** Note: After enablement, **all users will see the Gateway login screen**; they can dismiss it by entering their userid and selecting **"Remember me"**. **Alert the customer to the new login screen before enabling**, then **reach out to Jason Howard** to request the Identity Configuration change for the organization. |
+| **Workforce Managed** | **Gateway** | **SAC supported after enablement.** Note: After enablement, **all users will see the Gateway login screen**; they can dismiss it by entering their userid and selecting **"Remember me"**. **Alert the customer to the new login screen before enabling**, then request the Identity Configuration change for the organization via the [**Ops Center Related Tickets and Permissions**](https://tylertech.atlassian.net/wiki/spaces/TTI/pages/386600308/Tyler+Cloud+Platform+TCP+Ops+Center+Related+Tickets+and+Permissions) Confluence page → *Orgs* → **Convert org**. |
 | **Workforce Direct / Workforce Delegated** | **Gateway** | **Full SAC support.** Users will also see the Gateway login screen, dismissible by clicking **"Remember me"**. |
 
 ### Enabling SAC on WM/Gateway
@@ -348,7 +348,7 @@ This section applies **only** to Support Council representatives for product tea
 
 ### Getting administrative permissions
 
-If you are an approved Support Council representative, reach out to **Vijay Venkataraman** or **Jason Howard** to be granted the requisite permissions. **Permissions are normally granted only in production (TylerPortico).** If you also need access to other environments, specify when reaching out.
+If you are an approved Support Council representative, request the requisite permissions through the [**Ops Center Related Tickets and Permissions**](https://tylertech.atlassian.net/wiki/spaces/TTI/pages/386600308/Tyler+Cloud+Platform+TCP+Ops+Center+Related+Tickets+and+Permissions) Confluence page → *Orgs* → **Ops Center Access or Additional Permissions**. **Permissions are normally granted only in production (TylerPortico).** If you also need access to other environments, say so on the request.
 
 ### Group administration links
 
@@ -421,13 +421,13 @@ It is **strongly recommended** to periodically audit access history for your pro
 
 ## Notes for the chatbot
 
-- **Always check both Identity Tier and OnPrem target** when a user asks "does SAC work for this org?". WM/Okta is the **only** unsupported combination. WM/Gateway needs explicit **enablement** + customer pre-notification + Jason Howard.
-- For **WM/Okta orgs**, the chatbot should suggest the customer needs to be moved to WM/Gateway (or WD/Gateway) to get SAC — and flag that this requires OneTyler coordination (Jason Howard) plus a customer-facing change to the login screen.
+- **Always check both Identity Tier and OnPrem target** when a user asks "does SAC work for this org?". WM/Okta is the **only** unsupported combination. WM/Gateway needs explicit **enablement** + customer pre-notification + an Identity Configuration change requested through the [**OneTyler Enhancement Request**](https://help.center.tylertech.com/servicedesk/customer/portal/3185/group/3385/create/4367) ticket.
+- For **WM/Okta orgs**, the chatbot should suggest the customer needs to be moved to WM/Gateway (or WD/Gateway) to get SAC — and flag that this requires OneTyler coordination, requested through the [**OneTyler Enhancement Request**](https://help.center.tylertech.com/servicedesk/customer/portal/3185/group/3385/create/4367) ticket, plus a customer-facing change to the login screen.
 - **Any Tyler staff member with an `@tylertech.com` email can log into SAC and reach the dashboard — no special authorization or group membership is required just to sign in.** What is gated by SAC group membership is the ability to **request access to a specific product**: the *Select products* step of the request wizard is filtered to products reachable via the staff member's SAC group memberships. When the user asks "how do I get access to SAC?", default to this login-is-open interpretation — it's by far the most common framing. Only mention the Support Council administration path as a brief aside, since that audience is specifically trained for the role and rarely asks the chatbot this question. Non-Tyler email logins are not supported.
 - The **"Tyler access" Admin Center setting** is the gating control between auto-approval (**Full access**, default) and manual approval (**Limited access**). When a user reports their request is stuck, first check the org's Tyler access setting.
 - **Extensions create a second audit record** — if a user thinks they have "duplicate" requests after extending, that is by design (audit trail preservation). Revoking the extension does NOT revoke the original; remind users they must revoke both if they want all access gone.
 - **Magic-link / approval emails** are how the customer Org Admin learns about requests — set expectations that an Org Admin must actually exist (and have email reachability) for a Limited-access org's manual workflow to function.
 - For products **adopting SAC**, the chatbot should never claim a product "supports" SAC without verifying both the Security API integration AND the support-access-revoked webhook subscription — both are required.
 - **Group naming convention is enforced** (`{DivisionCode} - {Product} - {Role}`) — when a Support Council rep asks the chatbot for group-name suggestions, always use the convention with the right division code from the table above.
-- **Permission grants for group administration default to production only.** If a Support Council rep needs non-prod, they must explicitly say so when reaching out to Vijay Venkataraman or Jason Howard.
+- **Permission grants for group administration default to production only.** If a Support Council rep needs non-prod, they must explicitly say so on the request — see the [**Ops Center Related Tickets and Permissions**](https://tylertech.atlassian.net/wiki/spaces/TTI/pages/386600308/Tyler+Cloud+Platform+TCP+Ops+Center+Related+Tickets+and+Permissions) Confluence page → *Orgs* → **Ops Center Access or Additional Permissions**.
 - This SAC `Knowledge-SupportAccessCenter/` corpus is **its own Foundry agent domain** — separate from `Knowledge-OpsCenter/`. Cross-domain references (Org Identity Tier, OnPrem target, ticket form 4149) should still resolve via the companion Ops Center documents listed at the top.

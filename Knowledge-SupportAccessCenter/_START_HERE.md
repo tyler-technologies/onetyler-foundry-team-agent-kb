@@ -100,7 +100,7 @@ Several SAC-adjacent topics live in the **Ops Center** corpus, not here. The cha
 - **Customer-facing user guides.** This corpus is for Tyler engineering, Support Council reps, and Tyler operational staff. The customer-facing portion (Org Admin approval workflow) is described from the Tyler perspective.
 - **Audit log query language / export formats.** The History view is described; programmatic access to history is not documented here.
 
-When a user asks about something not covered, say so plainly and (if applicable) point them at the SAC team or the Identity team via the channels listed in `Docusaurus-SupportAccessCenter.md` → *Getting administrative permissions* (Vijay Venkataraman / Jason Howard).
+When a user asks about something not covered, say so plainly and (if applicable) point them at the ticket routes listed in `Docusaurus-SupportAccessCenter.md` → *Getting administrative permissions* — for permissions, the [**Ops Center Related Tickets and Permissions**](https://tylertech.atlassian.net/wiki/spaces/TTI/pages/386600308/Tyler+Cloud+Platform+TCP+Ops+Center+Related+Tickets+and+Permissions) Confluence page → *Orgs* → **Ops Center Access or Additional Permissions**.
 
 ---
 
@@ -118,13 +118,13 @@ Same prefixes as the Ops Center corpus:
 ## Operating principles for the chatbot
 
 1. **Read this file first on every session for SAC-related queries.** Then go to `Docusaurus-SupportAccessCenter.md` for the substance, OR hand off to the Ops Center corpus per the cross-domain table above.
-2. **The Identity-Tier × OnPrem-Target compatibility matrix is the #1 SAC gotcha.** Always check this when a user asks "can SAC work for my customer?" — WM/Okta is unsupported; WM/Gateway needs explicit enablement plus customer pre-notification plus a Jason Howard handoff; WD/Gateway and WD-Delegated/Gateway are fully supported.
+2. **The Identity-Tier × OnPrem-Target compatibility matrix is the #1 SAC gotcha.** Always check this when a user asks "can SAC work for my customer?" — WM/Okta is unsupported; WM/Gateway needs explicit enablement plus customer pre-notification plus an Identity Configuration change requested through the [**OneTyler Enhancement Request**](https://help.center.tylertech.com/servicedesk/customer/portal/3185/group/3385/create/4367) ticket; WD/Gateway and WD-Delegated/Gateway are fully supported.
 3. **Two engineering requirements for SAC adoption are non-negotiable:** (a) integrate with `tcp-login-security-api` v1, (b) subscribe to the `support-access-revoked` webhook. Don't tell a product team they "support SAC" until both are in place.
 4. **SAC login is open to any `@tylertech.com` user — no special authorization is required to reach the dashboard.** What's gated by SAC group membership is the ability to **request access to a specific product** (the *Select products* step in the request wizard is filtered to products the user's groups allow). When users ask "how do I get access to SAC?", default to the staff-member login interpretation — it's by far the most common framing. Only mention the Support Council admin path as a brief aside; that audience is trained separately. Non-Tyler email logins are not supported.
 5. **The "Tyler access" Admin Center setting** is the customer-side switch between auto-approval (Full access, default) and manual approval (Limited access). When a user's SAC request is "stuck," check this setting first.
 6. **Extensions create a second audit record** — by design, for audit trail preservation. Revoking an extension does NOT revoke the original; remind users they must revoke both if they want all access gone.
 7. **Group naming convention is enforced:** `{Division/Major Group code} - {Optional Product} - {Optional Team/Role/Permission Type}`. Division codes are MS, AT, CJ, PS, SF, ECC, OT. When a Support Council rep asks for naming help, apply this format.
-8. **Permission grants for group administration default to production only.** If a Support Council rep needs non-prod access, they must explicitly request it from Vijay Venkataraman or Jason Howard.
+8. **Permission grants for group administration default to production only.** If a Support Council rep needs non-prod access, they must explicitly request it on the [**Ops Center Related Tickets and Permissions**](https://tylertech.atlassian.net/wiki/spaces/TTI/pages/386600308/Tyler+Cloud+Platform+TCP+Ops+Center+Related+Tickets+and+Permissions) Confluence page → *Orgs* → **Ops Center Access or Additional Permissions** ticket.
 
 ---
 

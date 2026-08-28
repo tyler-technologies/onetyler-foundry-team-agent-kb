@@ -248,7 +248,7 @@ The **+Create internal (organization)** option lets Ops Center users with the re
 
 ### Create-internal wizard — step by step
 
-1. **Access** — From the Organizations list page, click **+Create internal**. (Permission gated; see `Knowledge-Shared/Conf-OneTylerTickets.md` for how to get it — note this option is handled out-of-band by reaching Vijay Venkataraman.)
+1. **Access** — From the Organizations list page, click **+Create internal**. (Permission gated; request it via the [**Ops Center Related Tickets and Permissions**](https://tylertech.atlassian.net/wiki/spaces/TTI/pages/386600308/Tyler+Cloud+Platform+TCP+Ops+Center+Related+Tickets+and+Permissions) Confluence page → *Orgs* → **Ops Center Access or Additional Permissions** — see also `Knowledge-Shared/Conf-OneTylerTickets.md`.)
 2. **Select Identity Setup** — Same options as Import (Workforce Direct typical; Workforce Delegated for special cases like a group/division with an IdP for internal demo users plus dependent internal orgs).
 3. **Enter Org Key + Org Title** — Manually enter both. Org Key format: `{3-char division/group code}{purpose code}{label}`, max 50 chars total. Follow internal-org naming conventions (Confluence: *Internal Orgs creation in Ops Center → Internal-Org-Naming-Construct*, `/wiki/spaces/SPY/pages/407176942/`).
 4. **(Workforce Delegated only) Select Super org** — Must be a valid existing internal org that is not itself Workforce Delegated.
