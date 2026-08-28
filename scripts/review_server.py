@@ -254,6 +254,8 @@ FORGE_ICONS = {
     'chevron_down': ("M7.41 8.58 12 13.17l4.59-4.59L18 10l-6 6-6-6z"),
     # a closed disclosure (was U+25B8)
     'chevron_right': ("M8.59 16.58 13.17 12 8.59 7.41 10 6l6 6-6 6z"),
+    # Eval Review - a checklist being ticked off, one transcript at a time
+    'clipboard_check': ("M19 3h-4.18C14.4 1.84 13.3 1 12 1s-2.4.84-2.82 2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m-7 0a1 1 0 0 1 1 1 1 1 0 0 1-1 1 1 1 0 0 1-1-1 1 1 0 0 1 1-1M7 7h10V5h2v14H5V5h2zm.5 6.5L9 12l2 2 4.5-4.5L17 11l-6 6z"),
 }
 
 
@@ -1281,6 +1283,7 @@ nav.side a .ic svg{display:block}
 .ic-git{color:var(--forge-theme-primary)}       /* the main outbound action */
 .ic-prs{color:var(--accent-purple)}             /* matches the delegated/suggested purple */
 .ic-bk{color:var(--forge-theme-success)}        /* safety net */
+.ic-ev{color:var(--forge-theme-warning)}        /* a decision is waiting on you */
 /* On the selected row the label goes primary, and a coloured icon beside it reads as a
    mismatch rather than as emphasis - so the tint yields to the active state. */
 nav.side a.on .ic svg{color:var(--forge-theme-primary)}
@@ -1466,6 +1469,29 @@ ol.prog li.none b{text-decoration:line-through}
 ol.prog li.none::before{content:"\2013";color:var(--forge-theme-text-low)}
 ol.prog li.fdry::before{content:"";border:1.5px dashed var(--forge-theme-warning);
 box-sizing:border-box}
+/* --- EVAL REVIEW. Before/Now side by side, because the judgement being asked for is a
+   comparison and stacking them makes the reader hold one in their head. */
+.evcard{border-left:3px solid var(--forge-theme-outline-low)}
+.evcard.evok{border-left-color:var(--forge-theme-success)}
+.evhead{display:flex;align-items:center;gap:9px;cursor:pointer;font-size:14px}
+.evhead input{width:17px;height:17px;accent-color:var(--forge-theme-primary);cursor:pointer;
+flex:0 0 auto}
+.evq{background:var(--forge-theme-surface-container);border-radius:5px;padding:9px 11px;
+margin:0 0 10px;font-size:13.5px}
+.evq b{color:var(--forge-theme-text-medium);margin-right:6px}
+.evcols{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:900px){.evcols{grid-template-columns:1fr}}
+.evlab{font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;
+margin:0 0 5px;color:var(--forge-theme-text-medium)}
+.evbefore pre,.evafter pre{margin:0;padding:10px;border-radius:5px;font-size:12px;
+line-height:1.5;white-space:pre-wrap;word-break:break-word;max-height:320px;overflow:auto;
+border:1px solid var(--forge-theme-outline-low)}
+.evbefore pre{background:var(--d-del-bg,var(--forge-theme-surface-container))}
+.evafter pre{background:var(--d-add-bg,var(--forge-theme-surface-container))}
+.evcorr{margin-top:10px}
+.evcorr summary{cursor:pointer;font-size:13px;color:var(--forge-theme-primary)}
+.evcorr pre{margin:8px 0 0;padding:10px;border-radius:5px;font-size:12.5px;white-space:pre-wrap;
+background:var(--bnr-sug-bg);color:var(--bnr-sug-fg)}
 /* "It ran; now YOU decide." Deliberately not `done`: a green tick on the eval would say the
    step is complete when the only thing that completes it is a human reading the answers. It
    was the absence of any such state that made the eval invisible in this list. */
@@ -2197,20 +2223,24 @@ function runEval(btn){
   .then(r=>r.json()).then(d=>{
     if(out){out.textContent=d.output||'(no output)';}
     // `you`, not `done` - the eval has run but the step is not finished until the answers have
-    // been read. gitDo('pr') is what finally ticks it, from the gate button below.
+    // been read. gitDo('pr') is what finally ticks it, from the Eval Review screen.
     stage('eval', d.ok===false ? 'fail' : 'you');
     btn.disabled=false; btn.textContent=was;
-    const host=btn.parentNode;
-    if(!host.querySelector('.evalgate')){
-      const g=document.createElement('div');
-      g.className='evalgate';
-      g.innerHTML='<div class="bar bnr-note" style="margin:12px 0 8px">'
-        +'<b>Read the answers above before going further.</b> If they are right, send the batch '
-        +'in. If they are not, the change is not ready \u2014 put the transcripts back to '
-        +'pending and keep working. Nothing has been sent.</div>'
-        +'<button onclick="gitDo(\'pr\')">Answers look right \u2014 send it in</button> '
-        +'<button class=sec onclick="resetPending(this)">Put transcripts back to pending</button>';
-      host.appendChild(g);
+    // STRAIGHT TO THE DEDICATED SCREEN. The answers used to be left in this panel with two
+    // buttons under them, which is where a reviewer failed to find anything to approve: the
+    // panel's job is git output, and per-transcript approval was not expressible there at all.
+    if(d.ok!==false){
+      const host=btn.parentNode;
+      if(!host.querySelector('.evalgate')){
+        const g=document.createElement('div');
+        g.className='evalgate';
+        g.innerHTML='<div class="bar bnr-note" style="margin:12px 0 8px">'
+          +'<b>The check has run. Now approve it, one transcript at a time.</b> '
+          +'Nothing has been sent.</div>'
+          +'<button onclick="location.href=\'/evalreview\'">Go to Eval Review</button>';
+        host.appendChild(g);
+      }
+      location.href='/evalreview';
     }
   })
   .catch(e=>{ if(out){out.textContent='The check failed to run: '+e
@@ -2223,12 +2253,82 @@ function runEval(btn){
 // When the answers are wrong, the batch goes back to pending so the work can continue. Only the
 // STATUS moves - every correction, summary and field value is kept, because the verdict was
 // premature rather than wrong to have been written.
+//
+// IT MUST VISIBLY RESET PART 2. The first version wrote its output into the panel and changed
+// nothing else, so the stages still read as they had, the eval gate was still sitting there, and
+// the banner still described a batch that no longer existed. A reviewer clicked it and reported
+// that it "didn't seem to do anything" - the transcripts HAD gone back to pending, silently.
+// A state change nobody can see is indistinguishable from a no-op.
 function resetPending(btn){
  confirmThen(btn,'Put this batch back to pending?',
    'Clears the reviewed status on the transcripts in this batch so you can keep working on '
    +'them. Your corrections, summaries and field values are all kept \u2014 only the status '
-   +'changes.',
-   ()=>gitDo('reset-pending'));
+   +'changes.<br><br>Part 2 resets: the check will need to run again once the answers are '
+   +'right.',
+   ()=>gitDo('reset-pending').then(()=>resetPart2()));
+}
+
+// ---- EVAL REVIEW screen ----
+// One checkbox per replayed exchange. Each click persists immediately rather than on a Save:
+// the reviewer is reading long answers and will scroll, open the transcript, come back - and an
+// approval that only existed in the DOM would be lost the first time they did.
+function evSet(cb,key){
+ const card=document.getElementById('c-'+key);
+ if(card) card.classList.toggle('evok',cb.checked);
+ post('/evalapprove',{action:'one',key:key,on:cb.checked}).then(evTally);
+}
+function evAll(on){
+ document.querySelectorAll('.evcard input[type=checkbox]').forEach(cb=>{
+   cb.checked=!!on; const c=cb.closest('.evcard'); if(c)c.classList.toggle('evok',!!on);});
+ post('/evalapprove',{action:'all',on:!!on}).then(evTally);
+}
+// The send button and the banner both depend on ALL of them, so they are recomputed from the
+// server's count rather than from the checkboxes - the two can disagree if a knowledge file
+// changed underneath, in which case the server drops every approval and the page must say so.
+function evTally(r){
+ if(!r||r.ok===false)return;
+ const st=document.getElementById('evstate');
+ if(st) st.innerHTML = r.allOk
+   ? '<b>All '+r.nTot+' approved.</b> The batch can be sent in.'
+   : '<b>'+r.nOk+' of '+r.nTot+' approved.</b> Tick every transcript whose answer is right. '
+     +'Anything you leave unticked is not ready, and the send stays shut.';
+ const send=document.getElementById('evsend');
+ if(send){send.disabled=!r.allOk;
+   send.title = r.allOk ? '' : 'Approve every transcript first';}
+}
+function evSend(btn){
+ confirmThen(btn,'Send the batch in?',
+   'Opens the change request(s) for your knowledge updates and verdicts. On merge, the '
+   +'knowledge files are published to Foundry and the agents change.',
+   ()=>post('/git',{action:'pr'}).then(r=>{
+     const o=document.getElementById('gitout');
+     if(o){o.style.display='block'; o.textContent=r.output||'(no output)';}
+   }));
+}
+function evReset(btn){
+ confirmThen(btn,'Put the batch back to pending?',
+   'Clears the reviewed status on every transcript in this batch so you can keep working. '
+   +'Your corrections, summaries and field values are all kept — only the status changes, and '
+   +'Part 2 resets.',
+   ()=>post('/git',{action:'reset-pending'}).then(r=>{
+     const o=document.getElementById('gitout');
+     if(o){o.style.display='block'; o.textContent=r.output||'(no output)';}
+     setTimeout(()=>{location.href='/git'},900);
+   }));
+}
+
+// Put Part 2 back to its starting state. Called after a reset, and deliberately not merged into
+// gitDo's generic refresh: every other action moves the batch FORWARD, and only this one
+// unwinds it.
+function resetPart2(){
+ ['ai','eval','push','pr'].forEach(s=>{
+   const el=document.querySelector('#prog li[data-stage='+s+']');
+   if(el&&!el.classList.contains('none')){
+     el.classList.remove('run','done','fail','you'); el.classList.add('wait');}});
+ document.querySelectorAll('.evalgate').forEach(g=>g.remove());
+ const cb=document.getElementById('doeval'); if(cb) cb.checked=true;
+ const b=document.querySelector('[data-ai-pending]');
+ if(b){b.disabled=false; b.textContent='Send my reviews in';}
 }
 function copyPrompt(btn){
  const text=window.AI_PROMPT||'';
@@ -2883,6 +2983,11 @@ def page(title, inner, active="", all_view=False, rel="", agent=""):
         + item("/analytics", icon("chart_bar", 19, "ic-an"), "OT Analytics", None, "analytics")
         + "<div class=grp>Save &amp; Publish</div>"
         + item("/git", icon("publish", 19, "ic-git"), "Save &amp; Share", uncommitted or None, "git")
+        # Visible to everyone who can run Part 2, which is everyone. The badge is the number
+        # still needing a decision, so an unread eval is visible from any page rather than only
+        # from the panel it happened to print into.
+        + item("/evalreview", icon("clipboard_check", 19, "ic-ev"), "Eval Review",
+               eval_pending_count() or None, "evalrev")
         # Admins only, same rule as All Transcripts: a contributor cannot merge, so the item
         # would be a link to a page of buttons that all refuse.
         + (item("/prs", icon("source_pull", 19, "ic-prs"), "PRs", open_pr_count or None, "prs")
@@ -6392,6 +6497,140 @@ def candidate_fingerprint():
     return h.hexdigest()
 
 
+def latest_eval_dir():
+    """Newest .eval/<stamp>/ that actually produced answers, or None.
+
+    Sorted by NAME, not mtime: the stamp is the run time, while mtime moves when the restore
+    phase rewrites files in an older directory. Name ordering is what "newest run" means.
+    """
+    root = REPO / ".eval"
+    if not root.is_dir():
+        return None
+    runs = sorted((d for d in root.iterdir()
+                   if d.is_dir() and (d / "RESULTS.json").is_file()),
+                  key=lambda d: d.name, reverse=True)
+    return runs[0] if runs else None
+
+
+def eval_records():
+    """[(rel, agent, n, question, before, after, approved)] for the newest eval run.
+
+    `before` is the answer PRESERVED IN THE TRANSCRIPT - what the agent said when the
+    conversation happened - and `after` is what it said during the eval. Showing them together
+    is the entire point of the screen: an answer can look reasonable on its own and still be
+    the same wrong answer that was reviewed, and nobody can tell without the pair side by side.
+    """
+    d = latest_eval_dir()
+    if d is None:
+        return []
+    try:
+        results = json.loads((d / "RESULTS.json").read_text())
+    except Exception:                                                     # noqa: BLE001
+        return []
+    appr = eval_approvals()
+    out = []
+    for r in results:
+        rel = r.get("transcript") or ""
+        n = str(r.get("n") or "")
+        # eval_batch writes `question`/`answer`; accept the short names too so an older run
+        # directory still renders instead of showing two empty panes.
+        q = r.get("question") or r.get("q") or ""
+        after = r.get("answer") or r.get("ans") or ""
+        # MATCH ON THE QUESTION TEXT, NOT THE INDEX. eval_batch numbers the questions it
+        # replays from 1, while the transcript keeps the original exchange numbers - and canned
+        # starting prompts are dropped on the way in, so the two disagree whenever one was
+        # present. This batch is exactly that case: eval `n=1` is the file's `## Exchange 2`.
+        # Indexing by n silently showed no "before" at all.
+        before, xnum = "", n
+        f = REPO / rel
+        if f.is_file():
+            _, body = parse(f)
+            exs = exchanges_of(body or "")
+            norm = lambda s: re.sub(r"\s+", " ", (s or "")).strip().lower()
+            hit = next((e for e in exs if norm(e[2]) == norm(q)), None)
+            if hit is None:                       # fall back to positional, then to the index
+                hit = next((e for e in exs if e[0] == n), None)
+            if hit is not None:
+                xnum, before = hit[0], hit[3]
+        out.append((rel, r.get("agent") or "team", n, q, before, after,
+                    f"{rel}#{n}" in appr, xnum))
+    return out
+
+
+def eval_propagation():
+    """[(collection, file, live, seconds)] for the newest run, or [] if not recorded.
+
+    Absent for runs made before this was captured - treated as "unknown", not as "fine".
+    """
+    d = latest_eval_dir()
+    if d is None or not (d / "PROPAGATION.json").is_file():
+        return []
+    try:
+        return [(p.get("collection", ""), p.get("file", ""), bool(p.get("live")),
+                 p.get("seconds")) for p in json.loads((d / "PROPAGATION.json").read_text())]
+    except Exception:                                                     # noqa: BLE001
+        return []
+
+
+def _appr_path():
+    d = latest_eval_dir()
+    return None if d is None else d / "APPROVALS.json"
+
+
+def eval_approvals():
+    """The set of approved "<rel>#<n>" keys for the newest run.
+
+    Tied to the candidate fingerprint on disk. Edit a knowledge file after approving and the
+    stored fingerprint stops matching, so every approval is dropped rather than carried over -
+    an approval means "these answers, from this content", and the content just changed.
+    """
+    p = _appr_path()
+    if p is None or not p.is_file():
+        return set()
+    try:
+        d = json.loads(p.read_text())
+    except Exception:                                                     # noqa: BLE001
+        return set()
+    if d.get("fingerprint") != candidate_fingerprint():
+        return set()
+    return set(d.get("approved") or [])
+
+
+def set_eval_approval(keys, on):
+    """Add/remove approval keys, stamped with the fingerprint they were given against."""
+    p = _appr_path()
+    if p is None:
+        return set()
+    cur = eval_approvals()
+    cur = (cur | set(keys)) if on else (cur - set(keys))
+    p.write_text(json.dumps({"fingerprint": candidate_fingerprint(),
+                             "approved": sorted(cur)}, indent=2))
+    return cur
+
+
+def eval_all_approved():
+    """(all_approved, n_approved, n_total) for the newest run."""
+    recs = eval_records()
+    if not recs:
+        return False, 0, 0
+    ok = sum(1 for r in recs if r[6])
+    return ok == len(recs), ok, len(recs)
+
+
+def eval_pending_count():
+    """How many replayed exchanges still need a decision - the nav badge.
+
+    Cheap enough to run on every page render: it reads one JSON file and one transcript per
+    result, and a batch is single digits. Guarded anyway, because a nav item that can raise
+    takes out every page in the app rather than just its own.
+    """
+    try:
+        recs = eval_records()
+    except Exception:                                                     # noqa: BLE001
+        return 0
+    return sum(1 for r in recs if not r[6])
+
+
 def router_changes():
     """Router-affecting files in this batch, committed or not. [] if none."""
     rc, out = git("diff", "--name-only", "origin/main", "--", *ROUTER_PATHS)
@@ -6462,6 +6701,147 @@ def _router_warning():
             "<i>every</i> conversation &mdash; and the transcript that reveals it looks like a "
             "content problem, so it gets misdiagnosed for days. Doubly worth doing outside "
             "working hours, and worth having somebody else read the diff first.</div>")
+
+
+def eval_review_page():
+    """A screen of its own for judging what the agents said after the change.
+
+    WHY THIS IS NOT PART OF THE OUTPUT PANE.
+    ----------------------------------------
+    It used to be: the eval printed its answers into the same panel that shows git output, with
+    a pair of buttons underneath. A reviewer said plainly they could not find anything to
+    approve, and they were right - the one screen in this app where somebody has to read
+    carefully and make a per-transcript judgement was rendered as terminal output, in a panel
+    whose stated job is "paste this to your assistant if a step failed". Approval per transcript
+    was not expressible at all: the two buttons acted on the whole batch.
+
+    So each replayed exchange gets a card with the question, the answer BEFORE, the answer NOW,
+    the reviewer's own correction to check it against, and one checkbox. The send stays shut
+    until every card is ticked.
+    """
+    recs = eval_records()
+    d = latest_eval_dir()
+    files, n_q, _mins = eval_estimate()
+
+    if not recs:
+        # Two genuinely different empty states. "No eval has run" is a normal starting point;
+        # "an eval ran but the content has moved on" is a stale result that must not be
+        # mistaken for one, because its answers describe content that no longer exists.
+        if d is None:
+            body = ("<div class='bar bnr-note'><b>No check has run yet.</b> Finish the knowledge "
+                    "updates, then run the check from "
+                    "<a href='/git'><b>Save &amp; Share</b></a> &mdash; Part 2, "
+                    "<b>Review eval</b>. The answers land here for you to approve, one "
+                    "transcript at a time.</div>")
+        else:
+            body = ("<div class='bar bnr-router'><b>The last check is out of date.</b> A "
+                    "knowledge file has changed since it ran, so its answers describe content "
+                    "that no longer exists. Run the check again from "
+                    "<a href='/git'><b>Save &amp; Share</b></a>.</div>")
+        return page("Eval Review", "<h2 class=sec>Eval Review</h2>" + body, active="evalrev")
+
+    all_ok, n_ok, n_tot = eval_all_approved()
+    when = d.name.replace("T", " ").replace("-", ":", 0) if d else ""
+
+    # DID THE CANDIDATE CONTENT ACTUALLY GO LIVE BEFORE THE QUESTIONS WERE ASKED?
+    # If it did not, every answer below came from the OLD content and approving them would ship
+    # an untested change while the screen said it was checked. This warning exists because that
+    # happened: a run's answers repeated the exact claim the change removed, and the only
+    # evidence was one line in a scrollback nobody had reason to re-read.
+    prop = eval_propagation()
+    stale = [p for p in prop if not p[2]]
+    warn = ""
+    if stale:
+        warn = ("<div class='bar bnr-router'><b>These answers cannot be trusted.</b> "
+                + f"{len(stale)} of {len(prop)} file(s) never went live in Foundry before the "
+                "questions were asked, so the agents answered from the <b>old</b> content:"
+                + "".join(f"<br>&nbsp;&nbsp;<code>{html.escape(c)}/{html.escape(f)}</code>"
+                          for c, f, _l, _s in stale)
+                + "<br><br>Do not approve. Run the check again &mdash; Bedrock ingestion is the "
+                  "slow part and a busy tenant can outlast the wait.</div>")
+    elif not prop:
+        warn = ("<div class='bar bnr-note'><b>Propagation was not recorded for this run.</b> "
+                "It predates that check, so whether the candidate content was live when the "
+                "questions were asked is unknown. Read the answers for the specific wording "
+                "your change introduced &mdash; if it is absent, re-run rather than approve."
+                "</div>")
+
+    head = (
+        f"<h2 class=sec>Eval Review</h2>"
+        + warn
+        + f"<div class=bar id=evstate>"
+        + (f"<b>All {n_tot} approved.</b> The batch can be sent in."
+           if all_ok else
+           f"<b>{n_ok} of {n_tot} approved.</b> Tick every transcript whose answer is right. "
+           "Anything you leave unticked is not ready, and the send stays shut.")
+        + "</div>"
+        "<div class=card>"
+        "<h3>What you are deciding</h3>"
+        "<p class=sub>Each card is one exchange that was replayed against your changed "
+        "knowledge files. <b>Before</b> is what the agent said when the conversation happened; "
+        "<b>Now</b> is what it said with your change in place. Approve only where the new "
+        "answer actually fixes what you objected to.</p>"
+        f"<p class=sub>Run <code>{html.escape(when)}</code> &middot; "
+        f"{len(files)} knowledge file(s) &middot; {n_q} question(s). "
+        "Foundry has already been put back to what it was.</p>"
+        "<div class=stepacts>"
+        "<button class=sec onclick=\"evAll(1)\">Approve all</button>"
+        "<button class=sec onclick=\"evAll(0)\">Clear all</button>"
+        "</div></div>")
+
+    cards = []
+    for rel, agent, n, q, before, after, ok, xnum in recs:
+        key = f"{rel}#{n}"
+        loc = f"/t/{rel.split('/', 1)[1].rsplit('/', 1)[0]}/{Path(rel).name}" \
+            if rel.startswith("transcripts/") and rel.count("/") >= 2 else "/"
+        # The reviewer's own correction, quoted back. They wrote it hours or days ago and it is
+        # the only statement of what "right" means for this exchange.
+        corr = ""
+        f = REPO / rel
+        if f.is_file():
+            _, b = parse(f)
+            for xn, _t, _qq, _a, rv in exchanges_of(b or ""):
+                if xn == xnum and rv:
+                    corr = rv
+                    break
+        cards.append(
+            "<div class='card evcard" + (" evok" if ok else "") + f"' id=\"c-{html.escape(key)}\">"
+            "<label class=evhead>"
+            f"<input type=checkbox {'checked' if ok else ''} "
+            f"onchange=\"evSet(this,'{html.escape(key)}')\">"
+            "<span><b>This answer is right</b></span></label>"
+            f"<div class=sub style='margin:2px 0 10px'>"
+            f"<a href=\"{html.escape(loc)}\">{html.escape(Path(rel).name)}</a> &middot; "
+            f"agent <code>{html.escape(agent)}</code> &middot; "
+            f"exchange {html.escape(str(xnum))}</div>"
+            f"<div class=evq><b>Q</b> {html.escape(q)}</div>"
+            "<div class=evcols>"
+            f"<div class=evbefore><div class=evlab>Before</div><pre>{html.escape(before or '(not recorded)')}</pre></div>"
+            f"<div class=evafter><div class=evlab>Now</div><pre>{html.escape(after or '(no answer returned)')}</pre></div>"
+            "</div>"
+            + (f"<details class=evcorr><summary>Your correction, for comparison</summary>"
+               f"<pre>{html.escape(corr)}</pre></details>" if corr else "")
+            + "</div>")
+
+    foot = (
+        "<div class=card><h3>When you are done</h3>"
+        + ("<p class=sub>Every transcript is approved. Sending in opens the change request(s) "
+           "and, on merge, publishes to Foundry.</p>"
+           if all_ok else
+           "<p class=sub>Approve every transcript to send the batch in. If an answer is wrong, "
+           "leave it unticked and put the batch back to pending &mdash; your corrections and "
+           "field values are kept, and Part 2 resets so you can keep working.</p>")
+        + "<div class=stepacts>"
+        + (f"<button id=evsend onclick=\"evSend(this)\">Send the batch in</button>"
+           if all_ok else
+           "<button id=evsend disabled title='Approve every transcript first' "
+           "onclick=\"evSend(this)\">Send the batch in</button>")
+        + "<button class=sec onclick=\"evReset(this)\">Put the batch back to pending</button>"
+        "</div></div>"
+        "<div class=card><h3 id=outhead>Output</h3>"
+        "<pre class=out id=gitout style='display:none'></pre></div>")
+
+    return page("Eval Review", head + "".join(cards) + foot, active="evalrev")
 
 
 def git_page():
@@ -6706,6 +7086,8 @@ class H(BaseHTTPRequestHandler):
             return self._send(200, pr_page(force="refresh=1" in self.path))
         if self.path == "/git":
             return self._send(200, git_page())
+        if self.path == "/evalreview" or self.path.startswith("/evalreview?"):
+            return self._send(200, eval_review_page())
         if self.path.startswith("/t/"):
             pg = detail_page(unquote(self.path[3:]))
             return self._send(200, pg) if pg else self._send(404, page("404", "Not found"))
@@ -6893,6 +7275,24 @@ class H(BaseHTTPRequestHandler):
                 return self._send(200, json.dumps({"ok": True, "done": done,
                                                    "skipped": skipped}), "application/json")
             except Exception as e:
+                return self._send(200, json.dumps({"ok": False, "error": str(e)}),
+                                  "application/json")
+        if self.path == "/evalapprove":
+            # Per-exchange approval. Kept on disk beside the run it approves, not in memory:
+            # the reviewer reads several long answers and will navigate away, and an approval
+            # lost to a page reload is worse than no approval at all.
+            act = (data.get("action") or "").strip()
+            try:
+                if act == "all":
+                    keys = [f"{r[0]}#{r[2]}" for r in eval_records()]
+                    set_eval_approval(keys, bool(data.get("on")))
+                elif act == "one":
+                    set_eval_approval([str(data.get("key") or "")], bool(data.get("on")))
+                all_ok, n_ok, n_tot = eval_all_approved()
+                return self._send(200, json.dumps(
+                    {"ok": True, "allOk": all_ok, "nOk": n_ok, "nTot": n_tot}),
+                    "application/json")
+            except Exception as e:                                        # noqa: BLE001
                 return self._send(200, json.dumps({"ok": False, "error": str(e)}),
                                   "application/json")
         if self.path == "/bk":
@@ -7112,6 +7512,23 @@ class H(BaseHTTPRequestHandler):
                             "answers. Read them, then send it in.\n\n"
                             "Nothing has been pushed and nothing was lost — your work is saved "
                             "locally either way.")}), "application/json")
+
+                    # AND every replayed transcript must be individually approved. Running the
+                    # eval is not approving it: the old flow treated "the script exited 0" as
+                    # consent, so a batch could be sent in by somebody who never read a single
+                    # answer. The per-transcript decision lives on /evalreview and this is the
+                    # check that makes it mean something.
+                    if fp and n_q:
+                        all_ok, n_ok, n_tot = eval_all_approved()
+                        if n_tot and not all_ok:
+                            return self._send(200, json.dumps({"ok": False, "output": (
+                                f"No change request was created — {n_ok} of {n_tot} "
+                                "transcript(s) are approved.\n\n"
+                                "Open Eval Review and tick each transcript whose answer is "
+                                "right. If an answer is still wrong, the change is not ready: "
+                                "put the batch back to pending and keep working.\n\n"
+                                "Nothing has been pushed and nothing was lost.")}),
+                                "application/json")
 
                     # Save FIRST, always. "Send my reviews in" used to push and open a PR
                     # without committing, so a reviewer who never clicked Save sent an empty
