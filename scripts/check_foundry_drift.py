@@ -20,11 +20,25 @@ WHAT IT COMPARES
    about the four successful uploads hints at it.
 3. The live team routing prompt against team-config/team-routing-prompt.md.
 
-`fileSize` is the drift signal because the file record carries no content hash. Equal sizes
-are strong but not conclusive evidence of equal content; --deep downloads and byte-compares.
+CONTENT IS BYTE-COMPARED BY DEFAULT. It used to compare `fileSize` only, with byte comparison
+behind an opt-in `--deep`, and the default printed "In sync ... (by file size)" - a confident
+answer from the weaker test.
 
-    python3 scripts/check_foundry_drift.py
-    python3 scripts/check_foundry_drift.py --deep        # download and byte-compare
+That default was wrong, and it was wrong in production. Found 2026-08-28:
+`Docusaurus-OpsCenterAdoption.md` is 70,899 bytes in BOTH Foundry and the repo and the content
+differs - "OneTyler Support ticket" against "OneTyler support ticket", two characters on lines 42
+and 528. This script had reported that collection in sync since 23 August. Nobody was going to
+pass `--deep` to a check that already said everything was fine.
+
+The size comparison is still run first, because it names the direction of the drift and needs no
+download. Byte comparison then catches what it cannot see - including a deliberate equal-length
+edit, which is the case size checking can never detect.
+
+Cost: ~17 seconds for 43 files. CLAUDE.md asks for this after every merge, and 17 seconds is
+cheap for the difference between "the same size" and "the same".
+
+    python3 scripts/check_foundry_drift.py               # byte-compares
+    python3 scripts/check_foundry_drift.py --fast        # sizes only, no downloads
     python3 scripts/check_foundry_drift.py --collection OT-OpsCenter
 
 Exit 0 = in sync. Exit 1 = drift found; the output says which direction and what to do.
@@ -80,7 +94,12 @@ def shared_targets():
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--deep", action="store_true", help="download and byte-compare")
+    ap.add_argument("--fast", action="store_true",
+                    help="compare sizes only, skip downloads (weaker - see the docstring)")
+    # Kept so existing docs, aliases and muscle memory do not break. It is now the default, so
+    # passing it changes nothing - which is better than erroring at someone who was doing the
+    # right thing under the old default.
+    ap.add_argument("--deep", action="store_true", help=argparse.SUPPRESS)
     ap.add_argument("--collection", help="check only this collection")
     a = ap.parse_args()
 
@@ -125,7 +144,7 @@ def main():
             if loc != r.get("fileSize"):
                 drift.append((col, name,
                               f"SIZE differs — Foundry {r.get('fileSize')}, repo {loc}"))
-            elif a.deep:
+            elif not a.fast:
                 if download(col, r["id"]) != p.read_bytes():
                     drift.append((col, name, "CONTENT differs despite equal size"))
             if r.get("ingestionStatus") not in ("ingested", None):
@@ -175,7 +194,7 @@ def main():
     if not drift:
         n = sum(1 for _ in cols)
         print(f"In sync — {n} collection(s) and the team router match the repo"
-              f"{' (byte-compared)' if a.deep else ' (by file size)'}.")
+              f"{' (by file size only — pass no --fast to byte-compare)' if a.fast else ' (byte-compared)'}.")
         return 0
 
     print(f"{len(drift)} drift item(s):\n")
