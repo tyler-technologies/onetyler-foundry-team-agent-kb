@@ -826,6 +826,100 @@ you can pull everything toward one agent.
 `scripts/check_foundry_drift.py` reports the router in sync. Update `README.md` too if the
 team-level routing rules changed.
 
+## The Blueprint checkout — read before editing Blueprint
+
+Most of the indexed knowledge is **derived from Blueprint** (`docs.tylerdev.io`). So a
+`Docusaurus-` knowledge file fixed on its own is not fixed — it is fixed until the next
+reconciliation re-derives it from a Blueprint page that still says the old thing. When a review
+is marked **BP updates**, the Blueprint edit is what makes the knowledge fix stick.
+
+This section applies on **every machine**, contributor or admin. A contributor's GitHub token
+can push to Blueprint and open a change request there; only an **admin can approve** it. That
+split is why every request is opened in **auto-merge** mode — see below.
+
+### Where the checkout goes
+
+The flow expects a clone of `tyler-technologies/corpdev-new-blueprint` as a **sibling** of this
+repo's parent:
+
+```
+<some dir>/
+  foundry/onetyler-foundry-team-agent-kb/   <- this repo
+  blueprint/corpdev-new-blueprint/          <- the Blueprint clone
+```
+
+Override with `BLUEPRINT_REPO` if it lives elsewhere:
+
+```bash
+export BLUEPRINT_REPO=/path/to/corpdev-new-blueprint     # macOS/Linux
+$env:BLUEPRINT_REPO = "C:\path\to\corpdev-new-blueprint" # Windows PowerShell
+```
+
+If it is missing, the review UI says so rather than failing quietly — but the Blueprint half of
+a batch cannot be done at all until it exists.
+
+### ⚠ ALWAYS PULL BLUEPRINT BEFORE EDITING IT
+
+```bash
+git -C "$BLUEPRINT_REPO" switch master
+git -C "$BLUEPRINT_REPO" pull --ff-only
+```
+
+**This is a correctness requirement, not hygiene.** Blueprint edits are captured as a diff
+against `origin/master`. Edit a **stale** tree and that diff also contains the **reverse of
+every upstream commit your tree is missing** — attributed to your transcript and opened as part
+of its change request. Merging it would revert other people's work.
+
+Measured on a tree exactly one commit behind: the captured patch picked up
+`src/clientModules/chatbot.js`, a file the transcript never touched, carrying **38 removal
+lines**. Nothing downstream can catch this — the patch applies cleanly and every hunk in it is a
+real diff; it is only wrong about *whose* change it is.
+
+So `scripts/bp_stage.py` **refuses** unless the checkout's `HEAD` is exactly `origin/master`.
+Syncing first is not advice; it is the only way it will let you proceed.
+
+The review UI also syncs both repos itself at the start of the check and the send, fast-forward
+only. It never forces over local work, so a refusal there is reported and is usually just "you
+have work in progress".
+
+### One change request per transcript
+
+Each transcript marked BP updates gets its **own** Blueprint request, so the attribution has to
+be explicit — a working tree is one flat pile of edits and cannot say which transcript asked for
+what. Work **one transcript at a time**:
+
+```bash
+# ... make the Blueprint edits for ONE transcript ...
+python3 scripts/bp_stage.py --transcript transcripts/<agent>/<file>.md
+# ... the Blueprint tree is now clean again; do the next transcript ...
+
+python3 scripts/bp_stage.py --list          # who owns what, and what is missing
+python3 scripts/bp_stage.py --drop <rel>    # withdraw one transcript's Blueprint changes
+```
+
+Staging captures everything Blueprint has against `master` **right now** and then resets that
+checkout. That reset is what keeps the next capture from re-including this one — so staging
+between transcripts is load-bearing, not tidiness.
+
+Patches live in `.bp-stage/` (gitignored: it is another repo's working state). A transcript
+marked BP updates with nothing staged is **refused at send time**, and Part 2 shows it in red
+before you get there.
+
+**Do not commit or push in the Blueprint checkout yourself.** The requests are opened per
+transcript, after the eval is approved — never before, because an unevaluated change is one
+nobody has checked.
+
+### Auto-merge is always on
+
+Every request this flow opens — Blueprint and knowledge alike — is put into **auto-merge**
+(`gh pr merge --auto`) at creation. A contributor opens it and cannot approve it; an admin
+approves; auto-merge joins those two without anyone having to come back at the right moment.
+Without it a request sits green and unmerged, and the knowledge file ships while the Blueprint
+page it was derived from does not — which the next reconciliation then reverts.
+
+If enabling auto-merge fails for want of permissions, the output says so plainly and an **admin
+turns it on**. The request itself is correct either way; do not re-open it.
+
 ## Acting on transcript reviews
 
 `transcripts/` holds preserved conversation history, one markdown file per conversation,

@@ -4257,6 +4257,60 @@ def bp_git_raw(*args, timeout=120):
     return r.returncode, r.stdout, r.stderr
 
 
+def bp_sync():
+    """Fast-forward the Blueprint checkout to origin/master. (ok, message).
+
+    THIS IS A CORRECTNESS REQUIREMENT, NOT HYGIENE - see bp_stage_add's guard.
+    `bp_stage_add` captures `git diff origin/master`, so if the local tree is BEHIND
+    origin/master that diff also contains the REVERSE of everything that landed upstream, and
+    those reversions get attributed to the transcript and opened as part of its request.
+
+    Measured on a tree one commit behind: the captured patch picked up
+    `src/clientModules/chatbot.js` - a file the transcript never touched - carrying 38 removal
+    lines. Merging that request would have quietly reverted somebody's work.
+
+    Fast-forward only, and never over local edits: a Blueprint tree with work in it belongs to
+    whoever left it there. A refusal is reported, never forced.
+    """
+    ok, why = bp_available()
+    if not ok:
+        return False, why
+    rc, out = bp_git("fetch", "--prune", "origin", "master", timeout=120)
+    if rc != 0:
+        return False, "Could not fetch Blueprint from origin:\n" + out
+    cur = bp_git("rev-parse", "--abbrev-ref", "HEAD")[1].strip()
+    dirty = bool(bp_git("status", "--porcelain")[1].strip())
+    if cur not in ("master", "main"):
+        return False, (f"The Blueprint checkout is on `{cur}`, not master, so it was not "
+                       "synced. Switch it to master (or finish what is on that branch) before "
+                       "staging Blueprint edits.")
+    if dirty:
+        # Deliberately NOT an error. Uncommitted Blueprint edits are the normal mid-work state -
+        # they are exactly what is about to be staged - and refusing here would block the flow
+        # it exists to protect. Whether the tree is at origin/master is what actually matters,
+        # and bp_stage_add checks that separately.
+        head = bp_git("rev-parse", "HEAD")[1].strip()
+        want = bp_git("rev-parse", "origin/master")[1].strip()
+        if head == want:
+            return True, "Blueprint is up to date (with your uncommitted edits left alone)."
+        return False, ("Blueprint has uncommitted edits AND is behind origin/master, so it "
+                       "cannot be fast-forwarded without touching them. Commit, stash or "
+                       "discard them, then sync — staging from a stale tree would attribute "
+                       "other people's reverted work to your transcript.")
+    rc, out = bp_git("merge", "--ff-only", "origin/master")
+    if rc != 0:
+        return False, "Blueprint could not be fast-forwarded:\n" + out
+    return True, ("Blueprint already up to date." if "up to date" in out.lower()
+                  else "Blueprint synced to origin/master.")
+
+
+def bp_at_origin():
+    """(ok, head, want). Is the Blueprint checkout's HEAD exactly origin/master?"""
+    head = bp_git("rev-parse", "HEAD")[1].strip()
+    want = bp_git("rev-parse", "origin/master")[1].strip()
+    return head == want, head[:8], want[:8]
+
+
 def bp_changes():
     """Blueprint files changed against its default branch, committed or not."""
     ok, _ = bp_available()
@@ -4307,6 +4361,28 @@ def bp_stage_add(rel):
     if not ok:
         return False, why
     bp_git("fetch", "-q", "origin", "master")
+    # THE STALE-TREE GUARD. Refuse rather than capture a patch that reverts upstream work.
+    #
+    # The capture below is `git diff origin/master`. If HEAD is not origin/master, that diff
+    # ALSO contains the reverse of every upstream commit the tree lacks - attributed to this
+    # transcript, and opened as part of its Blueprint request. Measured on a tree one commit
+    # behind: the patch picked up a file the transcript never touched, carrying 38 removal
+    # lines, and merging it would have reverted somebody's work.
+    #
+    # Nothing downstream can catch this. The patch applies cleanly, the reverse-check passes,
+    # and every file in it is a real diff - it is only wrong about WHOSE change it is. So it has
+    # to be refused here.
+    at, head, want = bp_at_origin()
+    if not at:
+        return False, ("The Blueprint checkout is not at origin/master "
+                       f"(HEAD {head}, origin/master {want}), so nothing was staged.\n\n"
+                       "Staging from a stale tree would capture the REVERSE of everything that "
+                       "landed in Blueprint meanwhile and attribute it to this transcript — "
+                       "merging that would revert other people's work.\n\n"
+                       "Sync Blueprint first:\n"
+                       f"  git -C {BP_REPO} switch master\n"
+                       f"  git -C {BP_REPO} pull --ff-only\n"
+                       "then redo this transcript's Blueprint edits and stage again.")
     # -N so a brand-new page appears in `git diff` at all; without it an added file is untracked
     # and the patch would silently omit the whole thing.
     bp_git("add", "-AN")
@@ -4448,7 +4524,33 @@ def bp_open_pr_for(rel, hint):
     if r.returncode != 0 and "already exists" not in made.lower():
         return False, f"could not open the Blueprint request for {rel}: {made[:300]}"
     tail = made.splitlines()[-1] if made.splitlines() else ""
-    return True, f"{Path(rel).name}: {tail}"
+    ok_auto, auto = bp_set_automerge(br)
+    return True, f"{Path(rel).name}: {tail}\n    {auto}"
+
+
+def bp_set_automerge(branch):
+    """Put a Blueprint request into auto-merge. (ok, message).
+
+    AUTO-MERGE AT CREATION, ALWAYS - not as a separate click afterwards.
+    A contributor can push to Blueprint and open the request but cannot approve it; an admin
+    approves. Auto-merge is what joins those two facts up: the request merges itself the moment
+    the approval and Blueprint's own CI are both in, so nobody has to come back and press a
+    button at the right time. Without it the request sits green and unmerged, and the knowledge
+    file ships while the Blueprint page it was derived from does not - which the next
+    reconciliation then reverts.
+
+    Enabling it may itself need more rights than a contributor has. That is reported rather than
+    treated as a failure of the whole send: the request exists and is correct either way, and an
+    admin turning auto-merge on afterwards is a small, obvious job.
+    """
+    r = subprocess.run(["gh", "pr", "merge", "--repo", BP_REMOTE, branch,
+                        "--squash", "--auto", "--delete-branch"],
+                       cwd=BP_REPO, capture_output=True, text=True, timeout=150)
+    out = ((r.stdout or "") + (r.stderr or "")).strip()
+    if r.returncode == 0:
+        return True, "auto-merge ON — merges itself once an admin approves and CI passes."
+    why = out.splitlines()[-1][:160] if out.strip() else "no output from gh"
+    return False, f"auto-merge could NOT be set (an admin needs to turn it on): {why}"
 
 
 def bp_open_pr(branch_hint, title, body):
@@ -4503,6 +4605,9 @@ def analysis_prompt(n):
     the human wants out of it.
     """
     base = (f"I have finished reviewing {n} transcript(s) in this repo. "
+            "Sync this repo to the latest main first (`git fetch origin` and bring main up to "
+            "date; do not disturb my in-progress branch), so you are editing current content "
+            "and not reintroducing something already fixed. "
             "Read all of my feedback as one body before changing anything, then update the "
             "knowledge files so the agents stop giving those answers. Summarise what you "
             "changed, per transcript, so I can follow my own feedback through. "
@@ -4525,6 +4630,15 @@ def analysis_prompt(n):
             "anything on the same subject that now conflicts. Most of the indexed knowledge is "
             "derived from Blueprint, so a `Docusaurus-` knowledge file fixed on its own is "
             "reverted by the next reconciliation - fixing Blueprint is what makes it stick.\n\n"
+            "SYNC THE BLUEPRINT CHECKOUT BEFORE YOU EDIT IT, every time:\n\n"
+            f"  git -C {BP_REPO} switch master && git -C {BP_REPO} pull --ff-only\n\n"
+            "This is a correctness requirement, not hygiene. The edits are captured as a diff "
+            "against Blueprint's origin/master, so editing a stale tree captures the REVERSE of "
+            "everything that landed upstream meanwhile, attributes it to your transcript, and "
+            "opens it as part of that request - merging it would revert other people's work. "
+            "Measured on a tree one commit behind: the captured patch picked up an unrelated "
+            "file with 38 removal lines. Staging refuses outright if the tree is not at "
+            "origin/master, so syncing first is also the only way it will let you proceed.\n\n"
             "EACH of those transcripts gets its OWN Blueprint change request, so work through "
             "them ONE AT A TIME and tell the flow which edits belong to which transcript:\n\n"
             "  1. make the Blueprint edits for ONE transcript\n"
@@ -7665,6 +7779,24 @@ class H(BaseHTTPRequestHandler):
                 elif act == "diff":
                     rc, out = 0, review_diff()
                 elif act == "eval":
+                    # SYNC BOTH REPOS FIRST. An eval measures the candidate content against what
+                    # is live, and a stale `main` makes both halves of that wrong: the candidate
+                    # set is computed as "differs from origin/main", so anything a colleague
+                    # merged meanwhile is counted as this batch's change and gets uploaded under
+                    # this batch's name. Five minutes of Foundry calls is a long way to go on the
+                    # wrong input.
+                    #
+                    # Fast-forward only, and a refusal is reported rather than forced - see
+                    # pull_main. Failing to sync does NOT stop the eval: on a review lane the
+                    # tree is deliberately left alone, so "could not sync" is often just "you
+                    # have work in progress", which is not a reason to refuse to check it.
+                    sync_notes = []
+                    _oks, msgs = pull_main()
+                    if msgs.strip():
+                        sync_notes.append(msgs.strip())
+                    if bp_batch():
+                        _okb, msgb = bp_sync()
+                        sync_notes.append(msgb.strip())
                     # SAVE THE REVIEWER'S WORK FIRST, for the same reason "Send my reviews in"
                     # does. The eval reads the WORKING TREE, so it evaluates uncommitted edits -
                     # and then spends five minutes talking to Foundry, which is a long window in
@@ -7684,6 +7816,8 @@ class H(BaseHTTPRequestHandler):
                         pre = "Saved your work first:\n" + out0.strip()[:400]
                     else:
                         pre = "Nothing to save — your work is already committed."
+                    if sync_notes:
+                        pre = "Synced first:\n  " + "\n  ".join(sync_notes) + "\n\n" + pre
 
                     # Minutes long by nature - two Bedrock syncs. Runs the script rather than
                     # reimplementing it, so the restore-point-to-disk guarantee and the
@@ -7740,6 +7874,20 @@ class H(BaseHTTPRequestHandler):
                            "Nothing in this batch was reviewed or suggested, so there was "
                            "nothing to put back.")
                 elif act == "pr":
+                    # SYNC BOTH REPOS FIRST, before anything is pushed. `main` moving under a
+                    # lane is the ordinary case on an active day, and it decides two things that
+                    # are hard to unpick afterwards: which files count as this batch's change,
+                    # and whether the request can merge at all (this repo sets
+                    # required_status_checks.strict, so a branch behind main is blocked).
+                    # Blueprint matters more sharply - bp_stage_add refuses outright on a stale
+                    # tree, because a patch captured there reverts other people's work.
+                    sync_pre = []
+                    _oks, msgs = pull_main()
+                    if msgs.strip():
+                        sync_pre.append(msgs.strip())
+                    if bp_batch():
+                        _okb, msgb = bp_sync()
+                        sync_pre.append(msgb.strip())
                     # NO CHANGE REQUEST UNTIL THE EVAL HAS BEEN RUN AND ITS ANSWERS SEEN.
                     #
                     # Enforced HERE and not only on the button, because the checkbox can be
@@ -7792,6 +7940,8 @@ class H(BaseHTTPRequestHandler):
                     rc, out = save_reviews(msg)
                     if rc not in (0, NOTHING_TO_SAVE):
                         raise RuntimeError(out)
+                    if sync_pre:
+                        out = "Synced first:\n  " + "\n  ".join(sync_pre) + "\n\n" + out
                     _, cur = git("rev-parse", "--abbrev-ref", "HEAD")
                     prc, pout = git("push", "-u", "origin", cur.strip(), timeout=180)
                     out = (out + "\n\n" + pout).strip()
@@ -7828,6 +7978,22 @@ class H(BaseHTTPRequestHandler):
                                            capture_output=True, text=True, timeout=180)
                         rc = r.returncode
                         out = (out + "\n" + r.stdout + r.stderr).strip()
+                        # AUTO-MERGE ON THE KNOWLEDGE REQUEST TOO. Same reasoning as Blueprint:
+                        # a contributor opens it and an admin approves, and auto-merge is what
+                        # joins those without somebody having to return at the right moment.
+                        # Reported, not fatal - the request is correct either way, and an admin
+                        # can switch it on.
+                        if rc == 0:
+                            a = subprocess.run(
+                                ["gh", "pr", "merge", cur.strip(), "--rebase", "--auto",
+                                 "--delete-branch"],
+                                cwd=REPO, capture_output=True, text=True, timeout=150)
+                            aout = ((a.stdout or "") + (a.stderr or "")).strip()
+                            out += ("\n\nAuto-merge ON — it merges itself once an admin approves "
+                                    "and CI passes." if a.returncode == 0 else
+                                    "\n\nAuto-merge could NOT be set; an admin needs to turn it "
+                                    "on: " + (aout.splitlines()[-1][:160] if aout.strip()
+                                              else "no output from gh"))
                 else:
                     rc, out = 1, "unknown action"
                 return self._send(200, json.dumps(
