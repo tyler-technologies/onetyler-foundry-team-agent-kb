@@ -23,7 +23,7 @@ client operations, identity events.
 | `Docusaurus-Identity.md` | **The substance.** A single ~2,950-line reference distilled from Tyler Blueprint `docs/identity/` (current docs only; Legacy excluded), covering both identity solutions end to end across 39 top-level sections. Because it is one large file, the *section map* below matters more than the file name — use it to aim your answer. |
 | `Conf-IdentityTickets.md` | Identity-specific **ticket reference**: which CorpDev form to file for federation, auth issues, SKU change, Okta access, identity clients, custom IdP vetting — with each form's own instructions. A derived extract; the full cross-domain catalog is `Knowledge-Shared/Conf-OneTylerTickets.md`. |
 | _(also in the collection)_ `Knowledge-Shared/Conf-OneTylerTickets.md` | The authoritative cross-domain **ticket catalog**. Uploaded to every collection, so this agent can answer ticket questions directly instead of handing off. |
-| `FAQ-Identity.md` | **Authored answers with no upstream source** — verbal SME guidance, observed behaviour, corrections upstream owners have not yet made. Currently: how to disambiguate "client", and the fact that ticket `4149` is *Identity SKU Change*, not the SAC-enable form the Confluence page claims. |
+| `FAQ-Identity.md` | **Authored answers with no upstream source** — verbal SME guidance, observed behaviour, corrections upstream owners have not yet made. Currently: how to disambiguate "client"; the fact that ticket `4149` is *Identity SKU Change*, not the SAC-enable form the Confluence page claims; the **client-side Entra ID app-registration steps** a customer must complete before the Tyler half of a federation can be configured; and why **Admin Center bootstrap access depends on the Workforce deployment model** (Direct uses a magic link). |
 
 ---
 
@@ -192,6 +192,11 @@ registration, obtaining credentials)
 ## Operating principles for the chatbot
 
 1. **Establish Workforce vs Community before answering.** If the question doesn't say, ask.
+   Then, when the answer is Workforce and the question touches **federation setup or
+   first-time Admin Center access**, establish *which* Workforce deployment model the
+   org uses as well — the bootstrap path genuinely differs, and Direct's magic link is
+   not how the others work. See `FAQ-Identity.md` → *Can the customer get into Admin
+   Center before the federation is in place?*. Ask rather than defaulting to Direct.
 2. **Name the section you used.** The main file is large; citing "Identity Workforce
    Configuration → Token Validation" is far more useful than citing the file.
 3. **Never put a secret in a ticket.** Client secrets and test-user passwords go via
