@@ -143,23 +143,40 @@ in a follow-up. Same for any test-user password.
 before answering.** This is the trap: the bootstrap path differs by model, so a single
 confident answer is wrong for at least one of them.
 
-**Do this first.** Ask, or confirm from Ops Center, whether the org is **Workforce Direct**,
-**Workforce Managed**, or **Workforce Global**. If the user has not said, ask — do not assume
-Direct because it is the most common. (This is the within-Workforce counterpart to the
-Workforce-vs-Community check in `_START_HERE.md`.)
+**Do this first.** Ask, or confirm the org's **Identity Tier** in Ops Center. There are
+**four** Workforce models, and they are not interchangeable:
+
+| Model | Initial Admin Center access before federation |
+|---|---|
+| **Workforce Direct** | **Magic link** — see below |
+| **Workforce Managed** | **Not documented here — confirm with the Identity team** |
+| **Workforce Delegated** | **Not documented here — confirm with the Identity team.** Note it is a *Workforce Direct variant* where a "Super" org owns federation and user setup for its "Sub" orgs, so the access path plausibly runs through the Super — but that has **not** been confirmed, so do not state it |
+| **Workforce Global** | Local user store **auto-creates the admin account** — Private Preview |
+
+If the user has not said which model, **ask** — do not assume Direct because it is the most
+common. (This is the within-Workforce counterpart to the Workforce-vs-Community check in
+`_START_HERE.md`.)
 
 **Workforce Direct** — initial access is granted through a **magic link**, not through
 credentials issued to the technical contact. If federation is broken or not yet in place, the
 route back in is the *Reestablish Federation* process:
 https://tylertech.atlassian.net/wiki/spaces/TTI/pages/386625934/Tyler+Cloud+Platform+TCP+Reestablish+Federation+Demo
 
-**Workforce Global** — **in Private Preview as of 2026-08-28.** This model integrates with a
+**Workforce Global** — **in Private Preview as of 2026-08-28**, and **distinct from Workforce
+Delegated**; they are different models, not two names for one thing. Global integrates with a
 local user store that **automatically creates the admin user's account**, so the bootstrap
 problem does not arise the same way. Say that it is Private Preview whenever you mention it.
 
-**Workforce Managed** — the initial-access path is **not documented in this corpus.** Do not
-infer it from the Direct behaviour. Say it needs confirming with the Tyler Identity team, and
-point at the ticket route in `Conf-IdentityTickets.md`.
+**Workforce Managed and Workforce Delegated** — the initial-access path for these is **not
+documented in this corpus.** Do not infer either from the Direct behaviour. Say it needs
+confirming with the Tyler Identity team, and point at the ticket route in
+`Conf-IdentityTickets.md`.
+
+**Where the model definitions live:** `Knowledge-OpsCenter/Docusaurus-Terminology.md` defines
+Direct, Managed and Delegated, including Delegated's Super/Sub structure, and states that the
+Identity Tier **cannot be changed after the org is created**. That file predates Workforce
+Global and does not mention it — so treat this entry as the current list and that file as the
+authority on the first three.
 
 **Do NOT say** that the Customer Technical Contact named during org creation "receives Admin
 Center access credentials" and that this is what solves the chicken-and-egg problem. That
@@ -171,9 +188,10 @@ creation and how that contact first authenticates are two different things.
   the answer given in the 2026-08-25 conversation `9c230f8d`. Reestablish Federation demo page
   supplied in the same review.
 - **Added:** 2026-08-28 by jon-olson-tylertech
-- **Confidence:** confirmed by owner for Workforce Direct and for Workforce Global being in
-  Private Preview. **Workforce Managed is unconfirmed and deliberately left blank** — see the
-  paragraph above rather than filling the gap.
+- **Confidence:** confirmed by owner for Workforce Direct's magic link, for Workforce Global
+  being in Private Preview, and for **Global being a different model from Delegated** (Jon
+  Olson, 2026-08-28). **Workforce Managed and Workforce Delegated are unconfirmed and
+  deliberately left blank** — read the table above rather than filling the gap.
 - **Promote when:** Blueprint documents the per-model bootstrap paths, or Workforce Global
   leaves Private Preview — at which point this entry needs revisiting either way.
 
