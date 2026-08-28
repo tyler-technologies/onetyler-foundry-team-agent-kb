@@ -110,8 +110,9 @@ def changed_knowledge_files(since):
     """Knowledge files whose content on main differs from what Foundry last received.
 
     Uses git, not the Foundry file sizes, to decide the candidate set: git knows what CHANGED,
-    while sizes only reveal drift after the fact. The size comparison still runs afterwards as
-    the skip check, so an unchanged file is not re-uploaded for nothing.
+    while sizes only reveal drift after the fact. A byte comparison then runs as the skip check,
+    so an unchanged file is not re-uploaded for nothing - see the note in main() for why that
+    check cannot be a size comparison.
     """
     rc, out = git("diff", "--name-only", f"{since}...origin/main")
     if rc != 0:
@@ -125,11 +126,27 @@ def changed_knowledge_files(since):
     return sorted(set(files))
 
 
-def remote_sizes(collection):
+def remote_records(collection):
+    """fileName -> the file record, so the skip check can use the id to download and compare."""
     data, err = api(f"/api/tenant-knowledge-base/collections/{collection}/files")
     if err:
         return {}, err
-    return {f["fileName"]: f.get("fileSize") for f in (data or [])}, None
+    return {f["fileName"]: f for f in (data or [])}, None
+
+
+def remote_bytes(collection, file_id):
+    """The exact bytes Foundry is serving, or None if it cannot be fetched."""
+    import urllib.request
+    import urllib.error
+    req = urllib.request.Request(
+        f"{BASE}/api/tenant-knowledge-base/collections/{collection}/files/{file_id}/download")
+    req.add_header("X-API-Key", KEY)
+    req.add_header("User-Agent", UA)
+    try:
+        with urllib.request.urlopen(req, timeout=120) as r:
+            return r.read()
+    except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError):
+        return None
 
 
 def multipart(paths):
@@ -218,17 +235,35 @@ def main():
             "       Nothing reaches Foundry until it is merged - see hard rule 5.\n\n" + out)
     print("\nAll files match origin/main (merged). ok")
 
-    # Skip anything already the right size remotely; re-uploading is harmless but pointless.
+    # Skip anything Foundry already holds BYTE FOR BYTE. Re-uploading is harmless but
+    # pointless, so a skip check is right - it just has to be a correct one.
+    #
+    # This used to compare fileSize, and that made the script unable to fix the one case that
+    # most needs fixing. Found 2026-08-28: Docusaurus-OpsCenterAdoption.md was 70,899 bytes in
+    # both Foundry and the repo with different content, and this script refused to upload it,
+    # reporting "unchanged" and then "Everything is already in sync. Nothing to do." So the
+    # tool for correcting drift could not correct that drift, and said everything was fine.
+    #
+    # The size check is kept as a cheap first pass: different size means different content, no
+    # download needed. Only equal sizes get downloaded and compared.
     work = {}
     for f, cols in plan.items():
-        local = (REPO / f).stat().st_size
+        local_bytes = (REPO / f).read_bytes()
         for c in cols:
-            sizes, err = remote_sizes(c)
+            recs, err = remote_records(c)
             if err:
                 die(f"could not list {c}: {err}")
-            if sizes.get(Path(f).name) == local:
-                print(f"  unchanged in {c}: {Path(f).name}")
-                continue
+            rec = recs.get(Path(f).name)
+            if rec is not None and rec.get("fileSize") == len(local_bytes):
+                got = remote_bytes(c, rec.get("id"))
+                if got is None:
+                    print(f"  could not verify {Path(f).name} in {c} — uploading to be safe")
+                elif got == local_bytes:
+                    print(f"  unchanged in {c}: {Path(f).name}")
+                    continue
+                else:
+                    print(f"  SAME SIZE, DIFFERENT CONTENT in {c}: {Path(f).name} "
+                          f"— uploading (a size check would have skipped this)")
             work.setdefault(c, []).append(f)
     if not work:
         print("\nEverything is already in sync. Nothing to do.")
