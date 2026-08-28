@@ -1714,12 +1714,19 @@ select,input,textarea{width:100%;padding:7px 8px;border:1px solid var(--forge-th
 border-radius:4px;font-size:13px;font-family:inherit;background:var(--forge-theme-surface)}
 select:focus,input:focus,textarea:focus{outline:2px solid var(--forge-theme-primary);outline-offset:-1px}
 textarea{min-height:88px;resize:vertical}
-button{background:var(--forge-theme-primary);color:var(--on-accent);border:0;padding:9px 16px;border-radius:4px;
+/* `a.btn` rides along with `button` so a real download link can look like the buttons beside it.
+   A download is one of the few things better done as an anchor than a click handler - the
+   browser handles the filename and the save dialog - but it must not read as body text next to
+   two actual buttons. inline-flex + the line-height reset keep an anchor the same height as a
+   button, which padding alone does not. */
+button,a.btn{background:var(--forge-theme-primary);color:var(--on-accent);border:0;padding:9px 16px;border-radius:4px;
 font-size:13px;font-weight:500;cursor:pointer;letter-spacing:.02em}
-button:hover{filter:brightness(.92)}
-button.sec{background:var(--forge-theme-surface);color:var(--forge-theme-primary);
+a.btn{display:inline-flex;align-items:center;line-height:1;text-decoration:none;
+font-family:inherit}
+button:hover,a.btn:hover{filter:brightness(.92)}
+button.sec,a.btn.sec{background:var(--forge-theme-surface);color:var(--forge-theme-primary);
 border:1px solid var(--forge-theme-outline-medium)}
-button.sec:hover{background:var(--forge-theme-primary-container-minimum);filter:none}
+button.sec:hover,a.btn.sec:hover{background:var(--forge-theme-primary-container-minimum);filter:none}
 /* pointer-events:none IS THE POINT, not a nicety.
    This div lives at bottom-right permanently at opacity:0 - it is never removed, only faded -
    and an invisible element still receives clicks. "Mark reviewed & next" is the bottom-right
@@ -3589,39 +3596,27 @@ def button_legend():
     And the one people get wrong: none of these four touch git. They write the transcript FILE.
     Sharing happens on Save & Publish.
     """
+    # ONE LINE EACH. The long-form version of this table was accurate and nobody read it - four
+    # paragraphs of explanation above the buttons they describe reads as documentation printed
+    # onto the screen. The reasoning that used to be here lives in this docstring, where a
+    # maintainer will find it and a reviewer is not made to scroll past it.
     rows = [
         ("Save",
          "reviewed", False,
-         "Writes what you have typed into the transcript file and stays put.",
-         "Nothing is decided. The status is left exactly as it was, so a pending transcript "
-         "stays pending. Use it to park a half-finished review, or before walking away."),
+         "Saves what you typed. Decides nothing.",
+         "Park a half-finished review."),
         ("Suggest &amp; next &rarr;",
          "suggested", True,
-         "Hands this to someone else &mdash; <b>you are giving up the decision</b>, not asking "
-         "for a second opinion.",
-         "Needs a destination: <b>Suggested to</b> for a person, or <b>Reassign to</b> for an "
-         "agent when the problem belongs to another corpus and you should not have to know who "
-         "owns it this month. Either one moves the transcript into their queue and out of "
-         "yours. <code>Reviewer</code> stays as you &mdash; suggesting is still something you "
-         "did, and it is the only record of who looked at this."),
+         "Hands it over &mdash; you give up the decision.",
+         "Needs <b>Suggested to</b> (a person) or <b>Reassign to</b> (an agent)."),
         ("Re-review",
          "pending", False,
-         "<b>Re-opens</b> something already decided, so you can look at it afresh.",
-         "Puts the status back to <code>pending</code> and leaves the verdict fields for you to "
-         "fill in again &mdash; it does not record a decision, because you have not made one "
-         "yet. <code>Review round</code> looks after itself: it is derived from what is already "
-         "merged on main, so a second verdict lands on the next round without anyone typing a "
-         "number. If it shows round 2, somebody has decided this before &mdash; pull main and "
-         "read their verdict first."),
+         "Re-opens a decided transcript.",
+         "Verdict fields clear. Round 2 means someone decided before &mdash; read theirs first."),
         ("Mark reviewed &amp; next &rarr;",
          "reviewed", True,
-         "<b>Your verdict, done</b> &mdash; then straight to the next transcript.",
-         "Refuses while <b>Suggested to</b> or <b>Reassign to</b> is set: you cannot hand a "
-         "transcript over and also decide it. Otherwise sets the status to "
-         "<code>reviewed</code> with your name as <code>reviewer</code>. "
-         "&ldquo;Next&rdquo; follows the order and filter of the table you came from, so it will "
-         "not wander into transcripts you were not looking at, and it tells you when the batch "
-         "runs out."),
+         "Your verdict, done.",
+         "Blocked while a hand-off is set."),
     ]
     out = ["<details class=card><summary>"
            "<span class=info aria-hidden=true>i</span>"
@@ -3640,10 +3635,8 @@ def button_legend():
             f"<td>{gist}<div class=sub style='margin-top:4px'>{detail}</div></td></tr>")
     out.append("</table></div>"
                "<div class='bar bnr-note' style='margin:12px 0 0'>"
-               "<b>None of these four share anything.</b> They write the transcript file on this "
-               "machine. Sending your work to everyone else happens on "
-               "<b>Save &amp; Share</b> &mdash; until then it exists only here."
-               "</div></details>")
+               "None of these share anything. Sharing happens on "
+               "<b>Save &amp; Share</b>.</div></details>")
     return "".join(out)
 
 
@@ -4873,10 +4866,8 @@ def git_fragments():
                 f"Discard this{' and ' + str(i) + ' newer' if i else ''}</button></td></tr>"
                 for i, s in enumerate(saves))
             + "</table>"
-            "<div class=hint>Sending them in covers all of these at once. A save drops off "
-            "this list as soon as it has been sent.<br>Discarding rewinds to just before the "
-            "save you pick — it cannot remove one from the middle, and it always leaves a "
-            "recovery point.</div></details>")
+            "<div class=hint>Sending in covers all of these. Discarding rewinds to just before the "
+            "save you pick, and always leaves a recovery point.</div></details>")
     else:
         saves_html = ("<div class=saves><span class=hint>Nothing saved and unsent — either "
                       "you have not saved yet this sitting, or everything is already sent "
@@ -6508,10 +6499,9 @@ def backups_page(force=False, browse="", compare="", agent="", date=""):
     concl = (last_run or {}).get("conclusion") or (last_run or {}).get("status") or "unknown"
 
     body = [head,
-            f"<p class=sub style='margin:0 0 22px'>Read-only view of "
-            f"<code>{html.escape(d['repo'])}</code>. Nightly snapshots of the team router, the "
-            "five agent configs and the collection file records. "
-            "<b>There is no restore action here</b> &mdash; see below.</p>"]
+            f"<p class=sub style='margin:0 0 22px'>Nightly snapshots of the router, the five agent "
+            f"configs and the collection file records &mdash; "
+            f"<code>{html.escape(d['repo'])}</code>.</p>"]
 
     body.append("<h3 class=angroup>Freshness</h3><div class=kpis>"
                 + tile("Newest snapshot",
@@ -6559,9 +6549,7 @@ def backups_page(force=False, browse="", compare="", agent="", date=""):
 
     if d["last_run"]:
         body.append("<h3 class=angroup>Heartbeat</h3>"
-                    "<p class=sub style='margin:0 0 8px'>Written on every run, including days "
-                    "when nothing changed &mdash; so &ldquo;did it actually run?&rdquo; is "
-                    "answerable without reading Actions history, which expires.</p>"
+                    "<p class=sub style='margin:0 0 8px'>Written every run, changes or not.</p>"
                     f"<pre class=out>{html.escape(d['last_run'])}</pre>")
 
     if d["changes"]:
@@ -6591,11 +6579,8 @@ def backups_page(force=False, browse="", compare="", agent="", date=""):
         bad = [r for r in drows if r[2] is False]
         orphan = [r for r in drows if r[2] is None]
         body.append("<h3 class=angroup>Files: Foundry vs the repo</h3>"
-                    "<p class=sub style='margin:0 0 8px'>Every file in every collection, "
-                    "compared by content hash. Uses the "
-                    + html.escape(d["dates"][0]) + " snapshot's hashes against your working "
-                    "tree, so it costs no downloads &mdash; click a row for a live comparison "
-                    "and a diff.</p>")
+                    "<p class=sub style='margin:0 0 8px'>Compared by content hash against the "
+                    + html.escape(d["dates"][0]) + " snapshot. Click a row for a live diff.</p>")
         if not bad and not orphan:
             body.append("<div class='bar bnr-ok'>All " + str(len(drows)) + " files match the "
                         "repo exactly.</div>")
@@ -6624,9 +6609,9 @@ def backups_page(force=False, browse="", compare="", agent="", date=""):
     if d["dates"]:
         newest = d["dates"][0]
         body.append("<h3 class=angroup>Agents</h3>"
-                    "<p class=sub style='margin:0 0 8px'>Compare each agent's live config "
-                    "against the " + html.escape(newest) + " snapshot, and roll back "
-                    "individual fields or just its knowledge-base binding.</p>"
+                    "<p class=sub style='margin:0 0 8px'>Live config vs the "
+                    + html.escape(newest) + " snapshot. Roll back single fields or the KB "
+                    "binding.</p>"
                     "<div class=tblcard><table><tr><th>Agent</th><th>Restore points</th>"
                     "<th></th></tr>")
         nav = (m.get("agent_native_versions") or {})
@@ -6680,10 +6665,7 @@ def backups_page(force=False, browse="", compare="", agent="", date=""):
         "<td>There is no write API for a file record at all &mdash; only upload and delete. The "
         "snapshot is descriptive: it tells you what should exist.</td></tr>"
         "</table></div>"
-        "<div class='bar bnr-note'>Every write here takes a Foundry version first, and that "
-        "version is the undo. The full round trip &mdash; version, config PUT, restore &mdash; "
-        "was exercised on the SAC agent on 2026-08-28 and returned it byte-for-byte identical, "
-        "so these are tested paths rather than hopeful ones.</div>")
+        "<div class='bar bnr-note'>Every write takes a Foundry version first &mdash; that version is the undo.</div>")
 
     return page("Backups", "<div class=lg>" + "".join(body) + "</div>", active="backups")
 
@@ -6993,22 +6975,17 @@ def _eval_optin():
     files, n_q, mins = eval_estimate()
     if not files or not n_q:
         return ""
+    # The cost and the live-agent side effect stay; the mechanics do not. A reviewer needs to
+    # know how long it takes and that it touches production - not how Bedrock schedules jobs.
     return (
         "<div class=evalbox>"
         "<label class=evalrow><input type=checkbox id=doeval checked>"
         "<span><b>Check the change against these transcripts first</b></span></label>"
-        f"<div class=hint style='margin:6px 0 0 26px'>Uploads the "
-        f"{len(files)} changed knowledge file(s) to Foundry, asks the agents the "
-        f"{n_q} question(s) from this batch, shows you the answers, then puts Foundry back "
-        f"exactly as it was.<br>"
-        f"<b>~{mins} minutes</b> &mdash; two Bedrock syncs at 2&ndash;3 min each, plus about "
-        "18s a question. One upload for the whole batch, not one per transcript.<br>"
-        "<b>While it runs, live agents answer from the candidate content.</b> Bedrock's "
-        "ingestion is the slow part and cannot be shortened, so this is best done outside "
-        "working hours.<br>"
-        "Your own work is saved first, so a crash during the check cannot lose it.<br>"
-        "<b>Required before a change request can be created.</b> Unticking it does not skip the "
-        "check &mdash; it just means the send is refused until the check has run.</div></div>")
+        f"<div class=hint style='margin:6px 0 0 26px'>"
+        f"Asks the agents this batch's {n_q} question(s) against your {len(files)} changed "
+        f"file(s), then puts Foundry back. <b>~{mins} min.</b><br>"
+        "<b>Live agents answer from the candidate content while it runs</b> &mdash; best done "
+        "off-hours. Required before a change request.</div></div>")
 
 
 def _bp_panel():
@@ -7061,6 +7038,86 @@ def _router_warning():
             "working hours, and worth having somebody else read the diff first.</div>")
 
 
+def eval_txt():
+    """The whole eval run as plain text, for pasting back to an assistant. (filename, body).
+
+    WHY PLAIN TEXT AND WHY THE WHOLE RUN.
+    -------------------------------------
+    When the answers are wrong, the next step is another round of knowledge edits - and the most
+    useful thing to hand the assistant is exactly what the agents SAID, next to what they said
+    before and next to the correction they were supposed to satisfy. Copying that out of the
+    screen means selecting across several scrolling panes per card and losing the structure.
+
+    So: every replayed exchange, in run order, each one demarcated, with the question, the
+    before, the now, and the reviewer's own correction. The approval state is included because
+    it is the reviewer's judgement on that specific answer and is the thing that tells the
+    assistant which ones still need work.
+
+    Deliberately NOT markdown. It gets pasted into a prompt, where stray `#` and backticks
+    become formatting the model has to see past - and the answers themselves are already
+    markdown, so wrapping markdown in markdown makes the boundary between them unreadable.
+    """
+    recs = eval_records()
+    d = latest_eval_dir()
+    files, n_q, _ = eval_estimate()
+    prop = eval_propagation()
+    bar = "=" * 78
+    sep = "-" * 78
+    L = [bar,
+         "OneTyler Foundry - transcript eval results",
+         f"Run                : {d.name if d else '(none)'}",
+         f"Exported           : {datetime.now().strftime('%Y-%m-%d %H:%M')}",
+         f"Exchanges replayed : {len(recs)}",
+         f"Candidate files    : {len(files)}"]
+    for f in files:
+        L.append(f"                     {f}")
+    if prop:
+        stale = [p for p in prop if not p[2]]
+        L.append("Content live during the run: "
+                 + ("NO - " + ", ".join(f"{c}/{f}" for c, f, _l, _s in stale)
+                    + "  <-- the answers below came from the OLD content and cannot be trusted"
+                    if stale else "yes, all files verified live before the questions were asked"))
+    else:
+        L.append("Content live during the run: NOT RECORDED (this run predates that check)")
+    L += [bar, ""]
+
+    for i, (rel, agent, n, q, before, after, ok, xnum) in enumerate(recs, 1):
+        corr = ""
+        f = REPO / rel
+        if f.is_file():
+            _, b = parse(f)
+            for xn, _t, _qq, _a, rv in exchanges_of(b or ""):
+                if xn == xnum and rv:
+                    corr = rv
+                    break
+        L += [sep,
+              f"[{i}/{len(recs)}]  {rel}",
+              f"          agent: {agent}    exchange: {xnum}",
+              f"          approved by reviewer: {'YES' if ok else 'NO'}",
+              sep, "",
+              "QUESTION", "--------", q.strip() or "(none)", "",
+              "ANSWER BEFORE  (as recorded in the transcript)",
+              "---------------------------------------------",
+              (before.strip() or "(not recorded)"), "",
+              "ANSWER NOW  (with the candidate knowledge files live)",
+              "----------------------------------------------------",
+              (after.strip() or "(no answer returned)"), ""]
+        if corr:
+            L += ["REVIEWER'S CORRECTION  (what the answer was supposed to become)",
+                  "---------------------------------------------------------------",
+                  corr.strip(), ""]
+        L.append("")
+
+    L += [bar,
+          "To act on this: read every exchange above as one body before changing anything.",
+          "An exchange marked 'approved: NO' still gives a wrong answer - compare ANSWER NOW",
+          "against the REVIEWER'S CORRECTION to see what is still missing. Do not change any",
+          "verdict in the transcripts, and ask rather than guessing where feedback is unclear.",
+          bar, ""]
+    stamp = d.name if d else "no-run"
+    return f"eval-{stamp}.txt", "\n".join(L)
+
+
 def eval_review_page():
     """A screen of its own for judging what the agents said after the change.
 
@@ -7086,15 +7143,12 @@ def eval_review_page():
         # "an eval ran but the content has moved on" is a stale result that must not be
         # mistaken for one, because its answers describe content that no longer exists.
         if d is None:
-            body = ("<div class='bar bnr-note'><b>No check has run yet.</b> Finish the knowledge "
-                    "updates, then run the check from "
-                    "<a href='/git'><b>Save &amp; Share</b></a> &mdash; Part 2, "
-                    "<b>Review eval</b>. The answers land here for you to approve, one "
-                    "transcript at a time.</div>")
+            body = ("<div class='bar bnr-note'><b>No check has run yet.</b> Run it from "
+                    "<a href='/git'><b>Save &amp; Share</b></a> &mdash; Part 2. Answers land "
+                    "here to approve.</div>")
         else:
-            body = ("<div class='bar bnr-router'><b>The last check is out of date.</b> A "
-                    "knowledge file has changed since it ran, so its answers describe content "
-                    "that no longer exists. Run the check again from "
+            body = ("<div class='bar bnr-router'><b>The last check is out of date</b> &mdash; a knowledge "
+                    "file changed since it ran. Run it again from "
                     "<a href='/git'><b>Save &amp; Share</b></a>.</div>")
         return page("Eval Review", "<h2 class=sec>Eval Review</h2>" + body, active="evalrev")
 
@@ -7115,14 +7169,11 @@ def eval_review_page():
                 "questions were asked, so the agents answered from the <b>old</b> content:"
                 + "".join(f"<br>&nbsp;&nbsp;<code>{html.escape(c)}/{html.escape(f)}</code>"
                           for c, f, _l, _s in stale)
-                + "<br><br>Do not approve. Run the check again &mdash; Bedrock ingestion is the "
-                  "slow part and a busy tenant can outlast the wait.</div>")
+                + "<br><br>Do not approve &mdash; run the check again.</div>")
     elif not prop:
-        warn = ("<div class='bar bnr-note'><b>Propagation was not recorded for this run.</b> "
-                "It predates that check, so whether the candidate content was live when the "
-                "questions were asked is unknown. Read the answers for the specific wording "
-                "your change introduced &mdash; if it is absent, re-run rather than approve."
-                "</div>")
+        warn = ("<div class='bar bnr-note'><b>Not known whether the content was live for this run.</b> "
+                "Look for your new wording in the answers; if it is absent, re-run rather than "
+                "approve.</div>")
 
     head = (
         f"<h2 class=sec>Eval Review</h2>"
@@ -7130,22 +7181,25 @@ def eval_review_page():
         + f"<div class=bar id=evstate>"
         + (f"<b>All {n_tot} approved.</b> The batch can be sent in."
            if all_ok else
-           f"<b>{n_ok} of {n_tot} approved.</b> Tick every transcript whose answer is right. "
-           "Anything you leave unticked is not ready, and the send stays shut.")
+           f"<b>{n_ok} of {n_tot} approved.</b> Tick the ones whose answer is right; the send needs "
+           "all of them.")
         + "</div>"
         "<div class=card>"
         "<h3>What you are deciding</h3>"
-        "<p class=sub>Each card is one exchange that was replayed against your changed "
-        "knowledge files. <b>Before</b> is what the agent said when the conversation happened; "
-        "<b>Now</b> is what it said with your change in place. Approve only where the new "
-        "answer actually fixes what you objected to.</p>"
-        f"<p class=sub>Run <code>{html.escape(when)}</code> &middot; "
-        f"{len(files)} knowledge file(s) &middot; {n_q} question(s). "
-        "Foundry has already been put back to what it was.</p>"
+        "<p class=sub>One card per replayed exchange. Approve only where <b>Now</b> actually fixes "
+        "what you objected to.</p>"
+        f"<p class=sub><code>{html.escape(when)}</code> &middot; {len(files)} file(s) &middot; "
+        f"{n_q} question(s). Foundry is already back to normal.</p>"
         "<div class=stepacts>"
         "<button class=sec onclick=\"evAll(1)\">Approve all</button>"
         "<button class=sec onclick=\"evAll(0)\">Clear all</button>"
-        "</div></div>")
+        # A plain link, not a fetch-and-blob: the browser's own download handling gets the
+        # filename and the save dialog right, and there is nothing here worth reimplementing.
+        "<a class='btn sec' href='/evalreview.txt' download>Download as .txt</a>"
+        "</div>"
+        "<p class=sub style='margin:8px 0 0'>The .txt has every exchange, demarcated &mdash; paste "
+        "it back to your assistant.</p>"
+        "</div>")
 
     cards = []
     for rel, agent, n, q, before, after, ok, xnum in recs:
@@ -7183,12 +7237,10 @@ def eval_review_page():
 
     foot = (
         "<div class=card><h3>When you are done</h3>"
-        + ("<p class=sub>Every transcript is approved. Sending in opens the change request(s) "
-           "and, on merge, publishes to Foundry.</p>"
+        + ("<p class=sub>Sending in opens the change request(s); merging publishes to Foundry.</p>"
            if all_ok else
-           "<p class=sub>Approve every transcript to send the batch in. If an answer is wrong, "
-           "leave it unticked and put the batch back to pending &mdash; your corrections and "
-           "field values are kept, and Part 2 resets so you can keep working.</p>")
+           "<p class=sub>If an answer is wrong, put the batch back to pending &mdash; your "
+           "corrections are kept.</p>")
         + "<div class=stepacts>"
         + (f"<button id=evsend onclick=\"evSend(this)\">Send the batch in</button>"
            if all_ok else
@@ -7223,16 +7275,14 @@ def git_page():
         # nobody should have to remember them.
         ai_stage = (
             "<li data-stage=ai class='wait ai'><b>Update the knowledge files</b>"
-            f"<span><b>{n_ai}</b> reviewed transcript(s) are waiting on this. It needs an AI "
-            "assistant — it is judgement and writing, not a command: which file, where in it, "
-            "and worded so the retriever finds it.<br>"
+            f"<span><b>{n_ai}</b> transcript(s) waiting. Needs an assistant.<br>"
             "<button type=button class=sec id=aiprompt onclick='copyPrompt(this)' "
             "style='margin-top:8px'>Copy the prompt for my assistant</button>"
             "</span></li>")
     else:
         ai_stage = (
             "<li data-stage=ai class=none><b>Update the knowledge files</b>"
-            "<span>nothing to update — no review in this batch asked for a change</span></li>")
+            "<span>nothing to update</span></li>")
 
     # The eval used to be invisible until it ran: the checkbox described it, but the numbered
     # progress list jumped straight from "Update the knowledge files" to "Upload to GitHub", so
@@ -7244,15 +7294,12 @@ def git_page():
     if ev_files and ev_q:
         eval_stage = (
             "<li data-stage=eval class=wait><b>Review eval</b>"
-            f"<span>asks the agents the {ev_q} question(s) from this batch against your "
-            f"{len(ev_files)} changed knowledge file(s), then puts Foundry back. "
-            f"~{ev_mins} min.<br><b>You read the answers and decide</b> — nothing is sent in "
-            "until you say the answers look right.</span></li>")
+            f"<span>{ev_q} question(s) against {len(ev_files)} changed file(s), ~{ev_mins} min. "
+            "<b>You read the answers and decide.</b></span></li>")
     else:
         eval_stage = (
             "<li data-stage=eval class=none><b>Review eval</b>"
-            "<span>nothing to check — no knowledge file in this batch differs from what is "
-            "already published</span></li>")
+            "<span>nothing to check</span></li>")
 
     prompt_json = json.dumps(analysis_prompt(n_ai))
 
@@ -7273,13 +7320,10 @@ def git_page():
       # wrong about this repo: a verdict is not the deliverable. The knowledge file that stops
       # the agent repeating that answer is, and writing it is the ONE job here that needs an
       # assistant. Everything else on this page is a button.
-      "<p class=sub>Parts 1 and 2 are yours. Part 3 needs an assistant for one step — "
-      "updating the knowledge files — and buttons for the rest.</p>"
+      "<p class=sub>Part 2 needs an assistant for the knowledge files; the rest is buttons.</p>"
       "<div class=whatsent><b>About to be sent</b><div id=gitfiles>" + files + "</div></div>"
       + step("1", "Part 1 — Save progress (recommended)",
-             "A checkpoint on this machine (local git commit) you can go back to. "
-             "Optional in the strict sense — Part 2 saves first anyway. Nothing is shared yet; if the laptop died "
-             "now, the work would go with it.",
+             "A local checkpoint you can go back to. Nothing is shared yet.",
              # Empty by DEFAULT, not prefilled. A prefilled box asks to be read, edited and
              # worried about; an empty one labelled "optional" asks for nothing. Blank is
              # handled server-side by auto_commit_message().
@@ -7291,18 +7335,14 @@ def git_page():
              "<button class=sec onclick=\"gitDo('diff')\">Show me exactly what changed</button>"
              "</div>" + "<div id=githist>" + saves_html + "</div>")
       + step("2", "Part 2 — Publish",
-             "Your verdicts are not the deliverable — the knowledge files that stop the agents "
-             "repeating those answers are. Updating them is the one step here that needs an "
-             "assistant; the rest is this button and a merge.",
+             "The knowledge files are the deliverable, not the verdicts.",
              "<ol class=prog id=prog>"
              + ai_stage
              + eval_stage +
              "<li data-stage=push class=wait><b>Upload to GitHub</b>"
-             "<span>your work and the knowledge updates together, kept apart from everyone "
-             "else's until they are checked (git push of your own branch)</span></li>"
+             "<span>pushes your branch</span></li>"
              "<li data-stage=pr class=wait><b>Create the change request</b>"
-             "<span>someone checks it before it becomes official (a GitHub pull "
-             "request)</span></li>"
+             "<span>a pull request, for review</span></li>"
              + "</ol>"
              + _eval_optin()
              + _bp_panel()
@@ -7314,11 +7354,9 @@ def git_page():
              # that already exists, not steps in submitting one, and they live on the PRs tab
              # where the request can be seen next to its checks. Listing them here as
              # greyed-out stages implied this button was somehow responsible for them.
-             + ("<div class=handoff>What happens next is on <a href='/prs'><b>PRs</b></a>: "
-                "approving, merging, and the Foundry upload if knowledge files changed."
+             + ("<div class=handoff>Merging and the Foundry upload are on <a href='/prs'><b>PRs</b></a>."
                 if is_admin() else
-                "<div class=handoff>An admin approves and merges it from there. Once it is "
-                "sent, you are done.")
+                "<div class=handoff>An admin merges it from there. You are done.")
              + "</div>")
       + "</div>"
       f"<script>window.AI_PROMPT={prompt_json};</script>"
@@ -7445,6 +7483,17 @@ class H(BaseHTTPRequestHandler):
             return self._send(200, pr_page(force="refresh=1" in self.path))
         if self.path == "/git":
             return self._send(200, git_page())
+        if self.path == "/evalreview.txt":
+            name, body = eval_txt()
+            b = body.encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "text/plain; charset=utf-8")
+            # Named after the run, so several rounds of this do not overwrite each other in the
+            # downloads folder - which is exactly the case it gets used in.
+            self.send_header("Content-Disposition", f'attachment; filename="{name}"')
+            self.send_header("Content-Length", str(len(b)))
+            self.end_headers()
+            return self.wfile.write(b)
         if self.path == "/evalreview" or self.path.startswith("/evalreview?"):
             return self._send(200, eval_review_page())
         if self.path.startswith("/t/"):
