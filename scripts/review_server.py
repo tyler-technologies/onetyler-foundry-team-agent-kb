@@ -421,6 +421,10 @@ ROUTING_KEYS = ("suggested_to", "reassign_to")
 # Maintained by the tooling, shown but not editable. See the DERIVED_KEYS branch in field().
 DERIVED_KEYS = ("review_round",)
 
+# Column-filter id (minus the `f_` prefix) -> the record key it filters on. Only the ones
+# that differ need an entry.
+FILTER_SRC = {"sugg": "suggested_to"}
+
 # Picked from the repo, not typed. See the MULTI_KEYS branch in field().
 MULTI_KEYS = ("kb_files",)
 
@@ -2117,7 +2121,11 @@ document.addEventListener('click',e=>{
 });
 document.addEventListener('keydown',e=>{if(e.key==='Escape')fpopAll().forEach(o=>o.hidden=true)});
 
-const FKEYS=['agent','ex','fb','status','awaiting','routing','answer','diag','fix'];
+// Single-word keys ON PURPOSE. Each has to match BOTH an element id (`f_<key>`) and a row
+// data attribute read as `tr.dataset[key]`. A hyphenated attribute like `data-suggested-to`
+// arrives as `dataset.suggestedTo`, so a snake_case key here would silently never match and
+// the filter would appear to do nothing.
+const FKEYS=['agent','ex','fb','status','sugg','routing','answer','diag','fix'];
 const SHOW_ALL_LINK=document.body.dataset.showAll==='1';
 const FKEY_STORE='tfilters:'+(document.body.dataset.defaultMine==='1'?'mine':'all');
 function fstate(){const g=i=>{const e=document.getElementById(i);return e?e.value:''};
@@ -2760,7 +2768,7 @@ def list_page(show_all=False):
             f" data-status=\"{html.escape(r['status'])}\" data-routing=\"{html.escape(r['routing'])}\""
             f" data-answer=\"{html.escape(r['answer'])}\" data-diag=\"{html.escape(r['diag'])}\""
             f" data-fix=\"{html.escape(r['fix'])}\" data-reviewer=\"{html.escape(r['reviewer'])}\""
-            f" data-awaiting=\"{html.escape(r['suggested_to'])}\""
+            f" data-sugg=\"{html.escape(r['suggested_to'])}\""
             f" data-owner=\"{html.escape(','.join(r['owners']))}\""
             f" data-eff=\"{html.escape(','.join(r['eff_agents']))}\""
             f" title=\"{html.escape(r.get('own_basis',''))}\""
@@ -2835,7 +2843,7 @@ def list_page(show_all=False):
              ("First question", "", ""), ("Handled by", "sel", "f_agent"),
              ("Date", "date", ""), ("Ex", "sel", "f_ex"),
              ("Status", "sel", "f_status"),
-             ("Awaiting", "sel", "f_awaiting"), ("Routing", "sel", "f_routing"),
+             ("Suggested to", "sel", "f_sugg"), ("Routing", "sel", "f_routing"),
              ("Answer", "sel", "f_answer"), ("Diagnosis", "sel", "f_diag"),
              ("Fix target", "sel", "f_fix")]
 
@@ -2850,7 +2858,10 @@ def list_page(show_all=False):
                      "<label>To</label><input type=date id=dto>")
             key = "date"
         else:
-            src = fid[2:]
+            # The filter id is a short single word (see FKEYS); the record key it reads may
+            # not be. Mapped rather than derived, because `f_sugg`[2:] is not a record key and
+            # the crash it caused was a KeyError on page load, not a wrong filter.
+            src = FILTER_SRC.get(fid[2:], fid[2:])
             extra = ("<option value='__open__'>open (pending+suggested)</option>"
                      if fid == "f_status" else "")
             # The feedback column's heading is a pair of glyphs, which makes a poor popover
