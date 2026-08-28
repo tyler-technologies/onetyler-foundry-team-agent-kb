@@ -3725,19 +3725,6 @@ def analytics_page(force=False):
              "do not rate."),
     ]))
 
-    # Said plainly rather than omitted. A dashboard that silently drops three of Foundry's
-    # panels invites the reader to assume the numbers are zero.
-    body.append(
-        "<h3 class=angroup>Identities</h3>"
-        "<div class='bar bnr-done'><b>Not available to this tool.</b> Foundry's Analytics tab "
-        "shows identified subjects, authenticated users and anonymous identities. Those come "
-        "from <code>/api/analytics/advanced/summary-statistics</code>, which returns "
-        "<b>403 &mdash; user lacks required permissions</b> for a normal API key, and the "
-        "transcripts API carries no identity at all: a team transcript has only "
-        "<code>conversationId</code>, <code>teamName</code> and the exchanges, and an exchange "
-        "has only question, response and feedback. Rather than substitute a lookalike number, "
-        "these are left blank. Read them in Foundry.</div>")
-
     rows = "".join(
         f"<tr><td class=swhen>{html.escape(day)}</td><td>{n}</td></tr>"
         for day, n in d["top_days"])
