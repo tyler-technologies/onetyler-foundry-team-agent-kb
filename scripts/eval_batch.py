@@ -358,13 +358,25 @@ def main():
     sync_once()
 
     print("\n[3/5] Waiting for the collections to serve the new content")
+    # RECORDED, not just printed. A file that never went live makes every answer below it
+    # meaningless - the agent answered from the old content - and approving those answers would
+    # ship a change nobody actually tested. Printing the warning put it in a scrollback the
+    # reviewer had no reason to re-read; the review screen needs it as data.
+    propagation = []
     for col, fs in cols.items():
         for f in fs:
             want = hashlib.sha256((REPO / f).read_bytes()).hexdigest()
             waited = wait_for_content(col, pathlib.Path(f).name, want)
+            propagation.append({"collection": col, "file": pathlib.Path(f).name,
+                                "live": waited is not None, "seconds": waited})
             print(f"      {col}/{pathlib.Path(f).name}: "
                   + (f"live after {waited}s" if waited is not None
                      else "TIMED OUT — the answers below may not reflect the change"))
+    (rdir / "PROPAGATION.json").write_text(json.dumps(propagation, indent=2))
+    stale = [p for p in propagation if not p["live"]]
+    if stale:
+        print(f"\n  ⚠ {len(stale)} file(s) never went live. The answers below were given from "
+              "the OLD content and must not be approved.")
 
     # ---- 4. replay the questions ---------------------------------------------------------
     print("\n[4/5] Asking the transcripts' own questions")
