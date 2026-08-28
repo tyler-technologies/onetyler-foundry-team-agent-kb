@@ -42,7 +42,7 @@ _Aligned Releases content moved to `Knowledge-AlignedReleases/` on 2026-08-23 wh
 
 | File | One-liner — what's in it |
 |---|---|
-| `FAQ-BPGeneral.md` | **Authored answers with no upstream source.** Currently one entry: which Teams channel a product registration question goes to — functional to Product Registration Community, technical to Cloud Platform Community. That entry **corrects** `Docusaurus-ProductSystemReg.md`, which points everything at the functional channel. |
+| `FAQ-BPGeneral.md` | **Authored answers with no upstream source.** Two entries: (1) never route a person to an individual — tickets and community channels, with the reasons, the **closed list** of two approved named contacts in this corpus (Vijay Venkataraman for NEW product registrations; Arleigh Hays for management console access), and the ticket route that replaced every other name; (2) which Teams channel a product registration question goes to — functional to Product Registration Community, technical to Cloud Platform Community. Entry (2) **corrects** `Docusaurus-ProductSystemReg.md`, which points everything at the functional channel. |
 | `Docusaurus-PlatformOverview.md` | **Orientation + canonical glossary + specialized-agent routing.** Cloud Living / Tyler 2030, what TCP is, platform applications, Client vs Ops app types, getting support (service desk + Teams channels), and the full Blueprint **terminology glossary**. The agent's grounding file — read it early. |
 | `Docusaurus-ClientApps.md` | The **client-application reference**: Admin Center (sign-in, roles, ACLs, Identity Workforce config in the AC UI, users/bulk import, page-by-page feature reference, Tyler-internal integration + sandbox tenants), App Directory, CAPM, Community Launcher, Community Profile, Workforce Profile, and Community Services Directory (CSD admin/config/public directory). |
 | `Docusaurus-OpsApps.md` | The **Tyler-staff Ops app family** *excluding* Ops Center & SAC: app taxonomy (client vs ops), **Audit Center**, **Authorization Config**. (Audit Center / Authorization Config source pages are stubs — file says so; don't fabricate.) Hands off to the Ops Center & SAC agents. |
@@ -87,6 +87,23 @@ When the user asks about… reach for these first (after checking the specialize
 ### "How do I register a product / what app types exist / Product vs SKU / customer onboarding & provisioning?"
 - `Docusaurus-ProductSystemReg.md`.
 - For product registration *in the Ops Center UI specifically* → **Ops Center agent**.
+
+### "How do I get <person> to fix something? / Who do I contact about X? / Can I message <name>?"
+- `FAQ-BPGeneral.md` → *How do I get &lt;person&gt; to fix something?* — **read this before naming
+  anyone.** Route to a ticket AND the right community channel, and give the reasons (vacation
+  cover, load balancing, not distracting individuals; the community teaches everyone at once and
+  is watched by whoever is available).
+- **The approved named contacts are a CLOSED list of two**, each narrowed to one job: Vijay
+  Venkataraman for a NEW product registration not already in the Coda doc (also subject to review
+  and must not be attempted alone), and Arleigh Hays for management console access on Visual
+  Studio / GitHub licensing. Settled by a full audit on 2026-08-27. A name in a "contact this
+  person" position anywhere else is a defect to report, not a contact to hand out.
+- **Where a name used to be, there is a ticket route** — access and permissions (incl. SAC group
+  administration and `+Create Internal`) go to the *Ops Center Related Tickets and Permissions*
+  Confluence page → *Orgs*; see the FAQ entry for the full table. Give the **Confluence page, not
+  the raw JSM form URL**.
+- ⚠ `Docusaurus-DevOps.md` *Service Escalation Tiers* names engineers per service. That is
+  escalation STRUCTURE, not a contact instruction. Do not hand those names to a requester.
 
 ### "Who do I ask about product registration / where do I post this / my registration is out of sync / broken?"
 - `FAQ-BPGeneral.md` → *Where do I post a product registration question?* — **read this before
