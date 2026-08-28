@@ -5989,6 +5989,34 @@ def analytics_page(force=False):
 # that reveals it looks like a content problem, so it gets misdiagnosed. Hence its own warning.
 ROUTER_PATHS = ("team-config/", "README.md")
 
+# Set by a completed eval, read by the "pr" action. Keyed on the exact candidate content that was
+# evaluated, so editing a knowledge file AFTER the eval invalidates the approval - otherwise a
+# reviewer could evaluate one version and send in another, which is the one way this gate could
+# be defeated without meaning to.
+#
+# Process-lifetime only, deliberately. It is a "did you look at the answers" gate, not an audit
+# trail, and persisting it would mean an approval surviving a restart the reviewer did not connect
+# to it.
+_EVAL_OK = {"fingerprint": None, "at": 0.0}
+
+
+def candidate_fingerprint():
+    """A hash of the candidate knowledge content, so an approval can be tied to what it approved."""
+    try:
+        sys.path.insert(0, str(REPO / "scripts"))
+        import eval_batch
+        files = eval_batch.candidate_files()
+    except Exception:                                                 # noqa: BLE001
+        return None
+    if not files:
+        return None
+    import hashlib
+    h = hashlib.sha256()
+    for f in sorted(files):
+        h.update(f.encode())
+        h.update((REPO / f).read_bytes())
+    return h.hexdigest()
+
 
 def router_changes():
     """Router-affecting files in this batch, committed or not. [] if none."""
@@ -6042,7 +6070,9 @@ def _eval_optin():
         "<b>While it runs, live agents answer from the candidate content.</b> Bedrock's "
         "ingestion is the slow part and cannot be shortened, so this is best done outside "
         "working hours.<br>"
-        "Your own work is saved first, so a crash during the check cannot lose it.</div></div>")
+        "Your own work is saved first, so a crash during the check cannot lose it.<br>"
+        "<b>Required before a change request can be created.</b> Unticking it does not skip the "
+        "check &mdash; it just means the send is refused until the check has run.</div></div>")
 
 
 def _router_warning():
@@ -6609,6 +6639,12 @@ class H(BaseHTTPRequestHandler):
                             cwd=REPO, capture_output=True, text=True, timeout=1800)
                         out = pre + "\n\n" + ((r.stdout or "") + (r.stderr or "")).strip()
                         rc = r.returncode
+                        if rc == 0:
+                            # Tied to the content that was actually evaluated. Change a knowledge
+                            # file after this and the fingerprint stops matching, so the gate
+                            # closes again rather than trusting a stale run.
+                            _EVAL_OK.update(fingerprint=candidate_fingerprint(),
+                                            at=time.time())
                 elif act == "reset-pending":
                     # Status only. Corrections, summaries and field values stay - the verdict was
                     # premature, not wrong to have been written, and throwing the prose away
@@ -6635,6 +6671,34 @@ class H(BaseHTTPRequestHandler):
                            "Nothing in this batch was reviewed or suggested, so there was "
                            "nothing to put back.")
                 elif act == "pr":
+                    # NO CHANGE REQUEST UNTIL THE EVAL HAS BEEN RUN AND ITS ANSWERS SEEN.
+                    #
+                    # Enforced HERE and not only on the button, because the checkbox can be
+                    # unticked and the endpoint can be called directly - a gate that lives only
+                    # in the page is a suggestion. The point of the eval is that a knowledge
+                    # change is judged by what the agent SAYS next, and a request opened without
+                    # that has skipped the only step that checks the thing that matters.
+                    #
+                    # Only applies when there is something to evaluate: knowledge files changed
+                    # AND transcripts with questions to replay. A batch of verdicts with no
+                    # content change has nothing an eval could tell you, and blocking it would be
+                    # a gate with no question behind it.
+                    fp = candidate_fingerprint()
+                    _, n_q, _ = eval_estimate()
+                    if fp and n_q and _EVAL_OK["fingerprint"] != fp:
+                        why = ("the check has not been run on this version yet"
+                               if _EVAL_OK["fingerprint"] is None else
+                               "a knowledge file changed after the last check, so its answers "
+                               "were about different content")
+                        return self._send(200, json.dumps({"ok": False, "output": (
+                            "No change request was created — " + why + ".\n\n"
+                            "Tick \"Check the change against these transcripts first\" and press "
+                            "Send my reviews in. It uploads the candidate files, asks the agents "
+                            "this batch's questions, puts Foundry back, and shows you the "
+                            "answers. Read them, then send it in.\n\n"
+                            "Nothing has been pushed and nothing was lost — your work is saved "
+                            "locally either way.")}), "application/json")
+
                     # Save FIRST, always. "Send my reviews in" used to push and open a PR
                     # without committing, so a reviewer who never clicked Save sent an empty
                     # change request and was told it worked. Save is a checkpoint a reviewer
