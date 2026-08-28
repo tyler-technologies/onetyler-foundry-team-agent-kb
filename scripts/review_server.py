@@ -2034,8 +2034,9 @@ function prMerge(btn,number,title,checks){
             : checks==='running' ? 'Checks are still running.<br>' : '';
  confirmThen(btn,'Merge #'+number+'?',
    warn+'<code>'+title+'</code><br><br>Rebases onto main and deletes the branch; if the '
-   +'branch is behind main it is brought up to date first. Anything merged is live in the '
-   +'repo for everyone.',
+   +'branch is behind main it is brought up to date first.<br><br><b>Any knowledge files in '
+   +'this request are then uploaded to Foundry and verified.</b> This is the whole make-it-live '
+   +'action, so the agents change as soon as it finishes.',
    ()=>prDo(btn,'merge',number));
 }
 function prOverride(btn,number,title,checks){
@@ -2044,8 +2045,9 @@ function prOverride(btn,number,title,checks){
  confirmThen(btn,'Merge #'+number+' bypassing review?',
    warn+'<code>'+title+'</code><br><br>This skips the required approval \u2014 the one action '
    +'here that removes a safety gate rather than passing through it, and reasonable only on '
-   +'your own work.<br><br>Rebases onto main and deletes the branch. If the branch is behind '
-   +'main it is brought up to date first.',
+   +'your own work.<br><br>Rebases onto main and deletes the branch, brings it up to date '
+   +'first if needed, then <b>uploads any knowledge files to Foundry and verifies them</b>. '
+   +'The agents change as soon as it finishes.',
    ()=>prDo(btn,'merge-override',number));
 }
 // Sending in is where the batch leaves this machine, and the assistant step sits BEFORE it in
@@ -4297,6 +4299,71 @@ def pull_main():
                   else "Brought in 1 update from the shared copy.")
 
 
+def merged_knowledge_files(number):
+    """Knowledge files this change request touched. Returns a sorted list of repo-relative paths.
+
+    ASKS GITHUB rather than diffing git, because with a REBASE merge there is no merge commit to
+    diff against. The tip's first parent is the previous REBASED COMMIT, not main's old tip - so
+    `git diff HEAD^1 HEAD` sees only the last commit of the request. Measured on #47, a
+    three-commit request touching two knowledge files: the git diff found one of them, and would
+    have published half the change while reporting success.
+
+    `publish_to_foundry.py --since` has the same class of problem from the other direction - it
+    guesses the comparison point from the reflog, which is wrong as soon as two merges land close
+    together.
+
+    The PR's own file list has neither problem: it is what the request changed, by definition.
+    """
+    files, err = pr_files(number, force=True)
+    if err or not files:
+        return []
+    out = []
+    for f in files:
+        path = f.get("filename") or ""
+        top = path.split("/")[0] if "/" in path else ""
+        if (top.startswith("Knowledge-") and path.endswith(".md")
+                and f.get("status") != "removed" and (REPO / path).is_file()):
+            out.append(path)
+    return sorted(set(out))
+
+
+def publish_after_merge(files):
+    """Upload the merged knowledge files to Foundry. Returns (ok, message).
+
+    WHY THIS IS PART OF MERGE, not a step afterwards.
+    -----------------------------------------------
+    Merging is the moment `main` gets ahead of the live agents, and nothing else notices: a
+    knowledge file only reaches an agent when somebody uploads it, so a merge without an upload
+    leaves the agent answering from old text while the repo looks correct. That gap has been
+    real - a 6.5-hour window on 2026-08-25 - and it was only ever closed by somebody remembering.
+    Merge is an ADMIN action and publishing is an admin responsibility, so the button that makes
+    a change permanent is the right place for it.
+
+    Everything still runs through publish_to_foundry.py rather than being reimplemented here,
+    which means the guarantees come along: it refuses any file whose bytes differ from
+    origin/main, uploads every batch before triggering ONE consolidated sync, and verifies by
+    retrieval rather than trusting ingestionStatus.
+    """
+    if not files:
+        return True, "No knowledge files in this request, so nothing to publish."
+    if not os.environ.get("FOUNDRY_API_KEY"):
+        return False, ("Merged, but FOUNDRY_API_KEY is not set in the environment this server "
+                       "was started from, so the upload did not run. The agents are still "
+                       "answering from the old content.\n\nStart the server from a shell that "
+                       "has the key, then:\n  python3 scripts/publish_to_foundry.py --files "
+                       + " ".join(files))
+    r = subprocess.run(
+        [sys.executable, str(REPO / "scripts" / "publish_to_foundry.py"),
+         "--files", *files, "--yes", "--timeout-min", "12"],
+        cwd=REPO, capture_output=True, text=True, timeout=900)
+    out = ((r.stdout or "") + (r.stderr or "")).strip()
+    tail = "\n".join(out.splitlines()[-24:])
+    if r.returncode != 0:
+        return False, ("Merged, but the Foundry upload FAILED. The repo is ahead of the live "
+                       "agents until this is fixed:\n\n" + tail)
+    return True, tail
+
+
 def merge_pr(num, override):
     """Merge a change request, bringing the branch up to date first if that is what is needed.
 
@@ -4820,11 +4887,11 @@ def pr_page(force=False):
             f"<div class=prpills>{pill}{chk}{rev}{conflict}</div>"
             f"<p class=sub style='margin-top:8px'>{kind['summary']}</p>"
             f"<p class=sub>{html.escape(why)}</p>"
-            + (f"<div class='hint fdrynote'>Merging this obliges a Foundry upload to "
-               f"<b>{html.escape(', '.join(kind['cols']))}</b>. Afterwards:<br>"
-               "<code>python3 scripts/publish_to_foundry.py</code></div>"
+            + (f"<div class='hint fdrynote'>Merging <b>publishes</b> this to "
+               f"<b>{html.escape(', '.join(kind['cols']))}</b> and verifies it by retrieval. "
+               "One button, one outcome &mdash; there is nothing to remember afterwards.</div>"
                if kind["kb"] else
-               "<div class=hint>No Foundry upload needed — this one does not touch knowledge "
+               "<div class=hint>Nothing to publish — this one does not touch knowledge "
                "files.</div>")
             + f"{selfnote}"
             f"<div class=stepacts>{''.join(acts)}"
@@ -6311,12 +6378,26 @@ class H(BaseHTTPRequestHandler):
                         # of its own action, and merged transcripts come back as pending.
                         okp, msgp = pull_main()
                         refresh_index()
-                        out = head + out + (("\n\n" + msgp) if msgp else "") + (
-                            "\n\nOne thing follows:\n"
-                            "  python3 scripts/check_foundry_drift.py   "
-                            "(main is now ahead of the live agents)\n"
-                            "  python3 scripts/publish_to_foundry.py    "
-                            "(only if knowledge files changed)")
+
+                        # MERGE PUBLISHES. This button is the whole "make it live" action, not
+                        # the first half of one - see publish_after_merge().
+                        kbf = merged_knowledge_files(num)
+                        okpub, msgpub = publish_after_merge(kbf)
+                        if not okpub:
+                            rc = 1        # a merge that did not reach the agents is not done
+
+                        parts = [head + out]
+                        if msgp:
+                            parts.append(msgp)
+                        if kbf:
+                            parts.append(f"Publishing {len(kbf)} knowledge file(s) to Foundry:\n"
+                                         + "\n".join("  " + f for f in kbf))
+                        parts.append(msgpub)
+                        if okpub and kbf:
+                            parts.append("Live and verified by retrieval. Close out the "
+                                         "transcripts with:\n"
+                                         "  python3 scripts/mark_pushed.py --all")
+                        out = "\n\n".join(parts)
                     elif not override and _needs_override(out):
                         out += ("\n\nGitHub refused because the required approval is missing. "
                                 "You can merge it anyway as an admin — that BYPASSES the review "
