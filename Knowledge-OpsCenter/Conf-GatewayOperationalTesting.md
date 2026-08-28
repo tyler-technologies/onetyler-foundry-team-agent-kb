@@ -118,7 +118,7 @@ For all products that have Core Gateway readiness, treat the testing exercise **
 2. **Have a real operational team member** — someone who is nominally responsible for a customer deployment/implementation — actually follow the instructions you'd normally hand to a customer.
 3. **Test with the customer accounts above** (see *Test credentials*). The whole point is to validate using **non-Tyler-Tech credentials** — there is special functionality in effect for `@tylertech.com` email ids, so testing only with TT accounts will not reflect real customer behavior.
 4. **Additionally test with Tyler Tech email ids** to ensure any deployment / implementation / support scenarios that would normally involve Tyler staff also work.
-5. **For any issues, reach out to Vijay Venkataraman.**
+5. **For any issues, post in the [**Identity Workforce** Teams channel](https://teams.microsoft.com/l/channel/19%3Ae0289e84ce4a4bae841c55249970a491%40thread.tacv2/Identity%20Workforce?groupId=d9db441d-35fa-433c-8fe0-ff7fe5825d3c&tenantId=7cc5f0f9-ee5b-4106-a62d-1b9f7be46118).**
 
 ---
 
@@ -180,4 +180,4 @@ When a **net-new customer** (one for whom OneTyler has not previously provisione
 - **Test with a non-Tyler-Tech account.** `@tylertech.com` accounts trigger special functionality and won't reflect real customer behavior — this is the whole point of providing the `amelia.brady@tylertownwa.org` and `joel.enlow@tylertownwa.org` accounts.
 - **For Tyler Deploy-based products, BOTH legacy and gateway modes must be tested.** OneTyler only supplies `Tyler Town - WA 999999990126` for the gateway side; the product team is responsible for sourcing their own legacy test env (Echo, etc.).
 - **Net-new customers with mixed-readiness products go to Workforce Managed (Core)** — even if the customer wanted Workforce Direct. The "Not Ready" product blocks WD adoption. Make sure this is clearly communicated to the customer expectation-wise. Once all their products reach Ready status, a conversion path is possible (see the WM→WD Retargeting and Migration runbook referenced in `Knowledge-Shared/Conf-OneTylerTickets.md`).
-- **Issues with the test plan or the test org itself: contact Vijay Venkataraman.**
+- **Issues with the test plan or the test org itself: post in the [**Identity Workforce** Teams channel](https://teams.microsoft.com/l/channel/19%3Ae0289e84ce4a4bae841c55249970a491%40thread.tacv2/Identity%20Workforce?groupId=d9db441d-35fa-433c-8fe0-ff7fe5825d3c&tenantId=7cc5f0f9-ee5b-4106-a62d-1b9f7be46118).**
