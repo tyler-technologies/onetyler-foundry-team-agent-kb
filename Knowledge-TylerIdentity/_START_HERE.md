@@ -23,7 +23,7 @@ client operations, identity events.
 | `Docusaurus-Identity.md` | **The substance.** A single ~2,950-line reference distilled from Tyler Blueprint `docs/identity/` (current docs only; Legacy excluded), covering both identity solutions end to end across 39 top-level sections. Because it is one large file, the *section map* below matters more than the file name — use it to aim your answer. |
 | `Conf-IdentityTickets.md` | Identity-specific **ticket reference**: which CorpDev form to file for federation, auth issues, SKU change, Okta access, identity clients, custom IdP vetting — with each form's own instructions. A derived extract; the full cross-domain catalog is `Knowledge-Shared/Conf-OneTylerTickets.md`. |
 | _(also in the collection)_ `Knowledge-Shared/Conf-OneTylerTickets.md` | The authoritative cross-domain **ticket catalog**. Uploaded to every collection, so this agent can answer ticket questions directly instead of handing off. |
-| `FAQ-Identity.md` | **Authored answers with no upstream source** — verbal SME guidance, observed behaviour, corrections upstream owners have not yet made. Currently: how to disambiguate "client"; the fact that ticket `4149` is *Identity SKU Change*, not the SAC-enable form the Confluence page claims; the **client-side Entra ID app-registration steps** a customer must complete before the Tyler half of a federation can be configured; and why **Admin Center bootstrap access depends on the Workforce deployment model** (Direct uses a magic link). |
+| `FAQ-Identity.md` | **Authored answers with no upstream source** — verbal SME guidance, observed behaviour, corrections upstream owners have not yet made. Currently: how to disambiguate "client"; the fact that ticket `4149` is *Identity SKU Change*, not the SAC-enable form the Confluence page claims; the **client-side Entra ID app-registration steps** a customer must complete before the Tyler half of a federation can be configured; and why **Admin Center bootstrap access depends on which of the four Workforce models** the org uses (Direct uses a magic link; Global is a distinct Private-Preview model, not a rename of Delegated). |
 
 ---
 
@@ -36,7 +36,7 @@ separate products with separate endpoints, flows and docs.
 |---|---|---|
 | Who logs in | Customer **staff / back-office** users | **Citizens and the public** |
 | Identity source | The customer's own IdP, federated via the **Gateway** | Tyler-hosted; users self-register |
-| Sometimes called | Gateway, TID-W, Workforce Direct/Managed/Delegated | TID Citizen, Community |
+| Sometimes called | Gateway, TID-W, Workforce Direct/Managed/Delegated/Global | TID Citizen, Community |
 | Section cluster | *Identity Workforce …* | *Community Access …* / *… with Community Access* |
 
 If the question doesn't make the audience clear, ask. "How do I set up login?" is
