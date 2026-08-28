@@ -12,14 +12,18 @@ If you are unsure whether something is mine, stop and ask me.
 
 Then:
 
-1. Pull the latest `main`:
+1. Pull the latest `main` and start everything, with the launcher:
 
-       ./scripts/start_review_session.sh        # Git Bash on Windows, not PowerShell
+       python3 scripts/start.py        # macOS / Linux
+       python  scripts\start.py        # Windows — works in PowerShell and cmd
 
-   It syncs `main`, fetches new transcripts, checks the reviewer list, and tells me what is
-   waiting. It refuses to run on a dirty tree — that is deliberate, so deal with step zero
-   rather than forcing past it. If you cannot run it, `git switch main && git pull --ff-only`
-   and say what failed.
+   It updates the repo, refreshes the reviewer list, fetches new transcripts, starts the
+   review UI and opens the browser. Every step fails independently, so one broken step does
+   not stop the rest — read what it says rather than assuming it all worked.
+
+   I can also just double-click `Start-reviewing.command` (macOS) or `Start-reviewing.bat`
+   (Windows) and skip you entirely; `DAILY-WORKFLOW.md` is the page written for me. If the
+   launcher will not run, `git switch main && git pull --ff-only` and say what failed.
 
 2. **Re-read these in full. Do not skim, and do not rely on what you remember — several of
    these rules changed.** Check what actually moved first, so you know where to look:
@@ -55,12 +59,10 @@ Then:
    is leaving my machine and needs rotating, not just moving. `CLAUDE.md` has the setup for
    both platforms. Don't ask me to paste the key to you.
 
-5. Restart the review UI so it runs the new code:
-
-       # stop any existing server on 7777 first — a running one has the OLD code in memory
-       python3 scripts/review_server.py
-
-   Confirm it responds before telling me it is up.
+5. If a review UI was already running before step 1, **restart it** — a running server
+   holds the OLD code in memory, so it will not show any of the changes you just pulled.
+   `scripts/start.py` handles this; if you start the server directly instead, stop the old
+   one on port 7777 first. Confirm it responds before telling me it is up.
 
 6. Show me the queue — `python3 scripts/review_status.py` — and call out anything carrying
    written feedback that has not been classified yet.
