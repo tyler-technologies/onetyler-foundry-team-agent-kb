@@ -154,6 +154,25 @@ DELEGATE_SLUG = {
 }
 
 
+# Collection -> the local folder its files come from. The inverse of FOLDER_COLLECTION, which
+# is one-to-many (Knowledge-Shared uploads to all five) and so cannot be inverted mechanically.
+BK_COLLECTION_FOLDER = {
+    "OT-OpsCenter":       "Knowledge-OpsCenter",
+    "OT-BPD":             "Knowledge-BP-General",
+    "OT-SAC":             "Knowledge-SupportAccessCenter",
+    "OT-AlignedReleases": "Knowledge-AlignedReleases",
+    "TCP-KB-Identity":    "Knowledge-TylerIdentity",
+}
+
+BK_AGENT_ID = {
+    "ops-center":       "5b3efdff-921a-4131-be81-b7a4be427d9b",
+    "bp-general":       "bd1c5d91-8234-486e-9f5a-2f1b7a947426",
+    "sac":              "55444576-1fa3-4d12-a738-6ba83b17e6a7",
+    "aligned-releases": "b0544224-b120-469a-8f39-c4a7b14c17c0",
+    "identity":         "3f5e586f-0d0f-4638-9839-bebe45a6cb47",
+}
+
+
 def admins():
     """Everyone on the admins team. Routing is admin territory, so a transcript whose ROUTING
     is in question belongs to all of them rather than to one area owner."""
@@ -701,6 +720,10 @@ CSS = r"""
   --bnr-ok-bg:#eef7ee;    --bnr-ok-bd:#c6e3c6;    --bnr-ok-fg:#1c3d1f;
   --bnr-sug-bg:#f3ecfd;   --bnr-sug-bd:#cdb8f0;   --bnr-sug-fg:#33215c;
   --bnr-done-bg:#fff6e5;  --bnr-done-bd:#e8d3a8;  --bnr-done-fg:#4a3610;
+  /* Neutral informational banner. Used since the Backups tab shipped and never defined,
+     so those panels rendered as bare .bar with no tint at all - the styling was silently
+     absent rather than wrong, which is why nobody noticed. */
+  --bnr-note-bg:#eef2f7;  --bnr-note-bd:#c9d4e2;  --bnr-note-fg:#26333f;
   --pill-warn-fg:#a83a00;
   --pill-ok-fg:#206b26;
 
@@ -791,6 +814,7 @@ CSS = r"""
   --bnr-ok-bg:#17301f;    --bnr-ok-bd:#2f5d40;    --bnr-ok-fg:#c8e6d2;
   --bnr-sug-bg:#261c3a;   --bnr-sug-bd:#443463;   --bnr-sug-fg:#ddccf5;
   --bnr-done-bg:#322916;  --bnr-done-bd:#574727;  --bnr-done-fg:#f0e0bd;
+  --bnr-note-bg:#1b2430;  --bnr-note-bd:#33465c;  --bnr-note-fg:#cddced;
   --pill-warn-fg:var(--forge-theme-warning);
   --pill-ok-fg:var(--forge-theme-success);
 
@@ -1182,6 +1206,8 @@ td.fbcell,th.fbcell{width:1%;text-align:center;padding-left:6px;padding-right:6p
    ink, or the ink follows the mode while the panel does not. */
 .bar.bnr-ok{background:var(--bnr-ok-bg);border-color:var(--bnr-ok-bd);color:var(--bnr-ok-fg)}
 .bar.bnr-sug{background:var(--bnr-sug-bg);border-color:var(--bnr-sug-bd);color:var(--bnr-sug-fg)}
+.bar.bnr-note{background:var(--bnr-note-bg);border-color:var(--bnr-note-bd);
+color:var(--bnr-note-fg)}
 .bar.bnr-done{background:var(--bnr-done-bg);border-color:var(--bnr-done-bd);
 color:var(--bnr-done-fg)}
 .fb.down{background:var(--fb-down-bg);border-radius:50%;padding:2px 3px 3px;box-shadow:0 0 0 2px var(--forge-theme-surface)}
@@ -1992,6 +2018,49 @@ if(document.getElementById('tbl')) initFilters();
  if(!rv||rv.value) return;
  let last=null; try{last=localStorage.getItem('lastReviewer')}catch(e){}
  if(last&&[...rv.options].some(o=>o.value===last)) rv.value=last;})();
+
+// ---- Backups: the two restore actions ------------------------------------------------------
+// These are the ONLY buttons in this app that write to production, so both go through
+// confirmThen and both say what they will do rather than just asking "are you sure".
+function bkPost(btn, payload, label){
+ const out=document.getElementById('bkout');
+ const was=btn.textContent; btn.disabled=true; btn.textContent=label+'…';
+ if(out){out.style.display='block'; out.textContent=label+'…';}
+ fetch('/bk',{method:'POST',headers:{'Content-Type':'application/json'},
+              body:JSON.stringify(payload)})
+  .then(r=>r.json()).then(d=>{
+    if(out){out.style.display='block'; out.textContent=d.output||'(no output)';}
+    toast(d.ok?'Done':'Failed — see the output below');
+    btn.disabled=false; btn.textContent=was;
+    // Re-read the page on success so the field diff reflects what is now live. Leaving a
+    // stale diff on screen after a write invites a second click that would do nothing.
+    if(d.ok) setTimeout(()=>location.reload(), 2500);
+  })
+  .catch(e=>{
+    if(out){out.style.display='block'; out.textContent='Request failed: '+e;}
+    btn.disabled=false; btn.textContent=was;
+  });
+}
+
+function bkKb(btn, slug, date){
+ confirmThen(btn,'Restore '+slug+'’s knowledge-base binding?',
+   'Writes <code>collectionConfigs</code> and <code>dataSourceConfigs</code> from the '
+   +date+' snapshot. It cannot touch instructions, model, tools or guardrails — those go '
+   +'through a different endpoint.<br><br>A Foundry restore point is taken first, so this is '
+   +'reversible.<br><br><b>This changes what a live agent reads.</b>',
+   ()=>bkPost(btn,{action:'kb',slug:slug,date:date},'Restoring binding'));
+}
+
+function bkFields(btn, slug, date){
+ const picked=[...document.querySelectorAll('input.bkfield:checked')].map(c=>c.value);
+ if(!picked.length){ toast('Tick at least one field first'); return; }
+ confirmThen(btn,'Roll back '+picked.length+' field(s) on '+slug+'?',
+   '<code>'+picked.join('</code>, <code>')+'</code><br><br>The payload is built from the '
+   +'<b>live</b> agent with only these fields taken from the '+date+' snapshot, so nothing '
+   +'else moves.<br><br>A Foundry restore point is taken first.<br><br><b>This changes what a '
+   +'live agent reads.</b>',
+   ()=>bkPost(btn,{action:'fields',slug:slug,date:date,fields:picked},'Rolling back'));
+}
 """
 
 
@@ -3936,7 +4005,522 @@ def backups(force=False):
     return d, None
 
 
-def backups_page(force=False, browse=""):
+# ---------------------------------------------------------------------------------------------
+# Restore actions. THE ONLY PLACE THIS APP WRITES TO PRODUCTION.
+#
+# Everything else in this UI writes to git. These three change what live agents tell customers,
+# so each one is shaped around what was actually MEASURED on 2026-08-28 rather than around what
+# the API docs imply:
+#
+#   POST /api/configurable-agents/{id}/versions          201. Needs {"type":"full","name":...}.
+#                                                        Provably non-destructive - creates a
+#                                                        restore point, leaves the agent alone.
+#   PUT  /api/configurable-agents/{id}/tenant-kb-config  200. CONTENT-IDEMPOTENT: PUTting the
+#                                                        existing value changed only
+#                                                        metadata.updatedAt. Touches nothing
+#                                                        else about the agent.
+#   PUT  /api/configurable-agents/{id}                   200. Full replace, 12 required fields.
+#                                                        Built from the LIVE object with one
+#                                                        field swapped, ONLY that field moved -
+#                                                        verified field-by-field, nothing wiped.
+#   POST .../versions/{vid}/restore                       200 - but ONLY with
+#                                                        `Content-Type: application/json`.
+#                                                        Without it: 400 "Content-Type must be
+#                                                        application/json" despite having no
+#                                                        body. Same trap as POST /sync. This
+#                                                        cost a real failed restore during
+#                                                        testing, with the agent left modified
+#                                                        until the retry.
+#
+# The full round trip was exercised end to end on the SAC agent: version -> kb PUT -> config PUT
+# with one field changed -> restore -> compared byte for byte against the pre-test capture.
+# Identical. So these are tested paths, not hopeful ones.
+
+
+def _foundry_write(method, path, payload=None, timeout=120):
+    """Write to Foundry. Returns (status, parsed_or_text).
+
+    Content-Type is ALWAYS sent, including when there is no body. `POST /versions/{id}/restore`
+    takes no body and still rejects the request without the header - a 400 that reads like a
+    malformed payload when the payload is the thing that does not exist.
+    """
+    import urllib.request
+    import urllib.error
+    base = os.environ.get("FOUNDRY_API_URL", "https://foundry.tylertechai.com").rstrip("/")
+    body = json.dumps(payload if payload is not None else {}).encode()
+    req = urllib.request.Request(base + path, method=method, data=body)
+    req.add_header("X-API-Key", os.environ.get("FOUNDRY_API_KEY", ""))
+    req.add_header("User-Agent", "claude-code-foundry-kb/1.0")
+    req.add_header("Content-Type", "application/json")
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            raw = r.read().decode("utf-8", "replace")
+            try:
+                return r.status, json.loads(raw or "null")
+            except json.JSONDecodeError:
+                return r.status, raw[:400]
+    except urllib.error.HTTPError as e:
+        return e.code, e.read().decode("utf-8", "replace")[:400]
+    except Exception as e:                                            # noqa: BLE001
+        return 0, str(e)
+
+
+# Fields never sent back on a PUT. They are server-owned, and echoing them either does nothing
+# or is rejected. `version` in particular is Foundry's own counter.
+BK_READONLY_FIELDS = ("tenant_id", "project_id", "creation_source", "origin", "canTest",
+                      "version")
+BK_TIMESTAMPS = ("updated_at", "updatedAt", "modifiedAt", "createdAt", "created_at")
+
+
+def _bk_strip_ts(o):
+    """Drop timestamps at every depth, so a comparison reports content rather than clock."""
+    if isinstance(o, dict):
+        return {k: _bk_strip_ts(v) for k, v in o.items() if k not in BK_TIMESTAMPS}
+    if isinstance(o, list):
+        return [_bk_strip_ts(x) for x in o]
+    return o
+
+
+def bk_take_version(slug, label):
+    """Create a native restore point for an agent. Returns (ok, message).
+
+    Called before every write here. It is one call, it is provably non-destructive, and it is
+    the difference between a reversible action and a one-way one.
+    """
+    aid = BK_AGENT_ID.get(slug)
+    if not aid:
+        return False, f"unknown agent slug {slug!r}"
+    code, out = _foundry_write("POST", f"/api/configurable-agents/{aid}/versions",
+                               {"type": "full", "name": label[:80]})
+    if code not in (200, 201):
+        return False, f"could not create a restore point (HTTP {code}): {str(out)[:200]}"
+    n = out.get("version_number") if isinstance(out, dict) else "?"
+    vid = out.get("id") if isinstance(out, dict) else "?"
+    return True, f"restore point created: v{n} ({vid})"
+
+
+def bk_agent_field_diff(slug, date):
+    """Per-field differences between the live agent and a snapshot. Returns (rows, err).
+
+    A row is (field, live_value, snapshot_value). Flattened to dotted paths so the picker can
+    offer one checkbox per actual field rather than per top-level blob.
+    """
+    aid = BK_AGENT_ID.get(slug)
+    if not aid:
+        return None, f"unknown agent {slug!r}"
+    saved, err = _bk_file(f"snapshots/{date}/agents/{slug}.json")
+    if err:
+        return None, f"snapshot unavailable: {err}"
+    try:
+        snap = _bk_strip_ts(json.loads(saved))
+    except json.JSONDecodeError as e:
+        return None, f"snapshot did not parse: {e}"
+    try:
+        live = _bk_strip_ts(_foundry_get(f"/api/configurable-agents/{aid}"))
+    except Exception as e:                                            # noqa: BLE001
+        return None, f"could not read the live agent: {e}"
+
+    rows = []
+    for k in sorted(set(live) | set(snap)):
+        if k in BK_READONLY_FIELDS:
+            continue
+        a, b = live.get(k), snap.get(k)
+        if json.dumps(a, sort_keys=True) != json.dumps(b, sort_keys=True):
+            rows.append((k, a, b))
+    return rows, None
+
+
+def bk_restore_fields(slug, date, fields):
+    """Roll back CHOSEN fields of an agent to a snapshot. Returns (ok, message).
+
+    THE PAYLOAD IS BUILT FROM THE LIVE OBJECT, with only the chosen fields replaced.
+    
+    PUTting the snapshot wholesale is the obvious implementation and the wrong one: a snapshot
+    from three days ago also reverts every legitimate change made since, which looks surgical
+    and is not. Measured on the SAC agent: a live-derived payload with one field swapped moved
+    ONLY that field.
+    """
+    aid = BK_AGENT_ID.get(slug)
+    if not aid:
+        return False, f"unknown agent {slug!r}"
+    if not fields:
+        return False, "no fields were selected, so nothing was written"
+
+    saved, err = _bk_file(f"snapshots/{date}/agents/{slug}.json")
+    if err:
+        return False, f"snapshot unavailable: {err}"
+    try:
+        snap = json.loads(saved)
+        live = _foundry_get(f"/api/configurable-agents/{aid}")
+    except Exception as e:                                            # noqa: BLE001
+        return False, f"could not read live or snapshot: {e}"
+
+    missing = [f for f in fields if f not in snap]
+    if missing:
+        return False, (f"the {date} snapshot has no value for {', '.join(missing)} — refusing "
+                       "rather than sending a null for a field that may be required")
+
+    ok, msg = bk_take_version(slug, f"pre-field-restore-{date}")
+    if not ok:
+        return False, msg + "\n\nNothing was written — a restore without an undo is not worth it."
+
+    body = {k: v for k, v in live.items() if k not in BK_READONLY_FIELDS}
+    for f in fields:
+        body[f] = snap[f]
+    code, out = _foundry_write("PUT", f"/api/configurable-agents/{aid}", body)
+    if code != 200:
+        return False, f"{msg}\n\nPUT failed (HTTP {code}): {str(out)[:300]}"
+
+    # Verify by re-reading, not by trusting the 200. And check that ONLY the chosen fields
+    # moved - the whole risk of a full-replace PUT is collateral change.
+    try:
+        now = _bk_strip_ts(_foundry_get(f"/api/configurable-agents/{aid}"))
+    except Exception as e:                                            # noqa: BLE001
+        return True, f"{msg}\n\nWritten, but could not re-read to verify: {e}"
+    before = _bk_strip_ts(live)
+    moved = [k for k in set(before) | set(now)
+             if k not in BK_READONLY_FIELDS
+             and json.dumps(before.get(k), sort_keys=True)
+             != json.dumps(now.get(k), sort_keys=True)]
+    unexpected = sorted(set(moved) - set(fields))
+    lines = [msg, "",
+             f"Restored {len(fields)} field(s) on {slug} from the {date} snapshot: "
+             + ", ".join(fields)]
+    if unexpected:
+        lines += ["", "⚠ These fields ALSO changed and were not selected: "
+                      + ", ".join(unexpected),
+                  "  The restore point above is how you undo this."]
+    else:
+        lines += ["", "Verified: only the selected field(s) changed."]
+    lines += ["", "Now ask the agent a question it should answer from this config. Text landing "
+                  "in a field is not the same as behaviour being restored."]
+    return True, "\n".join(lines)
+
+
+def bk_restore_kb(slug, date):
+    """Roll back one agent's knowledge-base bindings. Returns (ok, message).
+
+    The safest write available here. `PUT /{id}/tenant-kb-config` takes only collectionConfigs
+    and dataSourceConfigs, with no required fields, so it cannot disturb instructions, model,
+    tools or guardrails. Measured content-idempotent: PUTting the existing value changed only
+    metadata.updatedAt.
+    """
+    aid = BK_AGENT_ID.get(slug)
+    if not aid:
+        return False, f"unknown agent {slug!r}"
+    saved, err = _bk_file(f"snapshots/{date}/agents/{slug}.json")
+    if err:
+        return False, f"snapshot unavailable: {err}"
+    try:
+        kb = (json.loads(saved).get("tenantKBConfig") or {})
+    except json.JSONDecodeError as e:
+        return False, f"snapshot did not parse: {e}"
+    if not kb.get("collectionConfigs"):
+        return False, (f"the {date} snapshot has no collectionConfigs for {slug} — refusing, "
+                       "since writing an empty binding would leave the agent with no knowledge "
+                       "base at all")
+
+    ok, msg = bk_take_version(slug, f"pre-kb-restore-{date}")
+    if not ok:
+        return False, msg + "\n\nNothing was written."
+
+    code, out = _foundry_write(
+        "PUT", f"/api/configurable-agents/{aid}/tenant-kb-config",
+        {"collectionConfigs": kb.get("collectionConfigs") or [],
+         "dataSourceConfigs": kb.get("dataSourceConfigs") or []})
+    if code != 200:
+        return False, f"{msg}\n\nPUT failed (HTTP {code}): {str(out)[:300]}"
+    cols = ", ".join(c.get("name", "?") for c in (kb.get("collectionConfigs") or []))
+    nfiles = sum(len(c.get("files") or []) for c in (kb.get("collectionConfigs") or []))
+    return True, (f"{msg}\n\nRestored the knowledge-base binding for {slug} from the {date} "
+                  f"snapshot: {cols}.\n\n"
+                  f"The config's embedded file list holds {nfiles} entr(ies). That is EXPECTED "
+                  "to be fewer than the collection contains — it is a stale cache, and the "
+                  "collection endpoint is authoritative. Retrieval is scoped to the "
+                  "COLLECTION, so a short list here does not mean the agent has lost access to "
+                  "anything. Do not treat it as a problem to fix.")
+
+
+def bk_compare_file(collection, filename):
+    """Live Foundry content vs the repo, plus when the hash last changed. Returns (info, err).
+
+    Content is NOT in the snapshots - only hashes - so this compares live against the WORKING
+    TREE, which is the practical question ("is what the agent reads what we think it reads?").
+    The snapshot hashes then answer the second question: which day did it change.
+    """
+    folder = None
+    for f, cols in FOLDER_COLLECTION.items():
+        if collection in cols and (REPO / f / filename).is_file():
+            folder = f
+            break
+    if folder is None:
+        for f in list(FOLDER_COLLECTION):
+            if (REPO / f / filename).is_file():
+                folder = f
+                break
+    local = (REPO / folder / filename) if folder else None
+
+    try:
+        files = _foundry_get(
+            f"/api/tenant-knowledge-base/collections/{collection}/files")
+    except Exception as e:                                            # noqa: BLE001
+        return None, f"could not list {collection}: {e}"
+    rec = next((f for f in (files or []) if f.get("fileName") == filename), None)
+    if rec is None:
+        return None, f"{filename} is not in {collection}"
+
+    import urllib.request
+    base = os.environ.get("FOUNDRY_API_URL", "https://foundry.tylertechai.com").rstrip("/")
+    req = urllib.request.Request(
+        f"{base}/api/tenant-knowledge-base/collections/{collection}/files/{rec['id']}/download")
+    req.add_header("X-API-Key", os.environ.get("FOUNDRY_API_KEY", ""))
+    req.add_header("User-Agent", "claude-code-foundry-kb/1.0")
+    try:
+        with urllib.request.urlopen(req, timeout=90) as r:
+            remote = r.read()
+    except Exception as e:                                            # noqa: BLE001
+        return None, f"could not download {filename}: {e}"
+
+    import hashlib
+    info = {"collection": collection, "filename": filename, "folder": folder,
+            "remote_bytes": len(remote), "remote_sha": hashlib.sha256(remote).hexdigest(),
+            "local_bytes": None, "local_sha": None, "same": None, "diff": [], "hash_days": []}
+    if local and local.is_file():
+        lb = local.read_bytes()
+        info["local_bytes"] = len(lb)
+        info["local_sha"] = hashlib.sha256(lb).hexdigest()
+        info["same"] = lb == remote
+        if not info["same"]:
+            import difflib
+            info["diff"] = list(difflib.unified_diff(
+                remote.decode("utf-8", "replace").splitlines(),
+                lb.decode("utf-8", "replace").splitlines(),
+                "foundry (live)", f"repo ({folder}/{filename})", n=2, lineterm=""))[:220]
+
+    # Which day did the hash change? Reads the most recent snapshots' hashes files. Capped at
+    # 10 because each is a `gh` call and the answer is almost always in the last few days.
+    d, _ = backups()
+    for date in (d or {}).get("dates", [])[:10]:
+        txt, e2 = _bk_file(f"snapshots/{date}/collections/{collection}.hashes.json")
+        if e2 or not txt:
+            continue
+        try:
+            h = json.loads(txt).get(filename) or {}
+        except json.JSONDecodeError:
+            continue
+        if h.get("sha256"):
+            info["hash_days"].append((date, h["sha256"], h.get("bytes")))
+    return info, None
+
+
+def bk_drift_table(date):
+    """Snapshot hash vs the local file, for every file in every collection. (rows, err).
+
+    NO DOWNLOADS. The snapshot's hashes.json already holds the SHA-256 of what Foundry was
+    serving when the snapshot was taken, so comparing it against the working tree's hash gives
+    the whole drift picture from data already on disk. Downloading 43 files to render a page
+    would make it too slow to look at, and this is the page people should be able to glance at.
+
+    The trade is that it is as fresh as the snapshot, not as fresh as now - which is why each
+    row links to a live comparison.
+    """
+    import hashlib
+    rows = []
+    for col, folder in BK_COLLECTION_FOLDER.items():
+        txt, err = _bk_file(f"snapshots/{date}/collections/{col}.hashes.json")
+        if err or not txt:
+            continue
+        try:
+            hashes = json.loads(txt)
+        except json.JSONDecodeError:
+            continue
+        for name, h in sorted(hashes.items()):
+            local = REPO / folder / name
+            if not local.is_file():
+                local = REPO / "Knowledge-Shared" / name
+            if local.is_file():
+                lsha = hashlib.sha256(local.read_bytes()).hexdigest()
+                same = lsha == h.get("sha256")
+                rows.append((col, name, same, h.get("bytes"), local.stat().st_size))
+            else:
+                rows.append((col, name, None, h.get("bytes"), None))
+    return rows, None
+
+
+def bk_head():
+    return ("<div style='display:flex;align-items:center;gap:12px;flex-wrap:wrap;"
+            "margin-bottom:6px'>"
+            "<h2 class=sec style='margin:0'>Backups</h2>"
+            "<a href='/backups?refresh=1' style='margin-left:auto;text-decoration:none'>"
+            "<button class=sec>&#8635; Refresh</button></a></div>")
+
+
+def bk_compare_view(spec):
+    """One file: live Foundry content against the working tree, with a diff.
+
+    Compares against the WORKING TREE rather than a snapshot, because content is not in the
+    snapshots - only hashes. That is the right comparison anyway: the practical question is "is
+    what the agent reads what we think it reads?". The snapshot hashes then answer the second
+    question, which day it changed.
+    """
+    col, _, name = spec.partition("/")
+    if col not in BK_COLLECTION_FOLDER or not name:
+        return page("Backups", "<div class=lg>" + bk_head()
+                    + "<div class='bar bnr-done'>Not a file in a known collection.</div>"
+                    "<p><a href='/backups'>Back to backups</a></p></div>", active="backups")
+    info, err = bk_compare_file(col, name)
+    if err:
+        return page("Backups", "<div class=lg>" + bk_head()
+                    + "<div class='bar bnr-done'>" + html.escape(err) + "</div>"
+                    "<p><a href='/backups'>Back to backups</a></p></div>", active="backups")
+
+    same = info["same"]
+    if same:
+        banner = ("<div class='bar bnr-ok'>Live Foundry content is <b>identical</b> to the "
+                  "repo.</div>")
+    elif same is False:
+        banner = ("<div class='bar bnr-done'>Live Foundry content <b>differs</b> from the repo. "
+                  "The repo is the source of truth, so the fix is a re-upload &mdash; "
+                  "<code>python3 scripts/publish_to_foundry.py</code>, which refuses anything "
+                  "not merged to main.</div>")
+    else:
+        banner = ("<div class='bar bnr-sug'>This file is in Foundry but has no counterpart in "
+                  "the repo.</div>")
+
+    rows = ["<tr><th>Where</th><th>Bytes</th><th>SHA-256</th></tr>",
+            "<tr><td>Foundry (live)</td><td>" + format(info["remote_bytes"], ",") + "</td>"
+            "<td><code>" + info["remote_sha"][:32] + "</code></td></tr>"]
+    if info["local_sha"]:
+        rows.append("<tr><td>Repo &mdash; <code>" + html.escape(info["folder"]) + "/</code></td>"
+                    "<td>" + format(info["local_bytes"], ",") + "</td>"
+                    "<td><code>" + info["local_sha"][:32] + "</code></td></tr>")
+
+    body = [bk_head(),
+            "<p class=sub><a href='/backups'>Backups</a> / compare / <b>"
+            + html.escape(col) + "/" + html.escape(name) + "</b></p>",
+            banner,
+            "<div class=tblcard><table>" + "".join(rows) + "</table></div>"]
+
+    if same is False and info["remote_bytes"] == info["local_bytes"]:
+        body.append("<div class='bar bnr-sug'>Note the sizes are <b>equal</b>. This is exactly "
+                    "the drift a size comparison cannot see, which is why the snapshots store "
+                    "a hash per file.</div>")
+
+    if info["diff"]:
+        body.append("<h3 class=angroup>Difference</h3>"
+                    "<p class=sub style='margin:0 0 8px'>Lines marked <code>-</code> are what "
+                    "Foundry is serving; <code>+</code> is what the repo says.</p>"
+                    "<pre class=out>")
+        for line in info["diff"]:
+            if line.startswith("@@"):
+                cls = "dhunk"
+            elif line.startswith(("---", "+++")):
+                cls = "dmeta"
+            elif line.startswith("-"):
+                cls = "ddel"
+            elif line.startswith("+"):
+                cls = "dadd"
+            else:
+                cls = ""
+            esc = html.escape(line)
+            body.append("<span class=" + cls + ">" + esc + "</span>\n" if cls else esc + "\n")
+        body.append("</pre>")
+
+    if info["hash_days"]:
+        body.append("<h3 class=angroup>Hash history</h3>"
+                    "<p class=sub style='margin:0 0 8px'>What Foundry was serving on each "
+                    "snapshot day. A change between consecutive rows is the day the content "
+                    "moved.</p><div class=tblcard><table>"
+                    "<tr><th>Snapshot</th><th>SHA-256</th><th>Bytes</th></tr>")
+        prev = None
+        for d, sha, nb in info["hash_days"]:
+            mark = ""
+            if prev is not None and prev != sha:
+                mark = " <span class='pill warn'>changed</span>"
+            body.append("<tr><td>" + html.escape(d) + mark + "</td><td><code>" + sha[:32]
+                        + "</code></td><td>" + format(nb or 0, ",") + "</td></tr>")
+            prev = sha
+        body.append("</table></div>")
+        if len(info["hash_days"]) == 1:
+            body.append("<p class=sub>Only one snapshot exists so far, so there is no history "
+                        "to compare against yet. This becomes useful once the nightly job has "
+                        "run a few times.</p>")
+
+    body.append("<div class='bar bnr-note'><b>Read-only, deliberately.</b> There is no restore "
+                "button for file content: the repo already holds every version, so the correct "
+                "fix is a re-upload from a MERGED commit &mdash; which "
+                "<code>publish_to_foundry.py</code> enforces and a button here could not.</div>")
+    return page("Backups", "<div class=lg>" + "".join(body) + "</div>", active="backups")
+
+
+def bk_agent_view(slug, date):
+    """One agent against one snapshot: field diff, a field picker, and the two write actions."""
+    if slug not in BK_AGENT_ID:
+        return page("Backups", "<div class=lg>" + bk_head()
+                    + "<div class='bar bnr-done'>Unknown agent.</div>"
+                    "<p><a href='/backups'>Back to backups</a></p></div>", active="backups")
+
+    rows, err = bk_agent_field_diff(slug, date)
+    body = [bk_head(),
+            "<p class=sub><a href='/backups'>Backups</a> / "
+            "<a href='/backups?browse=snapshots/" + html.escape(date) + "'>"
+            + html.escape(date) + "</a> / <b>" + html.escape(slug) + "</b></p>"]
+    if err:
+        body.append("<div class='bar bnr-done'>" + html.escape(err) + "</div>")
+        return page("Backups", "<div class=lg>" + "".join(body) + "</div>", active="backups")
+
+    # ---- the safe write comes first ------------------------------------------------------
+    body.append(
+        "<h3 class=angroup>Restore the knowledge-base binding</h3>"
+        "<p class=sub style='margin:0 0 10px'>Writes only <code>collectionConfigs</code> and "
+        "<code>dataSourceConfigs</code>, through the endpoint dedicated to them, so it cannot "
+        "disturb this agent's instructions, model, tools or guardrails. Measured "
+        "content-idempotent. A restore point is taken first.</p>"
+        "<button onclick=\"bkKb(this,'" + html.escape(slug) + "','" + html.escape(date)
+        + "')\">Restore KB binding from " + html.escape(date) + "</button>"
+        "<div class='bar bnr-note' style='margin-top:10px'>Order matters: a binding names "
+        "specific files. If any no longer exist in the collection, re-upload the files first, "
+        "or the agent ends up pointing at something that is not there.</div>")
+
+    # ---- field-level revert -------------------------------------------------------------
+    body.append("<h3 class=angroup>Roll back individual fields</h3>")
+    if not rows:
+        body.append("<div class='bar bnr-ok'>The live agent is <b>identical</b> to the "
+                    + html.escape(date) + " snapshot. Nothing to roll back.</div>")
+    else:
+        body.append(
+            "<p class=sub style='margin:0 0 10px'>" + str(len(rows)) + " field(s) differ. Tick "
+            "only what you want reverted &mdash; the payload is built from the <b>live</b> "
+            "agent with those fields swapped in, so nothing else moves. Restoring a whole "
+            "snapshot would also undo every legitimate change made since it was taken, which "
+            "looks surgical and is not.</p>"
+            "<div class=tblcard><table>"
+            "<tr><th style='width:1%'></th><th>Field</th><th>Live now</th>"
+            "<th>Snapshot " + html.escape(date) + "</th></tr>")
+        for field, live_v, snap_v in rows:
+            lv = live_v if isinstance(live_v, str) else json.dumps(live_v)
+            sv = snap_v if isinstance(snap_v, str) else json.dumps(snap_v)
+            body.append(
+                "<tr><td><input type=checkbox class=bkfield value=\"" + html.escape(field)
+                + "\"></td><td><code>" + html.escape(field) + "</code></td>"
+                "<td class=qcell><small>" + html.escape(lv[:220]) + "</small></td>"
+                "<td class=qcell><small>" + html.escape(sv[:220]) + "</small></td></tr>")
+        body.append("</table></div>"
+                    "<p style='margin-top:12px'><button onclick=\"bkFields(this,'"
+                    + html.escape(slug) + "','" + html.escape(date)
+                    + "')\">Roll back the ticked field(s)</button></p>")
+
+    body.append(
+        "<div class='bar bnr-note'>Both actions take a native Foundry version first, and that "
+        "version is the undo. Verified on this agent on 2026-08-28: create version &rarr; "
+        "config PUT with one field changed &rarr; restore returned it <b>byte-for-byte "
+        "identical</b>. <b>After any restore, ask the agent a question</b> &mdash; text landing "
+        "in a field is not the same as behaviour being restored.</div>"
+        "<pre class=out id=bkout style='display:none'></pre>")
+    return page("Backups", "<div class=lg>" + "".join(body) + "</div>", active="backups")
+
+
+def backups_page(force=False, browse="", compare="", agent="", date=""):
     """Read-only view of the config backup repo, and a file browser over the snapshots.
 
     Admins only. The snapshots contain agent instructions, tenant s3Key paths and per-file IDs
@@ -3952,12 +4536,14 @@ def backups_page(force=False, browse=""):
                     "<code>onetyler-tcp-pm-admins</code> team.</div></div>",
                     active="backups")
 
+    if compare:
+        return bk_compare_view(compare)
+    if agent:
+        d0, _ = backups()
+        return bk_agent_view(agent, date or ((d0 or {}).get("dates") or [""])[0])
+
     d, err = backups(force=force)
-    head = ("<div style='display:flex;align-items:center;gap:12px;flex-wrap:wrap;"
-            "margin-bottom:6px'>"
-            "<h2 class=sec style='margin:0'>Backups</h2>"
-            "<a href='/backups?refresh=1' style='margin-left:auto;text-decoration:none'>"
-            "<button class=sec>&#8635; Refresh</button></a></div>")
+    head = bk_head()
 
     if err:
         return page("Backups", "<div class=lg>" + head
@@ -4117,6 +4703,63 @@ def backups_page(force=False, browse=""):
                         f"<td><span class='pill {cls}'>{html.escape(str(c))}</span></td></tr>")
         body.append("</table></div>")
 
+    # ---- file drift, from hashes: no downloads --------------------------------------------
+    if d["dates"]:
+        drows, _ = bk_drift_table(d["dates"][0])
+        bad = [r for r in drows if r[2] is False]
+        orphan = [r for r in drows if r[2] is None]
+        body.append("<h3 class=angroup>Files: Foundry vs the repo</h3>"
+                    "<p class=sub style='margin:0 0 8px'>Every file in every collection, "
+                    "compared by content hash. Uses the "
+                    + html.escape(d["dates"][0]) + " snapshot's hashes against your working "
+                    "tree, so it costs no downloads &mdash; click a row for a live comparison "
+                    "and a diff.</p>")
+        if not bad and not orphan:
+            body.append("<div class='bar bnr-ok'>All " + str(len(drows)) + " files match the "
+                        "repo exactly.</div>")
+        else:
+            body.append("<div class='bar bnr-done'><b>" + str(len(bad)) + " of "
+                        + str(len(drows)) + "</b> file(s) differ from the repo"
+                        + (", " + str(len(orphan)) + " not in the repo" if orphan else "")
+                        + ". The repo is the source of truth, so the fix is a re-upload.</div>")
+        body.append("<div class=tblcard><table><tr><th>Collection</th><th>File</th>"
+                    "<th>Foundry</th><th>Repo</th><th></th></tr>")
+        for col, name, same, rb, lb in (bad + orphan):
+            body.append("<tr><td>" + html.escape(col) + "</td>"
+                        "<td><a href='/backups?compare=" + html.escape(col) + "/"
+                        + html.escape(name) + "'>" + html.escape(name) + "</a></td>"
+                        "<td>" + (format(rb, ",") + " B" if rb else "?") + "</td>"
+                        "<td>" + (format(lb, ",") + " B" if lb else "&mdash;") + "</td>"
+                        "<td><span class='pill "
+                        + ("bad'>differs" if same is False else "warn'>not in repo")
+                        + "</span></td></tr>")
+        body.append("</table></div>")
+        if bad:
+            body.append("<p class=sub>Equal byte counts with different content is the case a "
+                        "size comparison cannot see &mdash; which is why these hashes exist.</p>")
+
+    # ---- per-agent restore entry points ---------------------------------------------------
+    if d["dates"]:
+        newest = d["dates"][0]
+        body.append("<h3 class=angroup>Agents</h3>"
+                    "<p class=sub style='margin:0 0 8px'>Compare each agent's live config "
+                    "against the " + html.escape(newest) + " snapshot, and roll back "
+                    "individual fields or just its knowledge-base binding.</p>"
+                    "<div class=tblcard><table><tr><th>Agent</th><th>Restore points</th>"
+                    "<th></th></tr>")
+        nav = (m.get("agent_native_versions") or {})
+        for slug in sorted(BK_AGENT_ID):
+            n_ver = nav.get(slug, "?")
+            pill = ("<span class='pill reviewed'>" + str(n_ver) + "</span>" if n_ver
+                    else "<span class='pill warn'>none yet</span>")
+            body.append("<tr><td><code>" + html.escape(slug) + "</code></td>"
+                        "<td>" + pill + "</td>"
+                        "<td><a href='/backups?agent=" + html.escape(slug) + "&date="
+                        + html.escape(newest) + "'>Compare &amp; restore &rarr;</a></td></tr>")
+        body.append("</table></div>"
+                    "<p class=sub>Restore points are Foundry's own agent versions, which are "
+                    "the undo for any write here. Creating one is non-destructive.</p>")
+
     body.append("<h3 class=angroup>Browse the snapshots</h3>"
                 "<p class=sub style='margin:0 0 8px'>Every file, read-only. Newest first.</p>"
                 "<div class=tblcard><table><tr><th>Snapshot</th><th></th></tr>")
@@ -4130,17 +4773,35 @@ def backups_page(force=False, browse=""):
                     "Pruned days are still in git history.</p>")
 
     body.append(
-        "<h3 class=angroup>Why there is no restore button</h3>"
-        "<div class='bar bnr-note'>Restoring an <b>agent</b> config means "
-        "<code>PUT /api/configurable-agents/{id}</code>, whose semantics are undocumented and "
-        "have never been exercised &mdash; the OpenAPI spec defines no request body for it. "
-        "The snapshot content is not in doubt; the write path back is. The first time anyone "
-        "runs it should be a considered act at a terminal with a diff in front of them, not a "
-        "button click during an incident.<br><br>"
-        "The <b>team router</b> is different and has a better path: Foundry versions it "
-        "natively, and <code>scripts/restore.py</code> in the backup repo prints the exact "
-        "restore calls taken from the snapshot. <b>Knowledge files</b> need nothing from here "
-        "&mdash; git holds every byte.</div>")
+        "<h3 class=angroup>What can and cannot be restored from here</h3>"
+        "<div class=tblcard><table>"
+        "<tr><th>Asset</th><th>From this page</th><th>Why</th></tr>"
+        "<tr><td>An agent's <b>KB binding</b></td>"
+        "<td><span class='pill reviewed'>yes</span></td>"
+        "<td>Dedicated endpoint taking only the binding, measured content-idempotent. The "
+        "safest write available.</td></tr>"
+        "<tr><td>An agent's <b>individual fields</b></td>"
+        "<td><span class='pill reviewed'>yes</span></td>"
+        "<td>Payload built from the live agent with only the chosen fields swapped in, so "
+        "nothing else moves. A native version is taken first.</td></tr>"
+        "<tr><td><b>Knowledge file content</b></td>"
+        "<td><span class='pill excluded'>compare only</span></td>"
+        "<td>Git already holds every version, so the correct fix is a re-upload from a MERGED "
+        "commit &mdash; which <code>publish_to_foundry.py</code> enforces and a button here "
+        "could not.</td></tr>"
+        "<tr><td><b>Team router</b></td>"
+        "<td><span class='pill excluded'>no</span></td>"
+        "<td>Foundry versions it natively, which is a better path. "
+        "<code>scripts/restore.py</code> in the backup repo prints the exact calls.</td></tr>"
+        "<tr><td><b>Collection file records</b></td>"
+        "<td><span class='pill excluded'>no</span></td>"
+        "<td>There is no write API for a file record at all &mdash; only upload and delete. The "
+        "snapshot is descriptive: it tells you what should exist.</td></tr>"
+        "</table></div>"
+        "<div class='bar bnr-note'>Every write here takes a Foundry version first, and that "
+        "version is the undo. The full round trip &mdash; version, config PUT, restore &mdash; "
+        "was exercised on the SAC agent on 2026-08-28 and returned it byte-for-byte identical, "
+        "so these are tested paths rather than hopeful ones.</div>")
 
     return page("Backups", "<div class=lg>" + "".join(body) + "</div>", active="backups")
 
@@ -4426,12 +5087,17 @@ class H(BaseHTTPRequestHandler):
             # for one parameter. The gate on `browse` is in backups_page(), not here, so there
             # is exactly one place that decides what a path is allowed to be.
             qs = self.path.split("?", 1)[1] if "?" in self.path else ""
-            browse = ""
+            q = {}
             for kv in qs.split("&"):
-                if kv.startswith("browse="):
-                    browse = unquote(kv[len("browse="):])
-            return self._send(200, backups_page(force="refresh=1" in self.path,
-                                                browse=browse.strip()))
+                k, _, v = kv.partition("=")
+                if k:
+                    q[k] = unquote(v)
+            return self._send(200, backups_page(
+                force="refresh=1" in self.path,
+                browse=q.get("browse", "").strip(),
+                compare=q.get("compare", "").strip(),
+                agent=q.get("agent", "").strip(),
+                date=q.get("date", "").strip()))
         if self.path == "/prs" or self.path.startswith("/prs?"):
             # Same gate as All Transcripts, and for the same reason: a contributor cannot
             # merge, so every button here would refuse. Not a security boundary - the page
@@ -4626,6 +5292,28 @@ class H(BaseHTTPRequestHandler):
             except Exception as e:
                 return self._send(200, json.dumps({"ok": False, "error": str(e)}),
                                   "application/json")
+        if self.path == "/bk":
+            # THE ONLY WRITE-TO-PRODUCTION ENDPOINT IN THIS APP. Admin-gated here as well as in
+            # the page, because a page-level check protects the button and not the endpoint.
+            if not is_admin():
+                return self._send(200, json.dumps(
+                    {"ok": False, "output": "Restoring is an admin action."}),
+                    "application/json")
+            act = (data.get("action") or "").strip()
+            slug = (data.get("slug") or "").strip()
+            when = (data.get("date") or "").strip()
+            try:
+                if act == "kb":
+                    ok, out = bk_restore_kb(slug, when)
+                elif act == "fields":
+                    fields = [str(f) for f in (data.get("fields") or []) if f]
+                    ok, out = bk_restore_fields(slug, when, fields)
+                else:
+                    ok, out = False, "unknown action"
+            except Exception as e:                                    # noqa: BLE001
+                ok, out = False, f"{type(e).__name__}: {e}"
+            return self._send(200, json.dumps({"ok": ok, "output": out}),
+                              "application/json")
         if self.path == "/pr":
             if not is_admin():
                 return self._send(200, json.dumps(
