@@ -374,7 +374,7 @@ REVIEW_KEYS = ["review_status", "reviewer", "suggested_to", "review_round",
 # `notes` IS DELIBERATELY ABSENT from the form. It was a one-line free-text box, which is the
 # wrong shape for the only thing anyone wanted to put in it: prose. A reviewer with something to
 # say now writes it against the exchange it is about (Correction) or against the transcript as a
-# whole (Proposed fix), both of which are proper textareas and both of which Claude already
+# whole (the summary), both of which are proper textareas and both of which Claude already
 # reads.
 #
 # The KEY still exists in the files and is still written by the tooling - mark_pushed.py records
@@ -644,7 +644,7 @@ FIELD_DOC = {
             "none": "Nothing needs to change anywhere.",
             "knowledge-file": "A file in a Knowledge-* folder must change. Name it in `kb_files`.",
             "agent-instructions": "The sub-agent's system prompt needs changing. Lives in "
-                                  "Foundry — write the exact wording in Proposed fix; Claude "
+                                  "Foundry — write the exact wording under Overall suggestions and comments; Claude "
                                   "cannot edit it from here.",
             "team-routing": "The team router's rules need changing — the routing table in "
                             "README.md, or hand-off guidance in a _START_HERE.md.",
@@ -655,7 +655,7 @@ FIELD_DOC = {
     "kb_action": {
         "about": "What must physically happen to the corpus. `none` is a valid and common "
                  "answer — plenty of bad answers are not content problems at all. A review with "
-                 "`none` and a good Proposed fix is still a complete contribution.",
+                 "`none` and a good summary is still a complete contribution.",
         "values": {
             "": "Not assessed.",
             "none": "No corpus change needed.",
@@ -680,7 +680,7 @@ FIELD_DOC = {
                  "**Mostly set for you.** `none-needed` and `open` follow from `kb_action`, so "
                  "picking them is not your job. `applied` is Claude's, after the work is done. "
                  "`wontfix` is the only one that is genuinely a decision — and it wants a "
-                 "reason written in Correction or Proposed fix.",
+                 "reason written in Correction or in the summary.",
         "values": {
             "": "Not assessed.",
             "none-needed": "Nothing had to change. **Set for you** when `kb_action` is `none`.",
@@ -690,7 +690,7 @@ FIELD_DOC = {
                        "never overwritten automatically — it is a claim about work, not a "
                        "restatement of `kb_action`.",
             "wontfix": "Decided against acting on it. Your call, never set for you — say why "
-                       "in Correction or Proposed fix, so the reason sits with the reasoning.",
+                       "in Correction or in the summary, so the reason sits with the reasoning.",
         },
     },
     # Not frontmatter fields — the two free-text boxes. Same treatment so the page reads
@@ -702,6 +702,9 @@ FIELD_DOC = {
                  "the person. Leave it empty if the answer was fine.",
         "values": {},
     },
+    # Named "Overall suggestions and comments" in the UI. The key stays `proposed_fix` because
+    # it is the marker in every transcript body and in CLAUDE.md's process; renaming it would
+    # rewrite 61 files to change a label.
     "proposed_fix": {
         "about": "What should change so this answer is right next time. For a knowledge-file "
                  "fix, say what content is missing and roughly where it belongs. For an "
@@ -1660,6 +1663,26 @@ span.owner{color:var(--forge-theme-text-medium);font-size:12px}
 .fld{position:relative}
 /* A derived field's value, shown as text. Sized to sit level with a real input so the
    form does not develop a step where the read-only field is. */
+/* Knowledge-file picker. A dialog because ctrl/cmd-click on a multi-select is the least
+   discoverable interaction on the web, and 42 files across 7 corpora will not fit inline. */
+.kbpicked{font:12.5px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;
+color:var(--forge-theme-text-high);padding:6px 0}
+.kbpicked i{font-family:Roboto,sans-serif;color:var(--forge-theme-text-medium)}
+.kbmodal{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.45);
+display:flex;align-items:center;justify-content:center;padding:24px}
+.kbmodal[hidden]{display:none}
+.kbbox{background:var(--forge-theme-surface);border-radius:6px;box-shadow:var(--shadow-pop);
+padding:20px;width:min(560px,100%);max-height:min(74vh,640px);display:flex;flex-direction:column}
+.kblist{overflow:auto;border:1px solid var(--forge-theme-outline);border-radius:4px;
+padding:6px 4px;flex:1 1 auto;min-height:120px}
+.kbgroup{font:500 11px/1.6 Roboto,sans-serif;text-transform:uppercase;letter-spacing:.06em;
+color:var(--forge-theme-text-medium);padding:10px 10px 3px}
+.kbrow{display:flex;align-items:center;gap:9px;padding:5px 10px;border-radius:3px;
+font:400 13px/1.4 Roboto,sans-serif;color:var(--forge-theme-text-high);cursor:pointer;
+text-transform:none;letter-spacing:0;margin:0}
+.kbrow:hover{background:var(--forge-theme-primary-container-minimum)}
+.kbrow input{width:auto;margin:0;flex:0 0 auto}
+.kbacts{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
 .roval{padding:7px 0;font-size:13px;color:var(--forge-theme-text-high);
 font-weight:500;display:flex;align-items:center}
 button.info{background:var(--forge-theme-primary-container);color:var(--forge-theme-primary);
@@ -1819,6 +1842,44 @@ if(r.ok){toast('Saved to '+r.path);if(then)location.href=then}else toast(r.error
    toast('Diagnosis set to routing-only — reassigned away from '+(current||'this agent'));
  });
 })();
+
+// ---- knowledge-file picker dialog ---------------------------------------------------------
+// OK commits, Cancel reverts. The checkbox state is snapshotted on open so Cancel can put it
+// back - without that, ticking six boxes and pressing Cancel would leave them ticked, and the
+// hidden value would disagree with what the dialog shows the next time it opens.
+let KB_SNAP = null;
+function kbBoxes(){return [...document.querySelectorAll('#kbmodal input[type=checkbox]')]}
+function kbOpen(){
+ KB_SNAP = kbBoxes().map(b=>b.checked);
+ document.getElementById('kbmodal').hidden = false;
+ const first = kbBoxes()[0]; if(first) first.focus();
+}
+function kbClose(){document.getElementById('kbmodal').hidden = true}
+function kbCancel(){
+ if(KB_SNAP) kbBoxes().forEach((b,i)=>b.checked = KB_SNAP[i]);
+ kbClose();
+}
+function kbOk(){
+ const picked = kbBoxes().filter(b=>b.checked).map(b=>b.value);
+ document.getElementById('kbvalue').value = picked.join(', ');
+ const el = document.getElementById('kbpicked');
+ if(el){
+   el.innerHTML = !picked.length ? '<i>none selected</i>'
+     : picked.length <= 3 ? picked.join('<br>')
+     : picked.slice(0,3).join('<br>') + '<br><i>and ' + (picked.length-3) + ' more</i>';
+ }
+ kbClose();
+}
+// Escape cancels, and a click on the backdrop cancels - both are what a dialog is expected to
+// do, and neither should COMMIT, since the click that dismissed it was not an OK.
+document.addEventListener('keydown', e=>{
+ const m = document.getElementById('kbmodal');
+ if(e.key === 'Escape' && m && !m.hidden){ e.preventDefault(); kbCancel(); }
+});
+document.addEventListener('click', e=>{
+ const m = document.getElementById('kbmodal');
+ if(m && !m.hidden && e.target === m) kbCancel();
+});
 
 function handedOff(){
  const s=(document.querySelector('[data-fm=suggested_to]')||{}).value||'';
@@ -3067,6 +3128,17 @@ def _render_fields(rel, prefill):
         _round_for_this_doc = None
 
 
+def _kb_summary(chosen):
+    """What the field shows when the dialog is closed. Names files rather than counting them:
+    "2 files selected" makes you open the dialog to find out which."""
+    if not chosen:
+        return "<i>none selected</i>"
+    if len(chosen) <= 3:
+        return "<br>".join(html.escape(c) for c in chosen)
+    return ("<br>".join(html.escape(c) for c in chosen[:3])
+            + f"<br><i>and {len(chosen) - 3} more</i>")
+
+
 def field(k, val):
     # Label = field name + ⓘ, nothing else. All guidance is in the panel; see FIELD_DOC.
     #
@@ -3107,43 +3179,51 @@ def field(k, val):
                        for o in CHOICES[k])
         return f"<div class=fld>{lab}<select data-fm={k}>{opts}</select>{panel}</div>"
     if k in MULTI_KEYS:
-        # A PICKER, not a text box. `kb_files` holds repo-relative paths, and typing them was
-        # the worst input on the form: long, easy to misspell, and a typo is silent - the field
-        # is documentation for whoever applies the change, so a wrong path sends them looking
-        # for a file that does not exist rather than failing anywhere visible.
+        # A BUTTON AND A DIALOG, not an inline list. A multi-select needs ctrl/cmd-click to pick
+        # more than one, which is the least discoverable interaction on the web - and with 42
+        # files across 7 corpora the box was either too short to scan or tall enough to push the
+        # rest of the form off screen. Checkboxes in a dialog cost one extra click and remove
+        # both problems.
         #
-        # Stored exactly as before, comma-separated, so nothing downstream changes. Grouped by
-        # corpus because that is how a reviewer thinks about it, and because 42 flat filenames
-        # with four `_START_HERE.md` among them is unreadable.
+        # The value still lives in a hidden input as a comma-separated list, so the save path,
+        # the file format and everything downstream are unchanged.
         chosen = [x.strip() for x in (val or "").split(",") if x.strip()]
         groups = knowledge_files()
         known = {f"{d}/{f}" for d, fs in groups.items() for f in fs}
-        opts = []
+        rows = []
         for corpus, files in groups.items():
-            opts.append(f"<optgroup label=\"{html.escape(corpus)}\">")
+            rows.append(f"<div class=kbgroup>{html.escape(corpus)}</div>")
             for f in files:
                 full = f"{corpus}/{f}"
-                sel = " selected" if full in chosen else ""
-                opts.append(f"<option value=\"{html.escape(full)}\"{sel}>"
-                            f"{html.escape(f)}</option>")
-            opts.append("</optgroup>")
-        # A path in the file that is no longer in the repo has to stay selectable, or saving the
-        # form would silently drop it - a renamed or deleted file is exactly when this field
+                ck = " checked" if full in chosen else ""
+                rows.append(f"<label class=kbrow><input type=checkbox value=\"{html.escape(full)}\""
+                            f"{ck}><span>{html.escape(f)}</span></label>")
+        # A path already recorded but no longer in the repo stays listed and ticked, or clicking
+        # OK would silently drop it - and a renamed or deleted file is exactly when this field
         # matters most.
         gone = [c for c in chosen if c not in known]
         if gone:
-            opts.append("<optgroup label=\"No longer in the repo\">")
-            opts += [f"<option value=\"{html.escape(g)}\" selected>{html.escape(g)}</option>"
-                     for g in gone]
-            opts.append("</optgroup>")
+            rows.append("<div class=kbgroup>No longer in the repo</div>")
+            rows += [f"<label class=kbrow><input type=checkbox value=\"{html.escape(g)}\" checked>"
+                     f"<span>{html.escape(g)}</span></label>" for g in gone]
         scope = ("" if is_admin() or not ME else
-                 " &middot; showing the corpora you own; an admin can name any file")
-        hint = (f"<div class=hint>Ctrl/Cmd-click for more than one{scope}" +
-                (f" &middot; <span style='color:var(--danger-fg)'>{len(gone)} path(s) no longer "
-                 "in the repo, kept so they are not lost</span>" if gone else "") + "</div>")
+                 "<div class=hint style='margin-bottom:8px'>Showing the corpora you own. "
+                 "An admin can name any file.</div>")
         return (f"<div class=fld>{lab}"
-                f"<select data-fm={k} data-multi=1 multiple size=7>{''.join(opts)}</select>"
-                f"{hint}{panel}</div>")
+                f"<div class=kbpicked id=kbpicked>{_kb_summary(chosen)}</div>"
+                "<button type=button class=sec onclick='kbOpen()' "
+                "style='margin-top:6px'>Select&hellip;</button>"
+                f"<input type=hidden data-fm={k} id=kbvalue value=\"{html.escape(val)}\">"
+                "<div class=kbmodal id=kbmodal hidden>"
+                "<div class=kbbox role=dialog aria-modal=true aria-label='Select knowledge files'>"
+                "<h3 style='margin:0 0 4px'>Knowledge files</h3>"
+                "<p class=sub style='margin:0 0 10px'>Which file(s) the change belongs in.</p>"
+                f"{scope}<div class=kblist>{''.join(rows)}</div>"
+                "<div class=kbacts>"
+                "<button type=button class=sec onclick='kbCancel()'>Cancel</button>"
+                "<button type=button onclick='kbOk()'>OK</button>"
+                "</div></div></div>"
+                f"{panel}</div>")
     if k in DERIVED_KEYS:
         val = str(_round_for_this_doc or val or "1")
         # READ-ONLY. `review_round` is a counter the tooling maintains, not an opinion: the
@@ -3290,7 +3370,8 @@ def detail_page(rel):
                   "<b>Mark reviewed &amp; next</b>."
                   "<br><b>If it is not true, you do not have to touch the dropdowns.</b> "
                   "Write what the answer <i>should</i> have said under the exchange, and/or "
-                  "fill in <b>Proposed fix</b> at the bottom. That prose is the valuable part; "
+                  "fill in <b>Overall suggestions and comments</b> under Summary. That prose is the "
+                  "valuable part; "
                   "Claude reads it and fills the classification fields in for you."
                   "</div>")
     elif (fm.get("review_status") or "") == "suggested":
@@ -3312,8 +3393,14 @@ def detail_page(rel):
                   f"{html.escape(fm.get('review_round','1'))}). Saving edits keeps the same round; "
                   f"use <b>Re-review</b> to start a new one.</div>")
 
-    parts = [head, banner, "<div class=card><div class=grid>"
-             + _render_fields(rel, prefill) + "</div></div>"]
+    # THE FORM COMES AFTER THE TRANSCRIPT, not before it.
+    #
+    # It used to sit at the top, which put thirteen dropdowns between the reviewer and the thing
+    # they came to read - and asked for a diagnosis before they had seen the conversation. The
+    # fields are conclusions; conclusions belong after the evidence. Reading order is now the
+    # order of the work: what was asked, what came back, what you would have said, then the
+    # summary that classifies it.
+    parts = [head, banner]
 
     ci, cp = doc_popover("correction")
     for n, tools, q, a, rv in exchanges_of(body):
@@ -3328,10 +3415,19 @@ def detail_page(rel):
             f"<div class=fld><label style='margin-top:10px'>Correction{ci}</label>{cp}"
             f"<textarea data-ex={n}>{html.escape(rv)}</textarea></div></div>")
 
+    # ---- Summary: the free-text conclusion, then the fields that classify it ---------------
     pi, pp = doc_popover("proposed_fix")
-    parts.append(f"<div class=card><div class=fld><label>Proposed fix{pi}</label>{pp}"
-                 f"<textarea id=proposed style='min-height:130px'>{html.escape(proposed_of(body))}</textarea>"
-                 f"</div></div>")
+    parts.append(
+        "<h2 class=sec style='margin-top:var(--forge-spacing-large)'>Summary</h2>"
+        "<p class=sub style='margin:0 0 12px'>Fill this in after reading the exchanges above. "
+        "The prose is the valuable part &mdash; the fields underneath just classify it so the "
+        "right person picks it up.</p>"
+        f"<div class=card><div class=fld>"
+        f"<label>Overall suggestions and comments{pi}</label>{pp}"
+        f"<textarea id=proposed style='min-height:150px'>"
+        f"{html.escape(proposed_of(body))}</textarea></div>"
+        "<div class=grid style='margin-top:var(--forge-spacing-medium)'>"
+        + _render_fields(rel, prefill) + "</div></div>")
 
     parts.append(
         f"<div class=nav><div style='display:flex;gap:12px;align-items:center'>"
