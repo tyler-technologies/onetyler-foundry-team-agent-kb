@@ -1487,14 +1487,19 @@ function prMerge(btn,number,title,checks){
  const warn = checks==='failing' ? '<b>Checks are failing on this one.</b><br>'
             : checks==='running' ? 'Checks are still running.<br>' : '';
  confirmThen(btn,'Merge #'+number+'?',
-   warn+'<code>'+title+'</code><br><br>Rebases onto main and deletes the branch. Anything '
-   +'merged is live in the repo for everyone.',
+   warn+'<code>'+title+'</code><br><br>Rebases onto main and deletes the branch; if the '
+   +'branch is behind main it is brought up to date first. Anything merged is live in the '
+   +'repo for everyone.',
    ()=>prDo(btn,'merge',number));
 }
-function prOverride(btn,number){
+function prOverride(btn,number,title,checks){
+ const warn = checks==='failing' ? '<b>Checks are failing on this one.</b><br>'
+            : checks==='running' ? 'Checks are still running.<br>' : '';
  confirmThen(btn,'Merge #'+number+' bypassing review?',
-   'This skips the required approval. Only reasonable on your own work \u2014 it is the one '
-   +'action here that removes a safety gate rather than passing through it.',
+   warn+'<code>'+title+'</code><br><br>This skips the required approval \u2014 the one action '
+   +'here that removes a safety gate rather than passing through it, and reasonable only on '
+   +'your own work.<br><br>Rebases onto main and deletes the branch. If the branch is behind '
+   +'main it is brought up to date first.',
    ()=>prDo(btn,'merge-override',number));
 }
 // Sending in is where the batch leaves this machine, and the assistant step sits BEFORE it in
@@ -3343,16 +3348,73 @@ def gh(*args, timeout=180):
     return r.returncode, (r.stdout + r.stderr).strip()
 
 
+def _is_behind(out):
+    """Did GitHub refuse because the branch is behind main, rather than for a real problem?
+
+    This repo sets `required_status_checks.strict`, so a branch behind main cannot merge until
+    it is brought up to date. GitHub words that as:
+
+        Pull request ...#31 is not mergeable: the head branch is not up to date with the
+        base branch.
+
+    Worth its own test because the phrase "not mergeable" also appears on genuine conflicts,
+    and the two need opposite handling - this one is fixed by updating the branch, that one
+    needs a human in an editor. `_needs_override` used to lump them together and return False
+    for both, so a behind-main refusal produced the raw gh error with no guidance attached.
+    Observed 2026-08-28 on #31.
+    """
+    low = (out or "").lower()
+    return "not up to date with the base branch" in low or "head branch is not up to date" in low
+
+
 def _needs_override(out):
     """Did GitHub refuse purely for a missing approval, as opposed to a real problem?
 
     Matters because the two need different answers: a missing approval is something an admin
     may legitimately override on their own work, while failing checks or a conflict are not.
+
+    Note the behind-main case is deliberately NOT here - it is handled before this is called,
+    by updating the branch. Leaving it to fall through to "conflict" wording was the bug.
     """
     low = (out or "").lower()
+    if _is_behind(out):
+        return False
     if any(k in low for k in ("conflict", "not mergeable", "check", "failing")):
         return False
     return any(k in low for k in ("review", "approv", "protected", "required"))
+
+
+def merge_pr(num, override):
+    """Merge a change request, bringing the branch up to date first if that is what is needed.
+
+    Why the retry rather than a separate "Update branch" button. The reviewer asked for the
+    merge action to handle this itself, and the state machine cannot reliably decide up front:
+    `mergeStateStatus` holds ONE value, so when a request both needs an approval and is behind
+    main, GitHub reports only one of them. #31 on 2026-08-28 was BLOCKED, then #30 merged, then
+    it was BEHIND - and the card had been rendered from data where the field was empty
+    altogether, which is how a plain Merge button appeared on a request that needed an
+    override. Attempting the merge and reacting to the actual refusal is the only version of
+    this that cannot be wrong about the state, because it asks GitHub instead of guessing.
+
+    One retry, not a loop: if it is still refused after being brought up to date, the reason is
+    something else and repeating will not help.
+    """
+    args = ["pr", "merge", num, "--rebase", "--delete-branch"]
+    if override:
+        args.insert(3, "--admin")
+    rc, out = gh(*args)
+    if rc == 0 or not _is_behind(out):
+        return rc, out, False
+
+    rcu, outu = gh("pr", "update-branch", num, "--rebase")
+    if rcu != 0:
+        return rcu, ("The branch is behind main, and bringing it up to date failed, so nothing "
+                     "was merged:\n\n" + outu), True
+    # GitHub recomputes mergeability asynchronously after a rebase; without this the retry
+    # races the recompute and reports the same "not up to date" it just fixed.
+    time.sleep(4)
+    rc, out = gh(*args)
+    return rc, ("Brought the branch up to date with main first (rebased).\n\n" + out), True
 
 
 PR_FIELDS = ("number,title,author,isDraft,headRefName,reviewDecision,mergeable,"
@@ -3586,21 +3648,31 @@ def pr_page(force=False):
             acts.append(f"<button class=sec onclick=\"prDo(this,'approve',{pr['number']})\">"
                         "Approve</button>")
 
-        # EXACTLY ONE merge button, and which one is decided by the state - not by offering
-        # both and letting the reviewer discover which works. Showing "Merge" on a BLOCKED
-        # request is a button that cannot succeed, which is the same mistake as showing
-        # "Approve" on your own.
-        if state == "BEHIND":
-            # This repo sets required_status_checks.strict, so a branch behind main cannot
-            # merge until it is updated. Update is the only action that helps here.
-            acts.append(f"<button onclick=\"prDo(this,'update',{pr['number']})\">"
-                        "Update branch</button>")
-        elif state == "DIRTY":
+        # EXACTLY ONE merge button, and WHOSE REQUEST IT IS decides which one - not
+        # mergeStateStatus. That was the original ask ("show either Merge or Merge anyway
+        # depending on if it is my PR"), and keying off the state got it wrong twice on
+        # 2026-08-28:
+        #
+        #   * The field holds ONE value. #31 needed an approval AND was behind main; GitHub
+        #     reported only BEHIND, so the "needs approval" fact vanished and with it the
+        #     override button.
+        #   * When the field came back EMPTY, state fell to UNKNOWN and dropped through to the
+        #     else-branch, putting a plain "Merge" on a request that could only ever merge with
+        #     the override. It failed, and the label had silently changed under the reviewer.
+        #     GitHub computes mergeability ASYNCHRONOUSLY and reports the field empty until it
+        #     finishes - and it restarts that work on every push to the base. So the blank
+        #     window opens the moment another request merges, which is exactly when someone is
+        #     looking at the next one. Any button chosen from this field is racing a recompute.
+        #
+        # Author identity does not fluctuate, so the label no longer moves around. Being behind
+        # main is handled inside the merge action now, so it needs no button of its own.
+        if state == "DIRTY":
             pass                       # conflicts need a human in a editor, not a button here
-        elif state == "BLOCKED":
-            acts.append(f"<button onclick=\"prOverride(this,{pr['number']})\" "
-                        "title='Merge without the required approval (admin override)'>"
-                        "Merge anyway</button>")
+        elif mine:
+            acts.append(f"<button onclick=\"prOverride(this,{pr['number']},"
+                        f"'{html.escape(pr['title'][:60])}','{cls}')\" "
+                        "title='Merge using your admin override, which skips the required "
+                        "approval you cannot give yourself'>Merge anyway</button>")
         else:
             acts.append(f"<button onclick=\"prMerge(this,{pr['number']},"
                         f"'{html.escape(pr['title'][:60])}','{cls}')\">Merge</button>")
@@ -3609,20 +3681,25 @@ def pr_page(force=False):
         # button here would only ever produce an error - saying so is more use than hiding it
         # silently. Admins can merge without an approval anyway, which is what makes the repo
         # workable with one code owner.
-        if state == "BLOCKED" and mine:
-            selfnote = ("<div class=hint style='margin-top:8px'>A plain merge is refused: an "
-                        "approval is required and GitHub does not let anyone approve their "
-                        "own. <b>Merge anyway</b> uses your admin override, which skips that "
-                        "gate &mdash; reasonable on your own work, and the only way through "
-                        "on a repo with one code owner.</div>")
+        if mine:
+            behind = (" Main has also moved since this branch was cut; the merge brings it up "
+                      "to date first, so there is nothing to do by hand."
+                      if state == "BEHIND" else "")
+            selfnote = ("<div class=hint style='margin-top:8px'>This is your own change "
+                        "request, so a plain merge is refused: an approval is required and "
+                        "GitHub does not let anyone approve their own. <b>Merge anyway</b> "
+                        "uses your admin override, which skips that gate &mdash; reasonable on "
+                        "your own work, and the only way through on a repo with one code "
+                        f"owner.{behind}</div>")
         elif state == "BLOCKED":
             selfnote = ("<div class=hint style='margin-top:8px'>Needs an approval before a "
-                        "plain merge will go through. <b>Approve</b> it, or use <b>Merge "
-                        "anyway</b> to override as an admin.</div>")
+                        "plain merge will go through. <b>Approve</b> it first.</div>")
         elif state == "BEHIND":
             selfnote = ("<div class=hint style='margin-top:8px'>Main has moved and this repo "
-                        "requires branches to be up to date, so this cannot merge until it is "
-                        "updated. <b>Update branch</b> rebases it onto main for you.</div>")
+                        "requires branches to be up to date. <b>Merge</b> brings it up to date "
+                        "first, so there is nothing to do by hand &mdash; but the required "
+                        "checks re-run after that, so it may need a second press once they "
+                        "are green.</div>")
         elif state == "DIRTY":
             selfnote = ("<div class=hint style='margin-top:8px'>Real conflicts with main. They "
                         "have to be resolved in the branch &mdash; there is no button for "
@@ -4127,31 +4204,32 @@ class H(BaseHTTPRequestHandler):
                     rc, out = gh("pr", "update-branch", num, "--rebase")
                     if rc == 0:
                         out += ("\n\nUpdated. Checks will re-run — merge once they are green.")
-                elif act == "merge":
+                elif act in ("merge", "merge-override"):
                     # Rebase, matching how this repo has been merged throughout - a merge
                     # commit per review batch would bury the actual content in the history.
-                    # NO --admin here: that flag bypasses the required review, and bypassing a
-                    # gate has to be a separate, deliberate click rather than a silent
-                    # fallback. If GitHub refuses, the answer says so and offers the override.
-                    rc, out = gh("pr", "merge", num, "--rebase", "--delete-branch")
-                    if rc != 0 and _needs_override(out):
+                    # merge_pr() brings the branch up to date first if GitHub refuses for that
+                    # reason, so being behind main is not something to click through by hand.
+                    override = act == "merge-override"
+                    rc, out, updated = merge_pr(num, override)
+                    if rc == 0:
+                        head = ("Merged WITH the review gate bypassed (admin override).\n\n"
+                                if override else "Merged.\n\n")
+                        out = head + out + (
+                            "\n\nTwo things follow:\n"
+                            "  python3 scripts/check_foundry_drift.py   "
+                            "(main is now ahead of the live agents)\n"
+                            "  python3 scripts/publish_to_foundry.py    "
+                            "(only if knowledge files changed)")
+                    elif not override and _needs_override(out):
                         out += ("\n\nGitHub refused because the required approval is missing. "
                                 "You can merge it anyway as an admin — that BYPASSES the review "
                                 "gate, so only do it on your own work:\n"
-                                "  press Merge again and choose the override")
-                    elif rc == 0:
-                        out += ("\n\nMerged. Two things follow:\n"
-                                "  python3 scripts/check_foundry_drift.py   "
-                                "(main is now ahead of the live agents)\n"
-                                "  python3 scripts/publish_to_foundry.py    "
-                                "(only if knowledge files changed)")
-                elif act == "merge-override":
-                    rc, out = gh("pr", "merge", num, "--rebase", "--admin",
-                                 "--delete-branch")
-                    if rc == 0:
-                        out = ("Merged WITH the review gate bypassed (admin override).\n\n"
-                               + out
-                               + "\n\nNext: python3 scripts/check_foundry_drift.py")
+                                "  press Merge anyway on your own change request")
+                    elif updated:
+                        out += ("\n\nThe branch WAS brought up to date, so that part is done "
+                                "— the refusal above is a different reason. Required checks "
+                                "re-run after a rebase, so if they are still queued, give them "
+                                "a moment and try again.")
                 else:
                     rc, out = 1, "unknown action"
             except Exception as e:                                    # noqa: BLE001
