@@ -22,6 +22,9 @@ import re
 import subprocess
 import sys
 
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from owners import load_owners  # noqa: E402
+
 REPO = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO / "scripts"))
 from gen_codeowners import AGENT_FOLDER, SHARED_FOLDER          # noqa: E402
@@ -37,14 +40,18 @@ def admins():
         return set()
 
 
-def owner_of_folder(folder):
-    data = json.loads((REPO / "agent-owners.json").read_text(encoding="utf-8"))
-    default = data.get("default_owner") or ""
-    by_agent = data.get("by_agent") or {}
+def owners_of_folder(folder):
+    """Every owner of this corpus. A list, because a corpus may have several.
+
+    Was `owner_of_folder`, returning the raw JSON value - so with a list of owners the caller's
+    `author != own` compared a string against a list, which is always true, and BOTH legitimate
+    owners were reported as making foreign edits.
+    """
+    by_agent, default = load_owners()
     for slug, f in AGENT_FOLDER.items():
         if f == folder:
-            return by_agent.get(slug) or default
-    return None
+            return by_agent.get(slug) or list(default)
+    return []
 
 
 def admin_only_regexes():
@@ -88,14 +95,14 @@ def main():
             violations.append(p)                # shared feeds every agent; admin-owned
             continue
         if folder in AGENT_FOLDER.values():
-            own = owner_of_folder(folder)
-            if author and own and author != own:
+            own = owners_of_folder(folder)
+            if author and own and author not in own:
                 foreign.setdefault(folder, (own, []))[1].append(p)
 
     if foreign:
         print("Heads up — this request touches corpora the author does not own:")
         for folder, (own, fs) in sorted(foreign.items()):
-            print(f"  {folder}  (owned by {own})")
+            print(f"  {folder}  (owned by {', '.join('@' + o for o in own)})")
             for f in fs:
                 print(f"      {f}")
         print("\nThat is allowed: editing another agent's corpus and opening a request is how")

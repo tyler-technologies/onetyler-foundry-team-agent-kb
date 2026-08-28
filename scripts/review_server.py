@@ -127,14 +127,20 @@ def agent_owners():
     problem rather than raising — a broken ownership file must not take the review UI down,
     since ownership is only a convenience for finding your own rows.
     """
+    # Via scripts/owners.py so this is not a THIRD implementation of "read agent-owners.json".
+    # This one happened to be correct about lists while gen_codeowners.py and
+    # check_folder_ownership.py were not, which is the worst version of that split: the UI
+    # showed a two-person corpus working while CODEOWNERS granted approval to nobody.
     try:
-        d = json.loads(OWNERS.read_text(encoding="utf-8"))
+        from owners import load_owners
+        by_list, default = load_owners()
     except Exception:
         return {}, None
-    def as_set(v):
-        return {v} if isinstance(v, str) else set(v or [])
-    by = {k: as_set(v) for k, v in (d.get("by_agent") or {}).items() if not k.startswith("_")}
-    return by, d.get("default_owner") or None
+    by = {k: set(v) for k, v in by_list.items()}
+    # The rest of this file treats the default as a single name. Several defaults would be a
+    # different feature - the default is "who owns everything nobody claimed" - so the first is
+    # used and the file's own comment says to name one.
+    return by, (default[0] if default else None)
 
 
 # Foundry display name -> the agent slug used in `answered_by` and agent-owners.json.
