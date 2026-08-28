@@ -121,12 +121,15 @@ def main():
         h_round = int(head.get("review_round") or 1)
 
         # Who this PR credits for the state it is claiming. `suggested` is attributed to
-        # suggested_by, everything else to reviewer.
+        # reviewer, always - it is whoever did the reviewing, including for a suggestion.
         def actor(fm, status):
-            return fm.get("suggested_by") if status == "suggested" else fm.get("reviewer")
+            # `suggested_by` was the old field for this. It was removed once `reviewer` became
+            # "always the current person", which made it redundant. Still read as a fallback so
+            # a transcript written before the change still validates.
+            return fm.get("reviewer") or fm.get("suggested_by")
 
         h_actor = actor(head, h_status)
-        need = "suggested_by" if h_status == "suggested" else "reviewer"
+        need = "reviewer"
 
         base_txt = at_rev(a.base, path)
         if base_txt is None:                             # brand-new transcript file
@@ -163,11 +166,13 @@ def main():
             mb_txt = at_rev(merge_base(a.base), path) if merge_base(a.base) else None
             if mb_txt is not None and (fm_of(mb_txt).get("review_status") or "") == "suggested":
                 firsts.append((path, h_actor,
-                               f"{h_status} (accepted {base.get('suggested_by','?')}'s "
+                               f"{h_status} (accepted "
+                               f"{base.get('reviewer') or base.get('suggested_by') or '?'}'s "
                                f"suggestion)"))
             else:
                 problems.append((path, (
-                    f"COLLISION — {base.get('suggested_by','?')} suggested changes to this on "
+                    f"COLLISION — {base.get('reviewer') or base.get('suggested_by') or '?'} "
+                    f"suggested changes to this on "
                     f"{a.base} AFTER this branch was cut, so this PR was written without seeing "
                     f"them and merging it would discard them. Pull {a.base}, read the "
                     f"suggestion and the proposed fix, then re-record your verdict on top.")))
