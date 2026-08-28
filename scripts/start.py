@@ -41,6 +41,41 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 PY = sys.executable or "python3"
 
+# review_server.py needs 3.12+. It uses backslashes inside f-string expressions, which older
+# interpreters reject at PARSE time - so the failure is a SyntaxError with a line number, not a
+# message anyone can act on, and it happens before a single line of the server runs.
+#
+# macOS ships /usr/bin/python3 as 3.9.6. A contributor who has not installed a newer Python
+# gets, in full:
+#
+#     File ".../scripts/review_server.py", line 2368
+#       + (f"<div class=prbadge><a href=\"{html.escape(r['openpr']['url'])}\" "
+#     SyntaxError: f-string expression part cannot include a backslash
+#
+# which reads as "the repo is broken", not "install a newer Python". Checked here because a
+# guard cannot live in the file it protects: the SyntaxError fires on import, before any code
+# in that module executes.
+MIN_PY = (3, 12)
+
+
+def check_python():
+    if sys.version_info[:2] >= MIN_PY:
+        return True
+    have = ".".join(str(x) for x in sys.version_info[:3])
+    want = ".".join(str(x) for x in MIN_PY)
+    print(f"\n  This needs Python {want} or newer. You are running {have}"
+          f"\n    ({sys.executable})\n"
+          "\n  macOS ships 3.9, which cannot parse the review UI at all - it fails with a"
+          "\n  SyntaxError before it starts, which looks like a broken repo rather than an old"
+          "\n  interpreter.\n"
+          "\n  Install a newer one and re-run this the same way:"
+          "\n    macOS    brew install python@3.12"
+          "\n    Windows  https://www.python.org/downloads/  (tick 'Add python.exe to PATH')"
+          "\n"
+          "\n  If you already have one, run this script with it explicitly:"
+          "\n    /opt/homebrew/bin/python3 scripts/start.py\n", file=sys.stderr)
+    return False
+
 
 def say(msg=""):
     print(msg, flush=True)
@@ -178,6 +213,12 @@ def main():
     ap.add_argument("--no-browser", action="store_true")
     ap.add_argument("--me", help="your GitHub username (normally detected for you)")
     a = ap.parse_args()
+
+    # FIRST, before anything else runs. Every later step either shells out to a script that
+    # would hit the same parse error, or prints progress that makes the eventual SyntaxError
+    # look like it came from whatever step was on screen.
+    if not check_python():
+        return 1
 
     say("=" * 62)
     say("  OneTyler Foundry Team Agent — transcript review")

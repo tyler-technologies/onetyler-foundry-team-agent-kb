@@ -223,6 +223,12 @@ python3 scripts/start.py             # http://127.0.0.1:7777, opens the browser
 python  scripts\start.py             # Windows
 ```
 
+**Python 3.12+ is required.** `review_server.py` uses backslashes inside f-string expressions,
+which older interpreters reject at parse time — so on macOS's stock 3.9 it dies with a
+`SyntaxError` before running a line, which reads as a broken repo rather than an old Python.
+`start.py` checks first and says so. If someone reports "it will not start", ask for
+`python3 -V` before anything else.
+
 Humans double-click `Start-reviewing.command` (macOS) or `Start-reviewing.bat` (Windows) and
 never need you for this — say so rather than offering to run it for them. See
 `DAILY-WORKFLOW.md`, which is the page to point a contributor at.
