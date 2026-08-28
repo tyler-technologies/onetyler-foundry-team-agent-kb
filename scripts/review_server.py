@@ -56,6 +56,18 @@ def _foundry_get(path, timeout=60):
         return json.loads(r.read().decode("utf-8", "replace") or "null")
 
 
+def _foundry_raw(path, timeout=90):
+    """GET raw bytes from Foundry. For file downloads, where the body is markdown, not JSON, and
+    where the exact bytes are the point - a hash over a re-encoded string would not match."""
+    import urllib.request
+    base = os.environ.get("FOUNDRY_API_URL", "https://foundry.tylertechai.com").rstrip("/")
+    req = urllib.request.Request(base + path)
+    req.add_header("X-API-Key", os.environ.get("FOUNDRY_API_KEY", ""))
+    req.add_header("User-Agent", "claude-code-foundry-kb/1.0")
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        return r.read()
+
+
 def contributor_map():
     """Full contributor records by github login, for avatars and display names."""
     try:
@@ -4306,6 +4318,98 @@ def behind_main():
         return 0, cur, out
 
 
+def drifted_files():
+    """Knowledge files on main that Foundry does not have yet. [] if in sync or unknowable.
+
+    Byte-compares, not size-compares: an equal-length edit is invisible to a size check, which is
+    how Docusaurus-OpsCenterAdoption.md sat drifted for five days while the drift check reported
+    everything in sync.
+    """
+    import hashlib
+    # WHAT SHIPS FROM Knowledge-Shared COMES FROM sources.json, NOT from the folder listing.
+    #
+    # Foundry keys a file by its BASENAME, so two local files called _START_HERE.md are the same
+    # file to it. Knowledge-Shared/_START_HERE.md is the shared folder's own routing guide and is
+    # NOT uploaded anywhere - but a folder-based scan compares it against OT-OpsCenter's
+    # _START_HERE.md, finds them different, and calls it drift. Auto-publishing that would
+    # overwrite five agents' routing guides with the wrong file.
+    #
+    # Caught before it ran, on the first call: drifted_files() returned
+    # Knowledge-Shared/_START_HERE.md alongside two real ones. upload_targets is the authority on
+    # which shared files ship and where, and it lists only Conf-OneTylerTickets.md.
+    try:
+        shared = {k: v for k, v in
+                  (json.loads((REPO / "scripts" / "sources.json").read_text(encoding="utf-8"))
+                   .get("upload_targets") or {}).items() if not k.startswith("_")}
+    except Exception:                                                 # noqa: BLE001
+        shared = {}
+
+    out = []
+    for folder, cols in FOLDER_COLLECTION.items():
+        d = REPO / folder
+        if not d.is_dir():
+            continue
+        for f in sorted(d.glob("*.md")):
+            rel = f"{folder}/{f.name}"
+            if folder == "Knowledge-Shared":
+                if rel not in shared:
+                    continue                      # not a file that ships; see the note above
+                cols = shared[rel]
+            local = f.read_bytes()
+            for col in cols:
+                try:
+                    recs = _foundry_get(
+                        f"/api/tenant-knowledge-base/collections/{col}/files")
+                except Exception:                                     # noqa: BLE001
+                    return []
+                rec = next((r for r in (recs or []) if r.get("fileName") == f.name), None)
+                if rec is None:
+                    out.append(rel)
+                    break
+                if rec.get("fileSize") != len(local):
+                    out.append(rel)
+                    break
+                try:
+                    got = _foundry_raw(
+                        f"/api/tenant-knowledge-base/collections/{col}/files/{rec['id']}/download")
+                except Exception:                                     # noqa: BLE001
+                    return []
+                if hashlib.sha256(got).hexdigest() != hashlib.sha256(local).hexdigest():
+                    out.append(rel)
+                    break
+    return sorted(set(out))
+
+
+def autopublish_drift():
+    """Publish anything main has that Foundry does not. Returns a message, or "" if nothing to do.
+
+    WHY THE SYNC DOES THIS AND NOT ONLY THE MERGE BUTTON.
+    ----------------------------------------------------
+    Merge publishes - but only a merge done HERE. A merge on github.com moves main and this app
+    never hears about it, so the agents stay stale with nothing to indicate it. That is not a
+    hypothetical: the merge that produced today's TCP-KB-Identity drift was done on the website.
+    Asking people to merge in one particular place to keep the agents current is a rule that will
+    be broken, and the failure is silent.
+
+    So the periodic sync closes it. It already fast-forwards main, which is exactly the moment new
+    content arrives, and it runs every 30 minutes and on tab focus.
+
+    ADMIN ONLY. Uploading changes what live agents tell customers, and publishing is an admin
+    responsibility - a contributor's sync must not push anything. It also only ever uploads what
+    is already on origin/main, because preflight_upload.py refuses anything else.
+    """
+    if not is_admin() or not os.environ.get("FOUNDRY_API_KEY"):
+        return ""
+    files = drifted_files()
+    if not files:
+        return ""
+    ok, msg = publish_after_merge(files)
+    head = (f"Foundry was behind on {len(files)} file(s) — published now "
+            "(a merge made outside this app does not reach the agents on its own):\n"
+            + "\n".join("  " + f for f in files) + "\n\n")
+    return head + msg
+
+
 def pull_main():
     """Bring the checkout up to date with origin/main after something merged.
 
@@ -6399,6 +6503,9 @@ class H(BaseHTTPRequestHandler):
                 # Return value ignored: every outcome it can report - fetch failure, declined
                 # because of unsaved edits - already says so in the message, which is shown.
                 _, pulled_msg = pull_main()
+                # Closes the gap merge-publishes cannot: a merge made on github.com never runs
+                # our publish, so the agents stay stale. See autopublish_drift().
+                pub_msg = autopublish_drift()
 
                 if not os.environ.get("FOUNDRY_API_KEY"):
                     raise ValueError("FOUNDRY_API_KEY is not set in the environment this "
@@ -6431,6 +6538,8 @@ class H(BaseHTTPRequestHandler):
                                                    "pulled": pulled_msg,
                                                    "output": ((pulled_msg + "\n\n")
                                                               if pulled_msg else "")
+                                                             + ((pub_msg + "\n\n")
+                                                                if pub_msg else "")
                                                              + out[-4000:],
                                                    "age": last_sync_age()}),
                                   "application/json")
