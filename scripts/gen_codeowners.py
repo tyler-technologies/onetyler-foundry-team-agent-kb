@@ -44,6 +44,9 @@ import json
 import pathlib
 import sys
 
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from owners import known_usernames, load_owners  # noqa: E402
+
 REPO = pathlib.Path(__file__).resolve().parent.parent
 OWNERS = REPO / "agent-owners.json"
 CODEOWNERS = REPO / ".github" / "CODEOWNERS"
@@ -102,10 +105,10 @@ def admin_only_paths():
 
 
 def build():
-    data = json.loads(OWNERS.read_text(encoding="utf-8"))
-    default = data.get("default_owner") or ""
-    by_agent = data.get("by_agent") or {}
+    by_agent, default = load_owners()
     admin_globs, unknown = admin_only_paths()
+    known = known_usernames()
+    bad_names = []
 
     L = []
     A = L.append
@@ -130,8 +133,14 @@ def build():
         folder = AGENT_FOLDER[slug]
         if not (REPO / folder).is_dir():
             continue
-        owner = by_agent.get(slug) or default
-        owners = [f"@{owner}"] if owner else []
+        # SEVERAL OWNERS PER CORPUS is supported and always was, in the file's own comments -
+        # it just was not implemented here, so a list became the single owner `@['a', 'b']`.
+        # CODEOWNERS treats multiple owners as "any one of these may approve", which is the
+        # intended meaning: two people who share a corpus should not have to wait on each other.
+        names = by_agent.get(slug) or default
+        if known:
+            bad_names.extend(f"{slug}: @{n}" for n in names if n not in known)
+        owners = [f"@{n}" for n in names]
         if ADMIN_TEAM not in owners:
             owners.append(ADMIN_TEAM)
         A(f"/{folder}/".ljust(32) + " ".join(owners))
@@ -148,7 +157,7 @@ def build():
     A("# ---- admin-only, LAST so these win --------------------------------------------------")
     for g in admin_globs:
         A(g.ljust(32) + ADMIN_TEAM)
-    return "\n".join(L) + "\n", unknown
+    return "\n".join(L) + "\n", unknown + bad_names
 
 
 def main():
@@ -158,8 +167,12 @@ def main():
 
     text, unknown = build()
     if unknown:
-        print("FAIL: admin-only-paths.txt has entries this generator cannot translate to a\n"
-              "      CODEOWNERS glob. Left out, they would become contributor-writable:",
+        # Two failure kinds share this channel because both mean "the generated file would be
+        # quietly wrong": a path that did not translate becomes contributor-writable, and an
+        # owner GitHub does not recognise is IGNORED rather than rejected - so the folder ends
+        # up with no owner and only admins can approve it, which looks identical to working.
+        print("FAIL: agent-owners.json / admin-only-paths.txt cannot be turned into a correct\n"
+              "      CODEOWNERS. Each item below would make the result silently wrong:",
               file=sys.stderr)
         for u in unknown:
             print(f"        {u}", file=sys.stderr)

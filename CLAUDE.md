@@ -48,7 +48,8 @@ depth, but never assume they are present.)
    edit misroutes every conversation — and the transcript that reveals it looks like a
    content problem, so it gets misdiagnosed.
 
-   **OWNERSHIP IS PER CORPUS.** Each `Knowledge-<Domain>/` folder belongs to one contributor,
+   **OWNERSHIP IS PER CORPUS.** Each `Knowledge-<Domain>/` folder belongs to one or more
+   contributors,
    and `agent-owners.json` says who. A contributor owns **everything under their own folder**,
    `_START_HERE.md` included.
 
