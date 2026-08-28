@@ -2133,6 +2133,12 @@ def page(title, inner, active="", all_view=False, rel=""):
         # would be a link to a page of buttons that all refuse.
         + (item("/prs", "&#128256;", "PRs", open_pr_count or None, "prs")
            if is_admin() else "")
+        # Its own section rather than under Monitor: Monitor is visible to everyone, and this
+        # is not. Admin-only for the same reason the backup repo is - snapshots carry agent
+        # instructions, tenant storage paths, and per-file IDs that are direct DELETE handles.
+        + ("<div class=grp>Backups</div>"
+           + item("/backups", "&#128190;", "Config Backups", None, "backups")
+           if is_admin() else "")
         + "</nav>")
     return f"""<!doctype html><meta charset=utf-8><title>{html.escape(title)}</title>
 <meta name=viewport content="width=device-width,initial-scale=1">
@@ -3812,6 +3818,327 @@ def pr_page(force=False):
     return page("Change Requests", "<div class=lg>" + "".join(body) + "</div>", active="prs")
 
 
+# ---------------------------------------------------------------------------------------------
+# Config backups (read-only)
+#
+# The snapshots live in a SEPARATE private repo, onetyler-foundry-config-backups, and are read
+# here over `gh` rather than from a local clone. Two reasons:
+#
+#   * Nobody should need a second checkout to answer "did the backup run?".
+#   * The backup repo is admin-only. A local clone in a contributor's tree would put agent
+#     instructions, tenant s3Key paths and per-file DELETE handles on their disk, which is
+#     exactly the access decision that repo exists to enforce.
+#
+# READ-ONLY, DELIBERATELY. There is no restore button and no write path of any kind. Restoring
+# an agent config is an unverified operation - PUT semantics for /api/configurable-agents are
+# undocumented and have never been exercised - so the first time anyone runs it should be a
+# considered act at a terminal, not a button click on a dashboard during an incident.
+BACKUP_REPO = "tyler-technologies/onetyler-foundry-config-backups"
+_BK_CACHE = {"at": 0.0, "data": None}
+_BK_TTL = 5 * 60.0
+
+# Every path served by the file browser must start with one of these. Not because a reviewer is
+# a threat, but because `gh api contents/<path>` will happily fetch anything in the repo if the
+# query string says so, and a browser that can read arbitrary paths is a different feature from
+# one that shows backups.
+BK_ROOTS = ("snapshots/", "CHANGES.md", "README.md")
+
+
+def _bk_file(relpath):
+    """Raw text of one file in the backup repo. Returns (text, err)."""
+    import base64
+    rc, out = gh("api", f"repos/{BACKUP_REPO}/contents/{relpath}", "-q", ".content", timeout=45)
+    if rc != 0:
+        return None, out.strip()[:300]
+    try:
+        return base64.b64decode(out).decode("utf-8", "replace"), None
+    except Exception as e:                                            # noqa: BLE001
+        return None, str(e)
+
+
+def _bk_ls(relpath):
+    """Directory listing. Returns (rows, err) where a row is (name, type, size)."""
+    rc, out = gh("api", f"repos/{BACKUP_REPO}/contents/{relpath}",
+                 "-q", r'.[] | [.name, .type, (.size|tostring)] | @tsv', timeout=45)
+    if rc != 0:
+        return None, out.strip()[:300]
+    rows = [tuple(l.split("\t")) for l in out.splitlines() if l.strip()]
+    return [r for r in rows if len(r) == 3], None
+
+
+def backups(force=False):
+    """Everything the Backups page shows, in one cached bundle.
+
+    Cached for 5 minutes because this is 5 `gh` calls against a remote repo and the page is a
+    status board, not a live feed. The snapshot it describes only changes once a day.
+    """
+    now = time.time()
+    if not force and _BK_CACHE["data"] and (now - _BK_CACHE["at"]) < _BK_TTL:
+        return _BK_CACHE["data"], None
+
+    if not shutil.which("gh"):
+        return None, ("The GitHub CLI (gh) is not installed, so the backup repo cannot be read "
+                      "from here.")
+
+    d = {"repo": BACKUP_REPO, "last_run": None, "dates": [], "manifest": None,
+         "changes": [], "runs": [], "releases": [], "notes": []}
+
+    txt, err = _bk_file("snapshots/LAST_RUN")
+    if err:
+        # The most likely cause by far is no access, and saying so beats a raw gh error.
+        return None, (f"Could not read {BACKUP_REPO}. This is admin-only, so the usual cause is "
+                      f"that your `gh` account is not on the onetyler-tcp-pm-admins team.\n\n{err}")
+    d["last_run"] = txt.strip()
+
+    rows, err = _bk_ls("snapshots")
+    if rows:
+        d["dates"] = sorted((n for n, ty, _ in rows if ty == "dir"), reverse=True)
+    elif err:
+        d["notes"].append(f"snapshot list unavailable: {err}")
+
+    if d["dates"]:
+        txt, err = _bk_file(f"snapshots/{d['dates'][0]}/MANIFEST.json")
+        if txt:
+            try:
+                d["manifest"] = json.loads(txt)
+            except json.JSONDecodeError:
+                d["notes"].append("latest MANIFEST.json did not parse")
+
+    txt, _ = _bk_file("CHANGES.md")
+    if txt:
+        d["changes"] = [l.strip() for l in txt.splitlines()
+                        if l.strip().startswith("- **")][::-1][:12]
+
+    rc, out = gh("run", "list", "--repo", BACKUP_REPO, "--limit", "8", "--json",
+                 "name,status,conclusion,createdAt,event", timeout=60)
+    if rc == 0:
+        try:
+            d["runs"] = json.loads(out)
+        except json.JSONDecodeError:
+            pass
+
+    rc, out = gh("release", "list", "--repo", BACKUP_REPO, "--limit", "20",
+                 "--json", "tagName,createdAt", timeout=60)
+    if rc == 0:
+        try:
+            d["releases"] = [r for r in json.loads(out)
+                             if str(r.get("tagName", "")).startswith("mirror-")]
+        except json.JSONDecodeError:
+            pass
+
+    _BK_CACHE.update(at=now, data=d)
+    return d, None
+
+
+def backups_page(force=False, browse=""):
+    """Read-only view of the config backup repo, and a file browser over the snapshots.
+
+    Admins only. The snapshots contain agent instructions, tenant s3Key paths and per-file IDs
+    that are direct DELETE handles - the same reasoning that keeps contributors off the backup
+    repo itself keeps them off this page.
+    """
+    if not is_admin():
+        return page("Backups",
+                    "<div class=lg><h2 class=sec>Backups</h2>"
+                    "<div class='bar bnr-note'>This is admin-only. The snapshots carry agent "
+                    "instructions, tenant storage paths and per-file identifiers, so access "
+                    "matches the backup repo itself &mdash; the "
+                    "<code>onetyler-tcp-pm-admins</code> team.</div></div>",
+                    active="backups")
+
+    d, err = backups(force=force)
+    head = ("<div style='display:flex;align-items:center;gap:12px;flex-wrap:wrap;"
+            "margin-bottom:6px'>"
+            "<h2 class=sec style='margin:0'>Backups</h2>"
+            "<a href='/backups?refresh=1' style='margin-left:auto;text-decoration:none'>"
+            "<button class=sec>&#8635; Refresh</button></a></div>")
+
+    if err:
+        return page("Backups", "<div class=lg>" + head
+                    + f"<div class='bar bnr-done'>{html.escape(err)}</div></div>",
+                    active="backups")
+
+    # ---- file browser ---------------------------------------------------------------------
+    if browse:
+        if ".." in browse or not browse.startswith(BK_ROOTS):
+            return page("Backups", "<div class=lg>" + head
+                        + "<div class='bar bnr-done'>That path is outside the snapshots.</div>"
+                        "<p><a href='/backups'>Back to backups</a></p></div>", active="backups")
+        crumbs, acc = [], ""
+        for part in browse.split("/"):
+            acc = f"{acc}/{part}" if acc else part
+            crumbs.append(f"<a href='/backups?browse={html.escape(acc)}'>{html.escape(part)}</a>")
+        bar = ("<p class=sub><a href='/backups'>Backups</a> / " + " / ".join(crumbs) + "</p>")
+
+        if browse.endswith(".json") or browse.endswith(".md") or browse.endswith("LAST_RUN"):
+            txt, ferr = _bk_file(browse)
+            if ferr:
+                inner = f"<div class='bar bnr-done'>{html.escape(ferr)}</div>"
+            else:
+                inner = (f"<p class=sub>{len(txt.encode())} bytes &middot; read-only</p>"
+                         f"<pre class=out>{html.escape(txt)}</pre>")
+            return page("Backups", "<div class=lg>" + head + bar + inner + "</div>",
+                        active="backups")
+
+        rows, ferr = _bk_ls(browse)
+        if ferr:
+            return page("Backups", "<div class=lg>" + head + bar
+                        + f"<div class='bar bnr-done'>{html.escape(ferr)}</div></div>",
+                        active="backups")
+        body = ["<div class=tblcard><table><tr><th>Name</th><th>Type</th>"
+                "<th style='text-align:right'>Size</th></tr>"]
+        for name, ty, size in sorted(rows, key=lambda r: (r[1] != "dir", r[0])):
+            link = f"/backups?browse={html.escape(browse)}/{html.escape(name)}"
+            icon = "&#128193;" if ty == "dir" else "&#128196;"
+            sz = "" if ty == "dir" else f"{int(size):,} B"
+            body.append(f"<tr><td>{icon} <a href=\"{link}\">{html.escape(name)}</a></td>"
+                        f"<td>{ty}</td><td style='text-align:right'>{sz}</td></tr>")
+        body.append("</table></div>")
+        return page("Backups", "<div class=lg>" + head + bar + "".join(body) + "</div>",
+                    active="backups")
+
+    # ---- overview -------------------------------------------------------------------------
+    def tile(label, value, tone="grey", why="", sub=""):
+        tip = f" title=\"{html.escape(why)}\"" if why else ""
+        s = (f"<div class=l style='color:var(--forge-theme-text-low)'>{sub}</div>"
+             if sub else "")
+        return (f"<div class='kpi t-{tone}'{tip}><div class=v>{value}</div>"
+                f"<div class=l>{label}</div>{s}</div>")
+
+    m = d["manifest"] or {}
+    cap = m.get("captured", {})
+    agents_n, cols_n = cap.get("agents", 0), cap.get("collections", 0)
+    exp = m.get("expected", {})
+    complete = (agents_n == exp.get("agents") and cols_n == exp.get("collections"))
+    warn_n = len(m.get("warnings") or [])
+
+    # Age of the newest snapshot, in days. The single most useful number on the page: a backup
+    # that stopped three weeks ago looks identical to a working one in every other respect.
+    stale_days, tone_age = None, "grey"
+    if d["dates"]:
+        try:
+            # UTC, NOT local. Snapshot directories are named from the runner's UTC date, and
+            # comparing them against a local date is wrong by a day for most of the working day
+            # in the Americas. Measured: at 04:06 UTC this read "-1 day(s) old", which is both
+            # impossible and the wrong direction - it would have made a stale backup look fresh
+            # rather than the reverse.
+            from datetime import datetime as _dtm, timezone as _tz
+            today = _dtm.now(_tz.utc).date()
+            stale_days = (today - _dtm.strptime(d["dates"][0], "%Y-%m-%d").date()).days
+            stale_days = max(0, stale_days)
+            tone_age = "green" if stale_days <= 1 else "yellow" if stale_days <= 3 else "red"
+        except ValueError:
+            pass
+
+    last_run = next((r for r in d["runs"] if r.get("name") == "snapshot"), None)
+    concl = (last_run or {}).get("conclusion") or (last_run or {}).get("status") or "unknown"
+
+    body = [head,
+            f"<p class=sub style='margin:0 0 22px'>Read-only view of "
+            f"<code>{html.escape(d['repo'])}</code>. Nightly snapshots of the team router, the "
+            "five agent configs and the collection file records. "
+            "<b>There is no restore action here</b> &mdash; see below.</p>"]
+
+    body.append("<h3 class=angroup>Freshness</h3><div class=kpis>"
+                + tile("Newest snapshot",
+                       html.escape(d["dates"][0]) if d["dates"] else "none", tone_age,
+                       "The most recent snapshot in the repo. Anything older than a day or two "
+                       "means the nightly job has stopped.",
+                       ("today" if stale_days == 0 else
+                        "1 day old" if stale_days == 1 else
+                        f"{stale_days} days old") if stale_days is not None else "")
+                + tile("Snapshots retained", len(d["dates"]), "grey",
+                       "Live directories after retention: 14 daily, 8 weekly, 12 monthly, "
+                       "yearly kept forever. Pruned days remain in git history.")
+                + tile("Last job", html.escape(str(concl)),
+                       "green" if concl == "success" else "red" if concl == "failure" else "yellow",
+                       "Conclusion of the most recent `snapshot` workflow run.",
+                       html.escape(((last_run or {}).get("createdAt") or "")[:16].replace("T", " ")))
+                + tile("Mirror bundles", len(d["releases"]), "grey",
+                       "Weekly full git bundles of the knowledge repo, kept as release assets. "
+                       "Zero is expected until MAIN_REPO_READ_TOKEN is set.")
+                + "</div>")
+
+    body.append("<h3 class=angroup>What the newest snapshot captured</h3><div class=kpis>"
+                + tile("Agent configs", f"{agents_n}/{exp.get('agents', 5)}",
+                       "green" if complete else "red",
+                       "The reason this backup exists: Foundry keeps NO version history for "
+                       "agents, so a misedited agent config is recoverable from nowhere else.")
+                + tile("Collections", f"{cols_n}/{exp.get('collections', 5)}",
+                       "green" if complete else "red",
+                       "File records - id, fileName, fileSize, s3Key, ingestion status.")
+                + tile("Team restore points", m.get("team_native_versions", "?"), "grey",
+                       "Foundry's own versions of the team router, which are the preferred "
+                       "restore path for it.")
+                + tile("Size", f"{m.get('bytes', 0):,} B", "grey",
+                       "Uncompressed. A drop past 40% against the previous day fails the run "
+                       "rather than committing a shrinking backup.")
+                + tile("Warnings", warn_n, "grey" if not warn_n else "yellow",
+                       "Recorded at capture time. High-entropy strings warn; an actual "
+                       "credential fails the run outright.")
+                + "</div>")
+
+    if m.get("unchanged_from"):
+        body.append(f"<div class='bar bnr-note'>The newest snapshot is identical to "
+                    f"<b>{html.escape(str(m['unchanged_from']))}</b> &mdash; nothing in the "
+                    "Foundry config changed. Quiet is the expected state.</div>")
+
+    if d["last_run"]:
+        body.append("<h3 class=angroup>Heartbeat</h3>"
+                    "<p class=sub style='margin:0 0 8px'>Written on every run, including days "
+                    "when nothing changed &mdash; so &ldquo;did it actually run?&rdquo; is "
+                    "answerable without reading Actions history, which expires.</p>"
+                    f"<pre class=out>{html.escape(d['last_run'])}</pre>")
+
+    if d["changes"]:
+        body.append("<h3 class=angroup>Config changes</h3>"
+                    "<p class=sub style='margin:0 0 8px'>Appended only when a snapshot differs "
+                    "from the one before it.</p><div class=tblcard><table>")
+        for line in d["changes"]:
+            body.append(f"<tr><td>{html.escape(line.lstrip('- '))}</td></tr>")
+        body.append("</table></div>")
+
+    if d["runs"]:
+        body.append("<h3 class=angroup>Recent runs</h3><div class=tblcard><table>"
+                    "<tr><th>Workflow</th><th>Trigger</th><th>When (UTC)</th>"
+                    "<th>Result</th></tr>")
+        for r in d["runs"]:
+            c = r.get("conclusion") or r.get("status") or "?"
+            cls = ("reviewed" if c == "success" else "bad" if c == "failure" else "pending")
+            body.append(f"<tr><td>{html.escape(str(r.get('name')))}</td>"
+                        f"<td>{html.escape(str(r.get('event') or ''))}</td>"
+                        f"<td>{html.escape(str(r.get('createdAt') or '')[:16].replace('T', ' '))}</td>"
+                        f"<td><span class='pill {cls}'>{html.escape(str(c))}</span></td></tr>")
+        body.append("</table></div>")
+
+    body.append("<h3 class=angroup>Browse the snapshots</h3>"
+                "<p class=sub style='margin:0 0 8px'>Every file, read-only. Newest first.</p>"
+                "<div class=tblcard><table><tr><th>Snapshot</th><th></th></tr>")
+    for date in d["dates"][:20]:
+        body.append(f"<tr><td>&#128193; <a href='/backups?browse=snapshots/{html.escape(date)}'>"
+                    f"{html.escape(date)}</a></td><td class=sub>"
+                    f"team &middot; 5 agents &middot; 5 collections</td></tr>")
+    body.append("</table></div>")
+    if len(d["dates"]) > 20:
+        body.append(f"<p class=sub>{len(d['dates']) - 20} older snapshot(s) not listed. "
+                    "Pruned days are still in git history.</p>")
+
+    body.append(
+        "<h3 class=angroup>Why there is no restore button</h3>"
+        "<div class='bar bnr-note'>Restoring an <b>agent</b> config means "
+        "<code>PUT /api/configurable-agents/{id}</code>, whose semantics are undocumented and "
+        "have never been exercised &mdash; the OpenAPI spec defines no request body for it. "
+        "The snapshot content is not in doubt; the write path back is. The first time anyone "
+        "runs it should be a considered act at a terminal with a diff in front of them, not a "
+        "button click during an incident.<br><br>"
+        "The <b>team router</b> is different and has a better path: Foundry versions it "
+        "natively, and <code>scripts/restore.py</code> in the backup repo prints the exact "
+        "restore calls taken from the snapshot. <b>Knowledge files</b> need nothing from here "
+        "&mdash; git holds every byte.</div>")
+
+    return page("Backups", "<div class=lg>" + "".join(body) + "</div>", active="backups")
+
+
 def analytics_page(force=False):
     """OT Analytics — the OneTyler Cloud Living team's usage, mirroring Foundry's Analytics tab.
 
@@ -4088,6 +4415,17 @@ class H(BaseHTTPRequestHandler):
             # No admin gate: it is read-only usage data about the team's own agent, with no
             # verdicts and no permissions attached.
             return self._send(200, analytics_page(force="refresh=1" in self.path))
+        if self.path == "/backups" or self.path.startswith("/backups?"):
+            # `unquote` is what this file already imports; parse_qs would need a second import
+            # for one parameter. The gate on `browse` is in backups_page(), not here, so there
+            # is exactly one place that decides what a path is allowed to be.
+            qs = self.path.split("?", 1)[1] if "?" in self.path else ""
+            browse = ""
+            for kv in qs.split("&"):
+                if kv.startswith("browse="):
+                    browse = unquote(kv[len("browse="):])
+            return self._send(200, backups_page(force="refresh=1" in self.path,
+                                                browse=browse.strip()))
         if self.path == "/prs" or self.path.startswith("/prs?"):
             # Same gate as All Transcripts, and for the same reason: a contributor cannot
             # merge, so every button here would refuse. Not a security boundary - the page
