@@ -381,7 +381,7 @@ SOURCE_KEYS = ["conversation_id", "answered_by", "date", "exchanges",
                "dropped_sample_prompts", "foundry_feedback", "user_comments"]
 REVIEW_KEYS = ["review_status", "reviewer", "suggested_to", "review_round",
                "routing_verdict", "reassign_to", "answer_verdict", "diagnosis", "fix_target",
-               "kb_action", "kb_files", "action_status"]
+               "kb_action", "kb_files", "action_status", "bp_updates"]
 
 # `notes` IS DELIBERATELY ABSENT from the form. It was a one-line free-text box, which is the
 # wrong shape for the only thing anyone wanted to put in it: prose. A reviewer with something to
@@ -422,6 +422,7 @@ FIELD_LABEL = {
     "suggested_to":  "Suggested to",
     "reassign_to":   "Reassign to",
     "review_round":  "Review round",
+    "bp_updates":    "BP updates",
     "kb_files":      "KB files",
     "kb_action":     "KB action",
 }
@@ -457,6 +458,10 @@ ADMIN_ONLY_FIELDS = ("review_status", "reviewer", "action_status")
 
 # Picked from the repo, not typed. See the MULTI_KEYS branch in field().
 MULTI_KEYS = ("kb_files",)
+
+# Yes/no fields, rendered as a checkbox. Stored as "yes" or empty, so the frontmatter stays
+# greppable and a human editing the file by hand cannot produce a third state.
+BOOL_KEYS = ("bp_updates",)
 
 
 def knowledge_files(scoped=True):
@@ -730,6 +735,24 @@ FIELD_DOC = {
                  "thing you can write here — it is what Claude turns into content, so a vague "
                  "\"this is wrong\" produces a vague fix. Write it as you would have answered "
                  "the person. Leave it empty if the answer was fine.",
+        "values": {},
+    },
+    "bp_updates": {
+        "about": "Tick this when your feedback also implies a change to the **Blueprint** "
+                 "documentation — either because a correction contradicts what Blueprint says, "
+                 "or because Blueprint should be checked for the same problem.\n\n"
+                 "You do not edit Blueprint yourself. Ticking it tells the assistant to work "
+                 "both repos: apply what your corrections imply, and scan the Blueprint docs for "
+                 "conflicts with the same subject. Part 2 then opens a SECOND change request "
+                 "against Blueprint alongside this one, and both are merged together.\n\n"
+                 "**Required, not optional, when the fix lands in a `Docusaurus-` file.** Those "
+                 "are DERIVED from Blueprint and re-generated from it, so a fix made only in the "
+                 "knowledge file is silently deleted by the next reconciliation. The agent "
+                 "answers correctly for a while and then quietly regresses, with the transcript "
+                 "closed out and nobody looking. Fixing Blueprint is the only durable fix.\n\n"
+                 "This box ticks itself when you name a `Docusaurus-` file in KB files, for that "
+                 "reason. Untick it only if you know the Blueprint page already says the right "
+                 "thing.",
         "values": {},
     },
     # Named "Overall suggestions and comments" in the UI. The key stays `proposed_fix` because
@@ -1564,6 +1587,10 @@ padding:12px 14px;margin:var(--forge-spacing-medium) 0}
 letter-spacing:0;font:400 13.5px/1.4 Roboto,sans-serif;
 color:var(--forge-theme-text-high);cursor:pointer}
 .evalrow input{width:auto;margin:0;flex:0 0 auto}
+.boolrow{display:flex;align-items:center;gap:9px;margin:0;padding:7px 0;
+text-transform:none;letter-spacing:0;font:400 13px/1.4 Roboto,sans-serif;
+color:var(--forge-theme-text-high);cursor:pointer}
+.boolrow input{width:auto;margin:0;flex:0 0 auto}
 /* ---- diff view -------------------------------------------------------------------
    Two number gutters and a code column, which is what makes a line number in a review
    comment mean something. The gutters are `user-select:none` so copying a hunk gives
@@ -1826,6 +1853,7 @@ if(rv&&rv.value){try{localStorage.setItem('lastReviewer',rv.value)}catch(e){}}
 document.querySelectorAll('[data-fm]').forEach(e=>{
   fields[e.dataset.fm] = e.dataset.multi
     ? [...e.selectedOptions].map(o=>o.value).join(', ')
+    : e.dataset.bool ? (e.checked ? 'yes' : '')
     : e.value;
 });
 document.querySelectorAll('[data-ex]').forEach(e=>ex[e.dataset.ex]=e.value);
@@ -1838,6 +1866,33 @@ if(r.ok){toast('Saved to '+r.path);if(then)location.href=then}else toast(r.error
 // what setting the field was for. So the button refuses and says which field to clear.
 // Checked at click time rather than by disabling the button, because the selects can change
 // after the page renders and a button that is enabled-then-silently-inert is worse.
+// A fix in a `Docusaurus-` file needs Blueprint updating too, so the box ticks itself.
+//
+// Those knowledge files are DERIVED from Blueprint and re-generated from it. A fix made only in
+// the knowledge file survives until the next reconciliation and is then silently deleted - the
+// agent answers correctly for a while, then regresses, with the transcript long since closed and
+// nobody watching. That is a worse outcome than never having fixed it, because it looks handled.
+//
+// Ticks, never unticks: a reviewer who knows the Blueprint page is already right can turn it off,
+// and this must not fight them.
+(function(){
+ const kb=document.getElementById('kbvalue');
+ const bp=document.querySelector('[data-fm=bp_updates]');
+ if(!kb||!bp) return;
+ const check=()=>{
+   const derived=(kb.value||'').split(',').map(s=>s.trim())
+     .filter(s=>s.split('/').pop().startsWith('Docusaurus-'));
+   if(!derived.length||bp.checked) return;
+   bp.checked=true;
+   toast('BP updates ticked \u2014 '+derived.length+' Docusaurus file(s) are derived from '
+     +'Blueprint, so a fix there alone gets reverted');
+ };
+ // The hidden input is set by the dialog's OK, which does not fire `change` on its own.
+ const ok=window.kbOk;
+ if(ok) window.kbOk=function(){ok.apply(this,arguments); check();};
+ check();
+})();
+
 // `action_status` follows from `kb_action` for the two mechanical values, so a reviewer is not
 // asked a question whose answer is already on the form:
 //
@@ -2063,6 +2118,16 @@ function prMerge(btn,number,title,checks){
    +'this request are then uploaded to Foundry and verified.</b> This is the whole make-it-live '
    +'action, so the agents change as soon as it finishes.',
    ()=>prDo(btn,'merge',number));
+}
+// Blueprint merges via GitHub's auto-merge, not by waiting here: its CI takes minutes and a
+// plain merge would be refused for being behind the checks.
+function bpMerge(btn,number,title){
+ confirmThen(btn,'Queue Blueprint #'+number+' to merge when checks pass?',
+   '<code>'+title+'</code><br><br>GitHub merges it the moment Blueprint\u2019s CI passes, so you '
+   +'do not have to wait here. Squash merge, branch deleted.<br><br><b>Merge the knowledge '
+   +'request as well</b> \u2014 most indexed knowledge is derived from Blueprint, so shipping '
+   +'one without the other leaves a fix the next reconciliation undoes.',
+   ()=>prDo(btn,'bp-merge',number));
 }
 function prOverride(btn,number,title,checks){
  const warn = checks==='failing' ? '<b>Checks are failing on this one.</b><br>'
@@ -3303,6 +3368,12 @@ def field(k, val):
         opts = "".join(f"<option{' selected' if o == val else ''}>{html.escape(o)}</option>"
                        for o in CHOICES[k])
         return f"<div class=fld>{lab}<select data-fm={k}>{opts}</select>{panel}</div>"
+    if k in BOOL_KEYS:
+        ck = " checked" if (val or "").strip().lower() in ("yes", "true", "1") else ""
+        return (f"<div class=fld>{lab}"
+                f"<label class=boolrow><input type=checkbox data-fm={k} data-bool=1{ck}>"
+                "<span>Blueprint needs updating too</span></label>"
+                f"{panel}</div>")
     if k in MULTI_KEYS:
         # A BUTTON AND A DIALOG, not an inline list. A multi-select needs ctrl/cmd-click to pick
         # more than one, which is the least discoverable interaction on the web - and with 42
@@ -4009,6 +4080,103 @@ def awaiting_analysis():
     return n
 
 
+# Where the Blueprint checkout lives. Overridable, because it is a sibling clone and not everyone
+# puts it in the same place; the default is where it sits on the machine this was built on.
+BP_REPO = Path(os.environ.get(
+    "BLUEPRINT_REPO",
+    str(REPO.parent.parent / "blueprint" / "corpdev-new-blueprint")))
+BP_REMOTE = "tyler-technologies/corpdev-new-blueprint"
+
+
+def bp_batch():
+    """Transcripts in this batch whose feedback also implies Blueprint work. [] if none."""
+    out = []
+    _, listed = git("diff", "--name-only", "origin/main", "--", "transcripts")
+    for rel in (l.strip() for l in listed.splitlines()):
+        if not rel.endswith(".md") or Path(rel).name in (
+                "README.md", "INDEX.md", "ONBOARDING.md"):
+            continue
+        f = REPO / rel
+        if not f.is_file():
+            continue
+        fm, _ = parse(f)
+        if (fm or {}).get("bp_updates", "").strip().lower() in ("yes", "true", "1"):
+            out.append(rel)
+    return out
+
+
+def bp_available():
+    """(ok, why). Whether the Blueprint checkout can be worked with at all."""
+    if not BP_REPO.is_dir():
+        return False, (f"No Blueprint checkout at {BP_REPO}. Clone "
+                       f"{BP_REMOTE} there, or set BLUEPRINT_REPO to where it is.")
+    if not (BP_REPO / ".git").exists():
+        return False, f"{BP_REPO} exists but is not a git checkout."
+    return True, ""
+
+
+def bp_git(*args, timeout=120):
+    """git, but in the Blueprint checkout."""
+    r = subprocess.run(["git", *args], cwd=BP_REPO, capture_output=True, text=True,
+                       timeout=timeout)
+    return r.returncode, (r.stdout + r.stderr).strip()
+
+
+def bp_changes():
+    """Blueprint files changed against its default branch, committed or not."""
+    ok, _ = bp_available()
+    if not ok:
+        return []
+    bp_git("fetch", "-q", "origin", "master")
+    rc, out = bp_git("diff", "--name-only", "origin/master")
+    if rc != 0:
+        return []
+    return sorted({l.strip() for l in out.splitlines() if l.strip()})
+
+
+def bp_open_pr(branch_hint, title, body):
+    """Commit, push and open a change request in the Blueprint checkout. (ok, message).
+
+    A SEPARATE REPO MEANS A SEPARATE REQUEST. Blueprint is not a subdirectory of this repo and has
+    its own reviewers, its own CI and its own default branch, so the two changes cannot ride in one
+    request - they can only be opened and merged together, which is what the PRs tab does.
+
+    Never touches Blueprint's master directly, and refuses if the checkout has nothing to send:
+    an empty request against a shared docs repo is noise its reviewers have to read.
+    """
+    ok, why = bp_available()
+    if not ok:
+        return False, why
+    changes = bp_changes()
+    if not changes:
+        return False, ("Nothing to send to Blueprint — that checkout has no changes against "
+                       "master. The transcripts are marked BP updates, so either the assistant "
+                       "has not made those edits yet, or it made them somewhere else.")
+    cur = bp_git("rev-parse", "--abbrev-ref", "HEAD")[1].strip()
+    if cur in ("master", "main", "HEAD"):
+        br = f"kb-review/{branch_hint}"
+        rc, out = bp_git("switch", "-c", br)
+        if rc != 0:
+            return False, f"could not branch in Blueprint: {out}"
+    else:
+        br = cur
+    bp_git("add", "-A")
+    rc, out = bp_git("commit", "-m", title + "\n\n" + body)
+    if rc != 0 and "nothing to commit" not in out.lower():
+        return False, f"could not commit in Blueprint: {out}"
+    rc, out = bp_git("push", "-u", "origin", br, timeout=240)
+    if rc != 0:
+        return False, f"could not push the Blueprint branch: {out}"
+    r = subprocess.run(["gh", "pr", "create", "--repo", BP_REMOTE, "--base", "master",
+                        "--head", br, "--title", title, "--body", body],
+                       cwd=BP_REPO, capture_output=True, text=True, timeout=180)
+    made = ((r.stdout or "") + (r.stderr or "")).strip()
+    if r.returncode != 0 and "already exists" not in made.lower():
+        return False, f"could not open the Blueprint request: {made[:300]}"
+    return True, (f"Blueprint change request, {len(changes)} file(s):\n"
+                  + "\n".join("  " + c for c in changes) + "\n" + made.splitlines()[-1])
+
+
 def analysis_prompt(n):
     """The exact words to hand an assistant. Generated, not written by the reviewer.
 
@@ -4017,12 +4185,31 @@ def analysis_prompt(n):
     would create a second copy to drift. What it cannot know is that a batch is ready and what
     the human wants out of it.
     """
-    return (f"I have finished reviewing {n} transcript(s) in this repo. "
+    base = (f"I have finished reviewing {n} transcript(s) in this repo. "
             "Read all of my feedback as one body before changing anything, then update the "
             "knowledge files so the agents stop giving those answers. Summarise what you "
             "changed, per transcript, so I can follow my own feedback through. "
             "Do not change my verdicts, and ask me rather than guessing if any of my feedback "
             "is ambiguous.")
+    bp = bp_batch()
+    if not bp:
+        return base
+    # The Blueprint half is stated here rather than left to CLAUDE.md, because it is the one
+    # thing an assistant cannot infer: which transcripts I marked as needing it. The REASON is
+    # spelled out because it changes what "done" means - a Docusaurus- file fixed on its own is
+    # not fixed, it is fixed until the next reconciliation.
+    return (base + "\n\n"
+            + (f"{len(bp)} of these is marked" if len(bp) == 1
+               else f"{len(bp)} of these are marked")
+            + " **BP updates**, so the Blueprint documentation needs the same treatment:\n"
+            + "\n".join(f"  - {r}" for r in bp) + "\n\n"
+            f"The Blueprint checkout is at {BP_REPO}. For each of those transcripts: apply what "
+            "my corrections imply to the Blueprint pages, and also SCAN the Blueprint docs for "
+            "anything on the same subject that now conflicts. Most of the indexed knowledge is "
+            "derived from Blueprint, so a `Docusaurus-` knowledge file fixed on its own is "
+            "reverted by the next reconciliation - fixing Blueprint is what makes it stick.\n\n"
+            "Do not commit or push in the Blueprint checkout. Leave the edits in the working "
+            "tree; Part 2 opens the change request for both repos together.")
 
 
 def saved_state():
@@ -4486,7 +4673,7 @@ def merged_knowledge_files(number):
 
     The PR's own file list has neither problem: it is what the request changed, by definition.
     """
-    files, err = pr_files(number, force=True)
+    files, err = pr_files(number, force=True)   # knowledge repo only; see merged_knowledge_files
     if err or not files:
         return []
     out = []
@@ -4595,6 +4782,31 @@ MERGE_STATE = {
     "UNKNOWN": ("state unknown", "excluded"),
     "HAS_HOOKS": ("ready to merge", "reviewed"),
 }
+
+
+def bp_open_prs():
+    """Open change requests in the Blueprint repo. (list, err).
+
+    Only the ones this workflow opened - branches prefixed `kb-review/`. Blueprint is a shared docs
+    repo with its own traffic, and listing everybody's requests here would make this page a second,
+    worse view of a repo it is not responsible for.
+    """
+    if not shutil.which("gh"):
+        return [], ""
+    ok, _ = bp_available()
+    if not ok:
+        return [], ""
+    r = subprocess.run(["gh", "pr", "list", "--repo", BP_REMOTE, "--state", "open",
+                        "--limit", "30", "--json", PR_FIELDS],
+                       cwd=REPO, capture_output=True, text=True, timeout=120)
+    if r.returncode != 0:
+        return [], (r.stderr or r.stdout).strip()[:200]
+    try:
+        prs = json.loads(r.stdout)
+    except json.JSONDecodeError:
+        return [], "could not parse the Blueprint request list"
+    return [x for x in prs
+            if str(x.get("headRefName", "")).startswith("kb-review/")], ""
 
 
 def open_prs():
@@ -4735,21 +4947,22 @@ PR_DIFF_MAX_LINES = 600
 PR_DIFF_MAX_FILES = 40
 
 
-def pr_files(number, force=False):
+def pr_files(number, force=False, repo=""):
     """Per-file diffs for one change request. Returns (files, err).
 
     Each entry carries `patch` - a unified diff - plus additions, deletions and status. Cached
     for two minutes: a PR's diff only changes when someone pushes to it, and the page is read
     far more often than that.
     """
-    key = str(number)
+    key = f"{repo}:{number}"
     now = time.time()
     hit = _PRF_CACHE.get(key)
     if hit and not force and (now - hit[0]) < _PRF_TTL:
         return hit[1], None
     if not shutil.which("gh"):
         return None, "The GitHub CLI (gh) is not installed, so diffs cannot be fetched."
-    rc, out = gh("api", f"repos/:owner/:repo/pulls/{number}/files", "--paginate", timeout=90)
+    target = BP_REMOTE if repo == "bp" else ":owner/:repo"
+    rc, out = gh("api", f"repos/{target}/pulls/{number}/files", "--paginate", timeout=90)
     if rc != 0:
         return None, out.strip()[:300]
     try:
@@ -4818,13 +5031,14 @@ def render_patch(patch, anchor):
     return "".join(out)
 
 
-def pr_diff_page(number, force=False):
+def pr_diff_page(number, force=False, repo=""):
     """GitHub-style 'Files changed' for one change request. Read-only."""
     if not is_admin():
         return page("Change Requests",
                     "<div class=lg><h2 class=sec>Change Requests</h2>"
                     "<div class='bar bnr-note'>Admins only.</div></div>", active="prs")
-    rc, meta_raw = gh("api", f"repos/:owner/:repo/pulls/{number}",
+    tgt = BP_REMOTE if repo == "bp" else ":owner/:repo"
+    rc, meta_raw = gh("api", f"repos/{tgt}/pulls/{number}",
                       "-q", '[.title, .user.login, .base.ref, .head.ref, .state, '
                             '.additions, .deletions, .changed_files, .html_url] | @tsv',
                       timeout=60)
@@ -4836,7 +5050,7 @@ def pr_diff_page(number, force=False):
     parts = (meta_raw.strip().split("\t") + [""] * 9)[:9]
     title, who, base, head, state, adds, dels, nfiles, url = parts
 
-    files, err = pr_files(number, force=force)
+    files, err = pr_files(number, force=force, repo=repo)
     body = [
         "<div style='display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:6px'>"
         f"<h2 class=sec style='margin:0'>#{html.escape(str(number))} "
@@ -4936,9 +5150,51 @@ def pr_page(force=False):
             "than 30 minutes stale, and whenever you come back to this tab.</p>"]
     if err:
         body.append(f"<div class='bar bnr-done'>{html.escape(err)}</div>")
-    if not prs and not err:
+    # Blueprint requests this workflow opened, listed alongside. They ship WITH the knowledge
+    # change - most indexed knowledge is derived from Blueprint, so merging one without the other
+    # leaves a fix that the next reconciliation undoes. Shown here so that pairing is visible
+    # rather than being something somebody has to remember.
+    bprs, bperr = bp_open_prs()
+    if not prs and not bprs and not err:
         body.append("<div class=card><h3>Nothing open</h3>"
                     "<p class=sub>Every change request has been merged or closed.</p></div>")
+    if bprs:
+        body.append("<div class='bar bnr-note'><b>"
+                    + str(len(bprs)) + " Blueprint request(s) belong with these.</b> Most "
+                    "indexed knowledge is derived from Blueprint, so a knowledge fix that ships "
+                    "without its Blueprint counterpart is reverted at the next reconciliation. "
+                    "Merge them together.</div>")
+    for pr in bprs:
+        n_files = pr.get("changedFiles", 0)
+        state = (pr.get("mergeStateStatus") or "UNKNOWN").upper()
+        st_label, st_cls = MERGE_STATE.get(state, ("state unknown", "excluded"))
+        cls, _why = pr_checks(pr)
+        chk = {"passing": "<span class='pill reviewed'>checks passed</span>",
+               "failing": "<span class='pill bad'>checks failed</span>",
+               "running": "<span class='pill pending'>checks running</span>",
+               "none": "<span class='pill excluded'>no checks</span>"}[cls]
+        body.append(
+            "<div class=card>"
+            f"<h3><a href=\"{html.escape(pr['url'])}\" target=_blank rel=noopener>"
+            f"#{pr['number']}</a> {html.escape(pr['title'][:110])}</h3>"
+            "<p class=sub><span class='pill suggested'>Blueprint</span> "
+            f"{html.escape(pr['author']['login'])} &middot; "
+            f"<code>{html.escape(pr['headRefName'])}</code> &middot; "
+            f"+{pr['additions']} &minus;{pr['deletions']} across {n_files} file(s)</p>"
+            f"<div class=prpills>{chk}<span class='pill {st_cls}'>{st_label}</span></div>"
+            "<div class=hint>Blueprint requires its own CI to pass and no approvals, so "
+            "<b>Merge when checks pass</b> queues GitHub's auto-merge rather than waiting "
+            "here.</div>"
+            f"<div class=stepacts>"
+            f"<a href=\"/prs?diff={pr['number']}&repo=bp\">"
+            f"<button class=sec>Files changed ({n_files})</button></a>"
+            f"<button onclick=\"bpMerge(this,{pr['number']},"
+            f"'{html.escape(pr['title'][:60])}')\">Merge when checks pass</button>"
+            f"<a href=\"{html.escape(pr['url'])}\" target=_blank rel=noopener>"
+            "<button class=sec>Open on GitHub</button></a></div></div>")
+    if bperr:
+        body.append(f"<div class=hint>Blueprint requests could not be listed: "
+                    f"{html.escape(bperr)}</div>")
     for pr in prs:
         cls, why = pr_checks(pr)
         kind = pr_kind(pr)
@@ -6401,7 +6657,8 @@ class H(BaseHTTPRequestHandler):
                     "<div class=lg><h2 class=sec>Change Requests</h2>"
                     "<div class='bar bnr-done'>Not a change-request number.</div>"
                     "<p><a href='/prs'>Back</a></p></div>", active="prs"))
-            return self._send(200, pr_diff_page(num, force="refresh=1" in self.path))
+            rep = "bp" if "repo=bp" in self.path else ""
+            return self._send(200, pr_diff_page(num, force="refresh=1" in self.path, repo=rep))
         if self.path == "/prs" or self.path.startswith("/prs?"):
             # Same gate as All Transcripts, and for the same reason: a contributor cannot
             # merge, so every button here would refuse. Not a security boundary - the page
@@ -6649,6 +6906,19 @@ class H(BaseHTTPRequestHandler):
                     rc, out = gh("pr", "update-branch", num, "--rebase")
                     if rc == 0:
                         out += ("\n\nUpdated. Checks will re-run — merge once they are green.")
+                elif act == "bp-merge":
+                    # AUTO-MERGE, not merge. Blueprint requires its own CI ("Build / Build and
+                    # Test") and takes minutes, so a plain merge would just be refused for being
+                    # behind the checks. `--auto` hands the waiting to GitHub, which merges the
+                    # moment they pass - the repo has auto-merge enabled, which is what makes this
+                    # possible rather than a polling loop here.
+                    rc, out = gh("pr", "merge", num, "--repo", BP_REMOTE, "--squash", "--auto",
+                                 "--delete-branch")
+                    if rc == 0:
+                        out = ("Queued. GitHub merges it as soon as Blueprint's checks pass — "
+                               "you do not need to stay here.\n\n" + out
+                               + "\n\nMerge the knowledge request too, or the fix ships without "
+                                 "the documentation it was derived from.")
                 elif act in ("merge", "merge-override"):
                     # Rebase, matching how this repo has been merged throughout - a merge
                     # commit per review batch would bury the actual content in the history.
@@ -6761,7 +7031,7 @@ class H(BaseHTTPRequestHandler):
                     changed = []
                     _, listed = git("diff", "--name-only", "origin/main", "--", "transcripts")
                     for rel in (l.strip() for l in listed.splitlines()):
-                        if not rel.endswith(".md") or pathlib.Path(rel).name in (
+                        if not rel.endswith(".md") or Path(rel).name in (
                                 "README.md", "INDEX.md", "ONBOARDING.md"):
                             continue
                         f = REPO / rel
@@ -6819,6 +7089,26 @@ class H(BaseHTTPRequestHandler):
                     prc, pout = git("push", "-u", "origin", cur.strip(), timeout=180)
                     out = (out + "\n\n" + pout).strip()
                     rc = prc
+                    # BLUEPRINT GOES OUT AT THE SAME TIME. Marked transcripts mean the feedback
+                    # implies Blueprint work too, and most indexed knowledge is DERIVED from
+                    # Blueprint - so a Docusaurus- knowledge file fixed on its own is reverted by
+                    # the next reconciliation. Shipping one without the other is shipping a fix
+                    # with a countdown on it.
+                    bp_marked = bp_batch()
+                    if prc == 0 and bp_marked:
+                        bok, bmsg = bp_open_pr(
+                            cur.strip().replace("review/", "").replace("/", "-"),
+                            "Blueprint updates from a transcript review batch",
+                            "Opened alongside a change request in "
+                            "onetyler-foundry-team-agent-kb, from transcript review feedback "
+                            "marked as needing Blueprint updates:\n\n"
+                            + "\n".join("  - " + r for r in bp_marked)
+                            + "\n\nMost of the indexed knowledge is derived from Blueprint, so "
+                            "the knowledge-file fix does not hold unless this lands too.")
+                        out += "\n\n" + bmsg
+                        if not bok:
+                            out += ("\n\nThe knowledge request WAS created. Blueprint was not — "
+                                    "fix the above and re-run, or open it by hand.")
                     if prc == 0:
                         r = subprocess.run(["gh", "pr", "create", "--fill"], cwd=REPO,
                                            capture_output=True, text=True, timeout=180)
