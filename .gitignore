@@ -31,3 +31,8 @@ __pycache__/
 .last-transcript-sync
 .last-pr-sync
 .last-analytics-sync
+
+# Eval restore points. Written before a candidate upload so a crash mid-eval is recoverable;
+# they hold a copy of live Foundry content, so they belong on the machine that made them and
+# nowhere else. `eval_batch.py --restore-only <dir>` reads them.
+.eval/
