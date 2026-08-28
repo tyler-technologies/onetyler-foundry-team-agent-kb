@@ -1466,6 +1466,13 @@ ol.prog li.none b{text-decoration:line-through}
 ol.prog li.none::before{content:"\2013";color:var(--forge-theme-text-low)}
 ol.prog li.fdry::before{content:"";border:1.5px dashed var(--forge-theme-warning);
 box-sizing:border-box}
+/* "It ran; now YOU decide." Deliberately not `done`: a green tick on the eval would say the
+   step is complete when the only thing that completes it is a human reading the answers. It
+   was the absence of any such state that made the eval invisible in this list. */
+ol.prog li.you{color:var(--forge-theme-text-high)}
+ol.prog li.you::before{content:"\2691";background:none;border:0;
+color:var(--forge-theme-warning);font-size:14px;top:6px}
+ol.prog li.you b{color:var(--forge-theme-warning)}
 /* The assistant stage. Marked out because it is categorically different from the others: not
    waiting on this button, and not something the page can do at all. */
 ol.prog li.ai{background:var(--bnr-sug-bg);border-radius:4px;padding:12px 12px 12px 30px;
@@ -2180,6 +2187,7 @@ function runEval(btn){
  const out=document.getElementById('gitout');
  const was=btn.textContent;
  btn.disabled=true; btn.textContent='Checking\u2026';
+ stage('eval','run');
  if(out){out.style.display='block';
    out.textContent='Saving your work, uploading the candidate files, asking the agents.\n'
      +'This takes a few minutes - two Bedrock syncs plus one question at a time.\n'
@@ -2188,6 +2196,9 @@ function runEval(btn){
                body:JSON.stringify({action:'eval'})})
   .then(r=>r.json()).then(d=>{
     if(out){out.textContent=d.output||'(no output)';}
+    // `you`, not `done` - the eval has run but the step is not finished until the answers have
+    // been read. gitDo('pr') is what finally ticks it, from the gate button below.
+    stage('eval', d.ok===false ? 'fail' : 'you');
     btn.disabled=false; btn.textContent=was;
     const host=btn.parentNode;
     if(!host.querySelector('.evalgate')){
@@ -2205,6 +2216,7 @@ function runEval(btn){
   .catch(e=>{ if(out){out.textContent='The check failed to run: '+e
     +'\n\nIf it had already uploaded, restore with:\n'
     +'  python3 scripts/eval_batch.py --restore-only .eval/<newest>';}
+    stage('eval','fail');
     btn.disabled=false; btn.textContent=was; });
 }
 
@@ -2247,10 +2259,12 @@ function setOutHead(action){
 }
 function stage(name,state){const el=document.querySelector('#prog li[data-stage='+name+']');
  if(!el||el.classList.contains('none'))return;
- el.classList.remove('wait','run','done','fail'); el.classList.add(state);}
+ el.classList.remove('wait','run','done','fail','you'); el.classList.add(state);}
 // No `branch` field any more — the branch is chosen server-side per sitting and never shown.
 async function gitDo(action,extra){const msg=(document.getElementById('cmsg')||{}).value||'';
-if(action==='pr'){stage('push','run')}
+// Reaching the send is the reviewer having read the answers, which is the only thing that
+// completes the eval step. Ticked here rather than in runEval for that reason.
+if(action==='pr'){stage('eval','done'); stage('push','run')}
 const r=await post('/git',Object.assign({action,message:msg},extra||{}));
 if(action==='pr'){
  // One request does both the push and the PR, so the push is only knowable as "it got far
@@ -6482,6 +6496,26 @@ def git_page():
             "<li data-stage=ai class=none><b>Update the knowledge files</b>"
             "<span>nothing to update — no review in this batch asked for a change</span></li>")
 
+    # The eval used to be invisible until it ran: the checkbox described it, but the numbered
+    # progress list jumped straight from "Update the knowledge files" to "Upload to GitHub", so
+    # the one step that needs the reviewer to STOP AND READ was the only step not shown as a
+    # step. A reviewer asked for it by name for exactly that reason - they could not tell it was
+    # what came next. It is a gate, so it earns a place in the list more than the two stages
+    # after it, which are automatic.
+    ev_files, ev_q, ev_mins = eval_estimate()
+    if ev_files and ev_q:
+        eval_stage = (
+            "<li data-stage=eval class=wait><b>Review eval</b>"
+            f"<span>asks the agents the {ev_q} question(s) from this batch against your "
+            f"{len(ev_files)} changed knowledge file(s), then puts Foundry back. "
+            f"~{ev_mins} min.<br><b>You read the answers and decide</b> — nothing is sent in "
+            "until you say the answers look right.</span></li>")
+    else:
+        eval_stage = (
+            "<li data-stage=eval class=none><b>Review eval</b>"
+            "<span>nothing to check — no knowledge file in this batch differs from what is "
+            "already published</span></li>")
+
     prompt_json = json.dumps(analysis_prompt(n_ai))
 
     def step(num, title, desc, inner):
@@ -6523,7 +6557,8 @@ def git_page():
              "repeating those answers are. Updating them is the one step here that needs an "
              "assistant; the rest is this button and a merge.",
              "<ol class=prog id=prog>"
-             + ai_stage +
+             + ai_stage
+             + eval_stage +
              "<li data-stage=push class=wait><b>Upload to GitHub</b>"
              "<span>your work and the knowledge updates together, kept apart from everyone "
              "else's until they are checked (git push of your own branch)</span></li>"
