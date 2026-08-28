@@ -818,6 +818,12 @@ CSS = r"""
      so those panels rendered as bare .bar with no tint at all - the styling was silently
      absent rather than wrong, which is why nobody noticed. */
   --bnr-note-bg:#eef2f7;  --bnr-note-bd:#c9d4e2;  --bnr-note-fg:#26333f;
+  /* Diff view. Tinted rows rather than a dark terminal block: this is for reading a
+     change, not for watching command output, and the surrounding page is light. */
+  --d-add-bg:#e6ffed;  --d-add-ln:#d0f5da;  --d-add-fg:#12401f;
+  --d-del-bg:#ffebe9;  --d-del-ln:#ffd7d5;  --d-del-fg:#4a1416;
+  --d-hunk-bg:#eef2f7; --d-hunk-fg:#41525f;
+  --d-ln-fg:#8a97a3;   --d-plus:#116329;   --d-minus:#a40e26;
   --pill-warn-fg:#a83a00;
   --pill-ok-fg:#206b26;
 
@@ -909,6 +915,10 @@ CSS = r"""
   --bnr-sug-bg:#261c3a;   --bnr-sug-bd:#443463;   --bnr-sug-fg:#ddccf5;
   --bnr-done-bg:#322916;  --bnr-done-bd:#574727;  --bnr-done-fg:#f0e0bd;
   --bnr-note-bg:#1b2430;  --bnr-note-bd:#33465c;  --bnr-note-fg:#cddced;
+  --d-add-bg:#12261a;  --d-add-ln:#1b3a26;  --d-add-fg:#c4e8cf;
+  --d-del-bg:#2b1517;  --d-del-fg:#f3c9c9;  --d-del-ln:#43201f;
+  --d-hunk-bg:#1b2430; --d-hunk-fg:#b6c6d4;
+  --d-ln-fg:#7c8a97;   --d-plus:#7ee2a8;   --d-minus:#ff9c9c;
   --pill-warn-fg:var(--forge-theme-warning);
   --pill-ok-fg:var(--forge-theme-success);
 
@@ -1326,6 +1336,29 @@ td.fbcell,th.fbcell{width:1%;text-align:center;padding-left:6px;padding-right:6p
 .bar.bnr-sug{background:var(--bnr-sug-bg);border-color:var(--bnr-sug-bd);color:var(--bnr-sug-fg)}
 .bar.bnr-note{background:var(--bnr-note-bg);border-color:var(--bnr-note-bd);
 color:var(--bnr-note-fg)}
+/* ---- diff view -------------------------------------------------------------------
+   Two number gutters and a code column, which is what makes a line number in a review
+   comment mean something. The gutters are `user-select:none` so copying a hunk gives
+   you the code and not a column of digits - the single most annoying thing about a
+   home-made diff view. */
+.difftable{border:1px solid var(--forge-theme-outline);border-radius:4px;overflow:auto;
+max-height:640px;margin-bottom:var(--forge-spacing-medium);
+background:var(--forge-theme-surface)}
+.difftable table{width:100%;border-collapse:collapse;
+font:12.5px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace}
+.difftable td{padding:0;border:0;white-space:pre}
+.difftable td.dln{width:1%;min-width:44px;text-align:right;padding:0 10px;
+color:var(--d-ln-fg);user-select:none;-webkit-user-select:none;
+border-right:1px solid var(--forge-theme-outline)}
+.difftable td.dcode{padding:0 12px;width:100%;overflow-wrap:normal}
+.difftable tr.dadded td{background:var(--d-add-bg);color:var(--d-add-fg)}
+.difftable tr.dadded td.dln{background:var(--d-add-ln)}
+.difftable tr.dremoved td{background:var(--d-del-bg);color:var(--d-del-fg)}
+.difftable tr.dremoved td.dln{background:var(--d-del-ln)}
+.difftable tr.dhunkrow td{background:var(--d-hunk-bg);color:var(--d-hunk-fg);
+font-size:11.5px;padding-top:3px;padding-bottom:3px}
+.dplus{color:var(--d-plus);font-weight:600}
+.dminus{color:var(--d-minus);font-weight:600}
 .bar.bnr-done{background:var(--bnr-done-bg);border-color:var(--bnr-done-bd);
 color:var(--bnr-done-fg)}
 .fb.down{background:var(--fb-down-bg);border-radius:50%;padding:2px 3px 3px;box-shadow:0 0 0 2px var(--forge-theme-surface)}
@@ -3852,6 +3885,180 @@ def pr_checks(pr):
     return "passing", f"All {len(rows)} check(s) passed."
 
 
+_PRF_CACHE = {}
+_PRF_TTL = 120.0
+
+# A single file's diff is truncated past this many lines. GitHub does the same thing and for the
+# same reason: a 4000-line patch rendered inline is not a review aid, it is a wall. The count of
+# what was hidden is always shown, with a link to the file on GitHub - a silent truncation would
+# be the worst outcome, since a reviewer would believe they had seen everything.
+PR_DIFF_MAX_LINES = 600
+PR_DIFF_MAX_FILES = 40
+
+
+def pr_files(number, force=False):
+    """Per-file diffs for one change request. Returns (files, err).
+
+    Each entry carries `patch` - a unified diff - plus additions, deletions and status. Cached
+    for two minutes: a PR's diff only changes when someone pushes to it, and the page is read
+    far more often than that.
+    """
+    key = str(number)
+    now = time.time()
+    hit = _PRF_CACHE.get(key)
+    if hit and not force and (now - hit[0]) < _PRF_TTL:
+        return hit[1], None
+    if not shutil.which("gh"):
+        return None, "The GitHub CLI (gh) is not installed, so diffs cannot be fetched."
+    rc, out = gh("api", f"repos/:owner/:repo/pulls/{number}/files", "--paginate", timeout=90)
+    if rc != 0:
+        return None, out.strip()[:300]
+    try:
+        files = json.loads(out)
+    except json.JSONDecodeError as e:
+        return None, f"could not parse the file list: {e}"
+    if not isinstance(files, list):
+        return None, "unexpected response shape from the files API"
+    _PRF_CACHE[key] = (now, files)
+    return files, None
+
+
+def render_patch(patch, anchor):
+    """A unified diff as a two-gutter table, the way GitHub shows it.
+
+    Real line numbers on both sides, because "line 91" in a review comment has to mean something.
+    A unified patch only states them in the hunk header (@@ -42,7 +42,7 @@), so both counters are
+    tracked from there: a context line advances both, a deletion advances only the old side, an
+    addition only the new.
+    """
+    if not patch:
+        return ("<p class=sub>No textual diff &mdash; usually a binary file, a pure rename, or a "
+                "file too large for the API to return.</p>")
+    rows = []
+    old = new = 0
+    shown = 0
+    total = patch.count("\n") + 1
+    for line in patch.split("\n"):
+        if shown >= PR_DIFF_MAX_LINES:
+            break
+        if line.startswith("@@"):
+            m = re.match(r"@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@(.*)", line)
+            if m:
+                old, new = int(m.group(1)), int(m.group(2))
+            rows.append("<tr class=dhunkrow><td class=dln></td><td class=dln></td>"
+                        f"<td class=dcode>{html.escape(line)}</td></tr>")
+            shown += 1
+            continue
+        if line.startswith("+"):
+            rows.append("<tr class=dadded><td class=dln></td>"
+                        f"<td class=dln>{new}</td>"
+                        f"<td class=dcode>{html.escape(line)}</td></tr>")
+            new += 1
+        elif line.startswith("-"):
+            rows.append(f"<tr class=dremoved><td class=dln>{old}</td>"
+                        "<td class=dln></td>"
+                        f"<td class=dcode>{html.escape(line)}</td></tr>")
+            old += 1
+        elif line.startswith("\\"):
+            # "\ No newline at end of file" - real diff output, belongs to neither side.
+            rows.append("<tr class=dctx><td class=dln></td><td class=dln></td>"
+                        f"<td class=dcode>{html.escape(line)}</td></tr>")
+        else:
+            rows.append(f"<tr class=dctx><td class=dln>{old}</td>"
+                        f"<td class=dln>{new}</td>"
+                        f"<td class=dcode>{html.escape(line)}</td></tr>")
+            old += 1
+            new += 1
+        shown += 1
+
+    out = ["<div class=difftable><table>", "".join(rows), "</table></div>"]
+    if shown < total:
+        out.append(f"<p class=sub>Showing the first {shown:,} of {total:,} diff lines. "
+                   f"<a href='{html.escape(anchor)}' target=_blank rel=noopener>"
+                   "Open the full file on GitHub &rarr;</a></p>")
+    return "".join(out)
+
+
+def pr_diff_page(number, force=False):
+    """GitHub-style 'Files changed' for one change request. Read-only."""
+    if not is_admin():
+        return page("Change Requests",
+                    "<div class=lg><h2 class=sec>Change Requests</h2>"
+                    "<div class='bar bnr-note'>Admins only.</div></div>", active="prs")
+    rc, meta_raw = gh("api", f"repos/:owner/:repo/pulls/{number}",
+                      "-q", '[.title, .user.login, .base.ref, .head.ref, .state, '
+                            '.additions, .deletions, .changed_files, .html_url] | @tsv',
+                      timeout=60)
+    if rc != 0:
+        return page("Change Requests",
+                    "<div class=lg><h2 class=sec>Change Requests</h2>"
+                    f"<div class='bar bnr-done'>{html.escape(meta_raw.strip()[:300])}</div>"
+                    "<p><a href='/prs'>Back to change requests</a></p></div>", active="prs")
+    parts = (meta_raw.strip().split("\t") + [""] * 9)[:9]
+    title, who, base, head, state, adds, dels, nfiles, url = parts
+
+    files, err = pr_files(number, force=force)
+    body = [
+        "<div style='display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:6px'>"
+        f"<h2 class=sec style='margin:0'>#{html.escape(str(number))} "
+        f"{html.escape(title[:110])}</h2>"
+        f"<a href='/prs?diff={html.escape(str(number))}&refresh=1' "
+        "style='margin-left:auto;text-decoration:none'>"
+        f"<button class=sec>{icon('refresh', 15)} Refresh</button></a></div>",
+        f"<p class=sub><a href='/prs'>Change requests</a> / <b>#{html.escape(str(number))}</b> "
+        f"&middot; {html.escape(who)} wants to merge <code>{html.escape(head)}</code> into "
+        f"<code>{html.escape(base)}</code> &middot; {html.escape(state)} &middot; "
+        f"<span class=dplus>+{html.escape(adds)}</span> "
+        f"<span class=dminus>&minus;{html.escape(dels)}</span> across "
+        f"{html.escape(nfiles)} file(s) &middot; "
+        f"<a href='{html.escape(url)}' target=_blank rel=noopener>open on GitHub &rarr;</a></p>",
+    ]
+    if err:
+        body.append(f"<div class='bar bnr-done'>{html.escape(err)}</div>")
+        return page("Change Requests", "<div class=lg>" + "".join(body) + "</div>", active="prs")
+
+    # A contents list first. On a 20-file request, scrolling to find the one file you care about
+    # is the actual friction, and it is the thing GitHub's sidebar solves.
+    body.append("<div class=tblcard><table><tr><th>File</th><th>Change</th>"
+                "<th style='text-align:right'>Diff</th></tr>")
+    for f in files[:PR_DIFF_MAX_FILES]:
+        name = f.get("filename", "?")
+        st = f.get("status", "")
+        body.append(
+            f"<tr><td><a href='#f-{html.escape(_slug(name))}'>{html.escape(name)}</a></td>"
+            f"<td><span class='pill {_status_pill(st)}'>{html.escape(st)}</span></td>"
+            f"<td style='text-align:right'><span class=dplus>+{f.get('additions', 0)}</span> "
+            f"<span class=dminus>&minus;{f.get('deletions', 0)}</span></td></tr>")
+    body.append("</table></div>")
+    if len(files) > PR_DIFF_MAX_FILES:
+        body.append(f"<p class=sub>{len(files) - PR_DIFF_MAX_FILES} further file(s) not shown "
+                    f"&mdash; <a href='{html.escape(url)}/files' target=_blank rel=noopener>"
+                    "see them on GitHub</a>.</p>")
+
+    for f in files[:PR_DIFF_MAX_FILES]:
+        name = f.get("filename", "?")
+        body.append(
+            f"<h3 class=angroup id='f-{html.escape(_slug(name))}'>{html.escape(name)}</h3>"
+            f"<p class=sub style='margin:0 0 8px'>"
+            f"<span class=dplus>+{f.get('additions', 0)}</span> "
+            f"<span class=dminus>&minus;{f.get('deletions', 0)}</span> &middot; "
+            f"{html.escape(f.get('status', ''))} &middot; "
+            f"<a href='{html.escape(f.get('blob_url') or url)}' target=_blank rel=noopener>"
+            "view whole file &rarr;</a></p>")
+        body.append(render_patch(f.get("patch"), (f.get("blob_url") or url)))
+
+    return page("Change Requests", "<div class=lg>" + "".join(body) + "</div>", active="prs")
+
+
+def _slug(s):
+    return re.sub(r"[^a-z0-9]+", "-", s.lower()).strip("-")[:80]
+
+
+def _status_pill(st):
+    return {"added": "reviewed", "removed": "bad", "renamed": "suggested",
+            "modified": "pending"}.get(st, "excluded")
+
+
 def pr_page(force=False):
     """Approve and merge change requests without leaving the tool. ADMINS ONLY.
 
@@ -4006,6 +4213,10 @@ def pr_page(force=False):
                "files.</div>")
             + f"{selfnote}"
             f"<div class=stepacts>{''.join(acts)}"
+            # Files changed sits BEFORE "Open on GitHub" on purpose: reading the diff is what
+            # you do before merging, and it should not require leaving the app to do it.
+            f"<a href=\"/prs?diff={pr['number']}\">"
+            f"<button class=sec>Files changed ({pr['changedFiles']})</button></a>"
             f"<a href=\"{html.escape(pr['url'])}\" target=_blank rel=noopener>"
             "<button class=sec>Open on GitHub</button></a></div>"
             "</div>")
@@ -5217,6 +5428,18 @@ class H(BaseHTTPRequestHandler):
                 compare=q.get("compare", "").strip(),
                 agent=q.get("agent", "").strip(),
                 date=q.get("date", "").strip()))
+        if self.path.startswith("/prs?diff="):
+            qs = self.path.split("?", 1)[1]
+            num = ""
+            for kv in qs.split("&"):
+                if kv.startswith("diff="):
+                    num = unquote(kv[len("diff="):]).strip()
+            if not num.isdigit():
+                return self._send(200, page("Change Requests",
+                    "<div class=lg><h2 class=sec>Change Requests</h2>"
+                    "<div class='bar bnr-done'>Not a change-request number.</div>"
+                    "<p><a href='/prs'>Back</a></p></div>", active="prs"))
+            return self._send(200, pr_diff_page(num, force="refresh=1" in self.path))
         if self.path == "/prs" or self.path.startswith("/prs?"):
             # Same gate as All Transcripts, and for the same reason: a contributor cannot
             # merge, so every button here would refuse. Not a security boundary - the page
