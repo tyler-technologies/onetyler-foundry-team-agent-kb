@@ -8016,12 +8016,13 @@ def git_page():
     # step. A reviewer asked for it by name for exactly that reason - they could not tell it was
     # what came next. It is a gate, so it earns a place in the list more than the two stages
     # after it, which are automatic.
-    ev_files, ev_q, ev_mins = eval_estimate()
+    ev_files, ev_q, _ev_mins = eval_estimate()   # the cost is stated on the checkbox above
     if ev_files and ev_q:
         eval_stage = (
             "<li data-stage=eval class=wait><b>Eval Review</b>"
-            f"<span>{ev_q} question(s) against {len(ev_files)} changed file(s), ~{ev_mins} min.<br>"
-            "Read/test the updated responses on the <b>Eval Review</b> tab, select "
+            # The cost line lived here AND on the "Include Eval Review" checkbox directly above.
+            # One statement of it is enough; this stage only needs to say what to do next.
+            "<span>Read/test the updated responses on the <b>Eval Review</b> tab, select "
             "agreeable outputs and return to this part to publish changes.</span></li>")
     else:
         eval_stage = (
