@@ -1487,7 +1487,23 @@ margin:0 0 5px;color:var(--forge-theme-text-medium)}
 line-height:1.5;white-space:pre-wrap;word-break:break-word;max-height:320px;overflow:auto;
 border:1px solid var(--forge-theme-outline-low)}
 .evbefore pre{background:var(--d-del-bg,var(--forge-theme-surface-container))}
+.evtarget pre{margin:0;padding:10px;border-radius:5px;font-size:12px;line-height:1.5;
+white-space:pre-wrap;word-break:break-word;max-height:320px;overflow:auto;
+border:1px solid var(--forge-theme-outline-low);
+background:var(--bnr-sug-bg);color:var(--bnr-sug-fg)}
 .evafter pre{background:var(--d-add-bg,var(--forge-theme-surface-container))}
+.evmatch{margin-left:8px;padding:1px 7px;border-radius:9px;font-size:10.5px;font-weight:600;
+letter-spacing:0;text-transform:none;cursor:help}
+.evmatch.ok{background:var(--forge-theme-success-container-low,var(--forge-theme-surface-container));
+color:var(--forge-theme-success)}
+.evmatch.warn{background:var(--forge-theme-warning-container-low,var(--forge-theme-surface-container));
+color:var(--forge-theme-warning)}
+.evmatch.bad{background:var(--forge-theme-error-container-low,var(--forge-theme-surface-container));
+color:var(--forge-theme-error)}
+/* A refreshed answer has to be visibly refreshed - the whole complaint was not being able to
+   tell whether Ask again had done anything. */
+@keyframes evflash{from{background:var(--forge-theme-primary-container-minimum)}to{background:transparent}}
+.evafter.isnew pre,.evvar.isnew pre{animation:evflash 1.8s ease-out}
 .evask{margin:0 0 10px}
 .evqbox{width:100%;box-sizing:border-box;font:inherit;font-size:13.5px;padding:8px 10px;
 border:1px solid var(--forge-theme-outline-medium);border-radius:5px;resize:vertical;
@@ -2319,19 +2335,50 @@ function evAsk(btn,key,agent){
  const card=btn.closest('.evcard'), box=card.querySelector('.evqbox');
  const q=(box.value||'').trim();
  if(!q){toast('Type a question first');return}
- const was=btn.textContent; btn.disabled=true; btn.textContent='Asking…';
+ // An agent round-trip is seconds, and the reviewer is staring at a screen that looks the same
+ // as before. So: the button counts, the answer is stamped with the server's own time, and the
+ // new block flashes. Without the stamp two Asks produced identical-looking blocks and there was
+ // no way to tell the second one had run at all.
+ const was=btn.textContent; btn.disabled=true;
+ let secs=0; btn.textContent='Asking… 0s';
+ const tick=setInterval(()=>{btn.textContent='Asking… '+(++secs)+'s'},1000);
+ const done=()=>{clearInterval(tick); btn.disabled=false; btn.textContent=was};
  post('/evalask',{key:key,agent:agent,question:q}).then(r=>{
-   btn.disabled=false; btn.textContent=was;
+   done();
    if(r.ok===false){toast(r.output||'Could not ask');return}
-   const host=card.querySelector('.evvars');
-   const d=document.createElement('div'); d.className='evvar';
-   d.innerHTML='<div class=evlab>just now &middot; asked</div>'
-     +'<div class=evvq></div><pre></pre>';
-   d.querySelector('.evvq').textContent=r.question||q;
-   d.querySelector('pre').textContent=r.answer||'(no answer)';
-   host.appendChild(d);
-   d.scrollIntoView({block:'nearest',behavior:'smooth'});
- }).catch(e=>{btn.disabled=false; btn.textContent=was; toast('Could not ask: '+e)});
+   // Same shuffle the server does on a reload: whatever is under "Now" becomes history, and the
+   // fresh answer takes its place with its own stamp. Doing it here as well means the page does
+   // not have to reload to stay consistent with what a refresh would render.
+   const now=card.querySelector('.evafter'), host=card.querySelector('.evvars');
+   const oldLab=now.querySelector('.evlab').textContent||'';
+   const oldStamp=(oldLab.match(/\(([^)]+)\)/)||[])[1]||'';
+   const prev=document.createElement('div'); prev.className='evvar';
+   prev.innerHTML='<div class=evlab></div><div class=evvq></div><pre></pre>';
+   prev.querySelector('.evlab').textContent=oldStamp+' · superseded';
+   prev.querySelector('.evvq').textContent=card.querySelector('.evqbox').dataset.lastAsked||'';
+   prev.querySelector('pre').textContent=now.querySelector('pre').textContent;
+   let hdr=host.querySelector('.evlab,summary');
+   host.appendChild(prev);
+   if(!hdr){const h=document.createElement('div'); h.className='evlab';
+     h.style.marginTop='12px'; h.textContent='Earlier'; host.insertBefore(h,prev);}
+   const lab=now.querySelector('.evlab');
+   lab.textContent='Now ('+(r.at||'')+')';
+   if(r.pct!=null){
+     const t=r.pct>=70?'ok':(r.pct>=40?'warn':'bad');
+     const chip=document.createElement('span');
+     chip.className='evmatch '+t;
+     chip.title='Share of the substantive words in your correction that appear in this answer. '
+       +'A word-overlap hint only \u2014 it cannot tell a paraphrase from a contradiction, so '
+       +'read the answer.';
+     chip.textContent='Match '+r.pct+'% against your correction';
+     lab.appendChild(chip);
+   }
+   now.querySelector('pre').textContent=r.answer||'(no answer returned)';
+   card.querySelector('.evqbox').dataset.lastAsked=r.question||q;
+   now.classList.add('isnew'); setTimeout(()=>now.classList.remove('isnew'),2000);
+   now.scrollIntoView({block:'nearest',behavior:'smooth'});
+   toast('Answered at '+(r.at||'now')+(secs?' — took '+secs+'s':''));
+ }).catch(e=>{done(); toast('Could not ask: '+e)});
 }
 // Back to what the transcript actually asked. Cheap to provide and the alternative is asking
 // someone to remember an exact wording they have since typed over three times.
@@ -7018,15 +7065,22 @@ def eval_variants():
 
 
 def eval_add_variant(key, question, answer):
+    """Store one variant and RETURN THE RECORD, so the response can echo the exact stamp.
+
+    Returning the whole dict was the mistake: the caller then had nothing specific to send back,
+    the JS invented "just now", and two clicks produced two visually identical blocks - a
+    reviewer could not tell whether the second Ask had done anything. The stamp has to come from
+    the same write that stored it.
+    """
     p = _var_path()
+    rec = {"question": question, "answer": answer,
+           "at": datetime.now().strftime("%H:%M:%S")}
     if p is None:
-        return {}
+        return rec
     v = eval_variants()
-    v.setdefault(key, []).append({
-        "question": question, "answer": answer,
-        "at": datetime.now().strftime("%H:%M:%S")})
+    v.setdefault(key, []).append(rec)
     p.write_text(json.dumps(v, indent=2))
-    return v
+    return rec
 
 
 def eval_ask_live(slug, question):
@@ -7260,7 +7314,7 @@ def eval_txt():
             _, b = parse(f)
             for xn, _t, _qq, _a, rv in exchanges_of(b or ""):
                 if xn == xnum and rv:
-                    corr = rv
+                    corr = correction_text(rv)
                     break
         L += [sep,
               f"[{i}/{len(recs)}]  {rel}",
@@ -7297,25 +7351,96 @@ def eval_txt():
     return f"eval-{stamp}.txt", "\n".join(L)
 
 
-def variants_html(vlist):
-    """The adjacent phrasings tried against the live content, newest last.
+# NEGATIONS ARE DELIBERATELY NOT STOPWORDS. They are the highest-value words in this whole
+# comparison: "a workspace is NOT 1:1 with a tenant" and "a workspace is 1:1 with a tenant" are
+# opposite claims, and with "not" filtered out they scored 100% identical - the single worst way
+# this hint could mislead. Keeping them counted turns that case into a visible miss.
+def correction_text(rv):
+    """The reviewer's actual words, without the block's own scaffolding.
 
-    Rendered as a list rather than replacing the scripted answer, because what a reviewer is
-    judging is CONSISTENCY - three phrasings that all come back right is the evidence; one that
-    does is a coincidence. Collapsed by default once there are more than two, so a card with a
-    long history stays readable.
+    `exchanges_of` hands back the whole review block, which opens with
+    `**Review -** _verdict:_ - _should have said:_`. That is template text the form wrote, not
+    something the reviewer said, and leaving it in does two kinds of damage: it is the first
+    thing shown in the pane that is supposed to be the target answer, and its words land in the
+    match denominator, so the score moves depending on how much scaffolding happened to be
+    present.
     """
-    if not vlist:
+    if not rv:
+        return ""
+    out = re.sub(r"^\s*\*\*Review\s*[—-]\*\*.*?(?:\n|$)", "", rv, count=1)
+    return out.strip()
+
+
+_MATCH_STOP = set("""a an and are as at be been but by can do does for from had has have
+how i if in into is it its may must of on or should so than that the their them then there
+these they this to under use used using was were what when where which who will with within
+you your""".split())
+
+
+def match_pct(correction, answer):
+    """How much of the reviewer's correction the answer actually covers, 0-100, or None.
+
+    RECALL, not similarity, and the choice matters. `difflib`-style similarity punishes an answer
+    for being shorter or longer than the correction, which says nothing about whether it picked
+    up the content - and a reviewer's correction is often a full replacement answer while the
+    agent's reply is a summary of it. Recall asks the question actually being asked: of the
+    substantive words I told it to say, how many did it say?
+
+    It is a WORD-OVERLAP MEASURE AND NOTHING MORE. It cannot tell paraphrase from contradiction:
+    "a workspace is not 1:1 with a tenant" and "a workspace is 1:1 with a tenant" score nearly
+    identically. So it is labelled as a hint and the checkbox is still the reviewer's, which is
+    why this returns a number rather than gating anything on it.
+    """
+    def toks(t):
+        t = re.sub(r"`[^`]*`", " ", t or "")            # code spans are formatting, not content
+        t = re.sub(r"[^A-Za-z0-9]+", " ", t).lower()
+        return {w for w in t.split() if len(w) > 2 and w not in _MATCH_STOP}
+    c, a = toks(correction), toks(answer)
+    if not c:
+        return None
+    return int(round(100 * len(c & a) / len(c)))
+
+
+def match_html(pct):
+    """The match hint, with a tone. "" when there is no correction to compare against."""
+    if pct is None:
+        return ""
+    tone = "ok" if pct >= 70 else ("warn" if pct >= 40 else "bad")
+    return (f"<span class='evmatch {tone}' title='Share of the substantive words in your "
+            "correction that appear in this answer. A word-overlap hint only — it cannot tell a "
+            f"paraphrase from a contradiction, so read the answer.'>Match {pct}% against your "
+            "correction</span>")
+
+
+def run_clock(d):
+    """HH:MM:SS from a run directory name like 2026-08-28T20-18-21."""
+    try:
+        return d.name.split("T", 1)[1].replace("-", ":")
+    except Exception:                                                     # noqa: BLE001
+        return ""
+
+
+def variants_html(earlier):
+    """The answers SUPERSEDED by the one now shown under "Now", oldest first.
+
+    "Now" always holds the most recent answer, stamped, because a reviewer clicking Ask again
+    needs to see at a glance that something changed - two unstamped blocks looked identical and
+    there was no way to tell the second Ask had run. Everything before it falls back here rather
+    than being discarded: what is being judged is CONSISTENCY across phrasings, so three answers
+    that all come back right is the evidence and one is a coincidence.
+    """
+    if not earlier:
         return ""
     rows = "".join(
-        f"<div class=evvar><div class=evlab>{html.escape(v.get('at') or '')} &middot; asked</div>"
-        f"<div class=evvq>{html.escape(v.get('question') or '')}</div>"
+        f"<div class=evvar><div class=evlab>{html.escape(v.get('at') or '')}"
+        + (" &middot; from the run" if v.get("scripted") else " &middot; asked")
+        + f"</div><div class=evvq>{html.escape(v.get('question') or '')}</div>"
         f"<pre>{html.escape(v.get('answer') or '(no answer)')}</pre></div>"
-        for v in vlist)
-    n = len(vlist)
+        for v in earlier)
+    n = len(earlier)
     if n <= 2:
-        return f"<div class=evlab style='margin-top:12px'>Also asked ({n})</div>" + rows
-    return (f"<details class=evcorr><summary>Also asked ({n})</summary>{rows}</details>")
+        return f"<div class=evlab style='margin-top:12px'>Earlier ({n})</div>" + rows
+    return f"<details class=evcorr><summary>Earlier ({n})</summary>{rows}</details>"
 
 
 def eval_review_page():
@@ -7409,7 +7534,8 @@ def eval_review_page():
         "<div class=card>"
         "<h3>What you are deciding</h3>"
         "<p class=sub>One card per replayed exchange. Approve only where <b>Now</b> actually fixes "
-        "what you objected to.</p>"
+        "what you objected to. <b>Match %</b> is word overlap with your correction &mdash; a hint, "
+        "not a verdict.</p>"
         f"<p class=sub><code>{html.escape(when)}</code> &middot; {len(files)} file(s) &middot; "
         f"{n_q} question(s). Foundry is already back to normal.</p>"
         "<div class=stepacts>"
@@ -7427,7 +7553,12 @@ def eval_review_page():
     cards = []
     for rel, agent, n, q, before, after, ok, xnum in recs:
         key = f"{rel}#{n}"
-        vlist = allvars.get(key) or []
+        # The scripted answer is just the first entry in a sequence; every Ask again appends.
+        # "Now" is whatever is last, so it is always the answer the reviewer most recently
+        # provoked - which is the thing they are looking at the screen to confirm.
+        seq = [{"at": run_clock(d), "question": q, "answer": after, "scripted": True}]
+        seq += (allvars.get(key) or [])
+        latest, earlier = seq[-1], seq[:-1]
         loc = f"/t/{rel.split('/', 1)[1].rsplit('/', 1)[0]}/{Path(rel).name}" \
             if rel.startswith("transcripts/") and rel.count("/") >= 2 else "/"
         # The reviewer's own correction, quoted back. They wrote it hours or days ago and it is
@@ -7438,7 +7569,7 @@ def eval_review_page():
             _, b = parse(f)
             for xn, _t, _qq, _a, rv in exchanges_of(b or ""):
                 if xn == xnum and rv:
-                    corr = rv
+                    corr = correction_text(rv)
                     break
         cards.append(
             "<div class='card evcard" + (" evok" if ok else "") + f"' id=\"c-{html.escape(key)}\">"
@@ -7464,15 +7595,27 @@ def eval_review_page():
                "<button disabled title='The candidate content is not live'>Ask again</button>")
             + "<button class=sec onclick='evResetQ(this)'>Reset question</button>"
             "</div></div>"
+            # CORRECTION vs NOW, side by side - not Before vs Now. Before is known-bad; that is
+            # why the transcript was reviewed. The judgement being made is whether the answer has
+            # become what the reviewer asked for, and putting the target beside the response is
+            # the only layout that lets that be read in one glance. Before drops to a disclosure
+            # for the occasions when someone wants to see what changed.
             "<div class=evcols>"
-            f"<div class=evbefore><div class=evlab>Before</div><pre>{html.escape(before or '(not recorded)')}</pre></div>"
-            f"<div class=evafter><div class=evlab>Now</div><pre>{html.escape(after or '(no answer returned)')}</pre></div>"
+            + (f"<div class=evtarget><div class=evlab>Your correction</div>"
+               f"<pre>{html.escape(corr)}</pre></div>"
+               if corr else
+               "<div class=evtarget><div class=evlab>Your correction</div>"
+               "<pre>(none written for this exchange)</pre></div>")
+            + "<div class=evafter>"
+            f"<div class=evlab>Now{(' (' + html.escape(latest['at']) + ')') if latest.get('at') else ''}"
+            f"{match_html(match_pct(corr, latest.get('answer') or ''))}</div>"
+            f"<pre>{html.escape(latest.get('answer') or '(no answer returned)')}</pre></div>"
             "</div>"
-            + (f"<details class=evcorr><summary>Your correction, for comparison</summary>"
-               f"<pre>{html.escape(corr)}</pre></details>" if corr else "")
+            + (f"<details class=evcorr><summary>The original (bad) answer &mdash; reference only</summary>"
+               f"<pre>{html.escape(before)}</pre></details>" if before else "")
             # Variants accumulate rather than replacing the scripted answer: the consistency
             # across phrasings IS the evidence, so losing the earlier ones would lose the point.
-            + f"<div class=evvars>{variants_html(vlist)}</div>"
+            + f"<div class=evvars>{variants_html(earlier)}</div>"
             + "</div>")
 
     foot = (
@@ -7942,10 +8085,26 @@ class H(BaseHTTPRequestHandler):
                     "PUBLISHED content and would tell you nothing about your change. Run the "
                     "check again.")}), "application/json")
             ok, ans = eval_ask_live(slug, q)
+            at, pct = "", None
             if ok:
-                eval_add_variant(key, q, ans)
+                at = (eval_add_variant(key, q, ans) or {}).get("at", "")
+                # Recomputed server-side rather than in the page: the tokeniser and the stop
+                # list live here, and a second implementation in JS would drift from this one
+                # and disagree with what a reload shows.
+                rel_ = key.rsplit("#", 1)[0]
+                f_ = REPO / rel_
+                if f_.is_file():
+                    _, b_ = parse(f_)
+                    want = key.rsplit("#", 1)[-1]
+                    for r_ in eval_records():
+                        if f"{r_[0]}#{r_[2]}" == key:
+                            for xn, _t, _qq, _a, rv in exchanges_of(b_ or ""):
+                                if xn == r_[7] and rv:
+                                    pct = match_pct(correction_text(rv), ans)
+                            break
             return self._send(200, json.dumps(
-                {"ok": ok, "answer": ans, "question": q}), "application/json")
+                {"ok": ok, "answer": ans, "question": q, "at": at, "pct": pct,
+                 "output": "" if ok else ans}), "application/json")
         if self.path == "/evalremove":
             ok, msg = eval_remove()
             return self._send(200, json.dumps(
