@@ -8238,9 +8238,16 @@ def git_page():
 
     prompt_json = json.dumps(analysis_prompt(n_ai))
 
-    def step(num, title, desc, inner):
-        return (f"<div class=step><div class=stepnum>{num}</div><div class=stepbody>"
-                f"<h4>{title}</h4><p class=sub>{desc}</p>{inner}</div></div>")
+    def step(desc, inner):
+        """One block of controls, with an optional one-line description.
+
+        NO NUMBER, NO TITLE. Backing up and publishing are INDEPENDENT - either one, in any
+        order, as often as you like - so "1" and "2" asserted a sequence that does not exist.
+        Each also has a card of its own now, whose heading already names it, so a title inside
+        the step said the same thing twice and the badge numbered nothing.
+        """
+        sub = f"<p class=sub>{desc}</p>" if desc else ""
+        return f"<div class=step><div class=stepbody>{sub}{inner}</div></div>"
 
     body = (
       f"<h2 class=sec>Save &amp; Share Your Reviews</h2>"
@@ -8251,12 +8258,10 @@ def git_page():
 
       "<div class=card>"
       "<h3>Back up your progress</h3>"
-      # The honest division of labour, stated at the top because it is the thing people get
-      # wrong about this repo: a verdict is not the deliverable. The knowledge file that stops
-      # the agent repeating that answer is, and writing it is the ONE job here that needs an
-      # assistant. Everything else on this page is a button.
-      "<p class=sub>Part 2 needs an assistant for the knowledge files; the rest is buttons.</p>"
-      + step("1", "",
+      # No sub-heading here. The "needs an assistant" line was DUPLICATED onto this card when
+      # Part 2 got a card of its own, so the same sentence appeared under both headings - and it
+      # describes publishing, which this card has nothing to do with.
+      + step(
              "A local checkpoint you can go back to. Nothing is shared yet.",
              # Empty by DEFAULT, not prefilled. A prefilled box asks to be read, edited and
              # worried about; an empty one labelled "optional" asks for nothing. Blank is
@@ -8274,9 +8279,8 @@ def git_page():
       # writing it is the ONE job here that needs an assistant.
       + "<div class=card>"
       + "<h3>Publish your reviews</h3>"
-      + "<p class=sub>Part 2 needs an assistant for the knowledge files; the rest is buttons.</p>"
-      + step("2", "Publish",
-             "The knowledge files are the deliverable, not the verdicts.",
+      + "<p class=sub>Publishing needs an assistant for the knowledge files; the rest is buttons.</p>"
+      + step("",
              "<ol class=prog id=prog>"
              + ai_stage
              + eval_stage +
