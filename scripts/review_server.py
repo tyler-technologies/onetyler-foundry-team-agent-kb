@@ -2606,7 +2606,9 @@ function resetPart2(){
  document.querySelectorAll('.evalgate').forEach(g=>g.remove());
  const cb=document.getElementById('doeval'); if(cb) cb.checked=true;
  const b=document.querySelector('[data-ai-pending]');
- if(b){b.disabled=false; b.textContent='Process Part 2';}
+ // Restore the label the server derived, not a literal - the button's text depends on where
+ // the batch is, so a hardcoded string here would rename it wrongly after a reset.
+ if(b){b.disabled=false; b.textContent=b.dataset.label||'Process';}
 }
 function copyPrompt(btn){
  const text=window.AI_PROMPT||'';
@@ -7627,7 +7629,7 @@ def _eval_optin(spent=False):
             "<label class=evalrow><input type=checkbox id=doeval checked disabled>"
             "<span><b>Include Eval Review</b></span></label>"
             "<div class=hint style='margin:6px 0 0 26px'>Already run for this version &mdash; "
-            "the next <b>Process Part 2</b> goes on to the change request. Change a knowledge "
+            "the next <b>Process</b> press goes on to the change request. Change a knowledge "
             "file and this becomes live again.</div></div>")
     # The cost and the live-agent side effect stay; the mechanics do not. A reviewer needs to
     # know how long it takes and that it touches production - not how Bedrock schedules jobs.
@@ -8180,6 +8182,24 @@ def git_page():
     # the JS that ran the step, so progress existed solely for whoever was watching.
     # Must come BEFORE ai_stage is built - it is read there.
     st = part2_state()
+    # THE BUTTON NAMES WHAT IT WILL DO. "Process Part 2" was accurate and uninformative: Part 2 is
+    # four stages and this button performs a different subset depending on where you are. Derived
+    # from the same state the progress list renders, so the two can never disagree.
+    # SAME PREDICATE AS THE CHECKBOX, deliberately. `spent` means an eval already covers this
+    # content, which is exactly when the checkbox goes read-only and the press stops running an
+    # eval and goes on to the push. Deriving the label from anything else let the two disagree:
+    # with eval="you" - run, not yet approved - the button said "Eval Review" while the press
+    # actually attempted the change request.
+    spent = st["eval"] in ("you", "done")
+    if not spent and eval_estimate()[1]:
+        next_step = "Eval Review"
+    elif st["push"] != "done":
+        next_step = "Upload to GitHub"
+    elif st["pr"] != "done":
+        next_step = "Create the change request"
+    else:
+        next_step = "Re-send"        # everything already out; the press just re-pushes
+    btn_label = f"Process: {next_step}"
     if n_ai:
         # A stage with its own state, `ai`, because it is neither waiting on this button nor
         # something the page can do. The prompt is a copy button rather than text to retype:
@@ -8270,8 +8290,8 @@ def git_page():
              + _eval_optin(spent=st["eval"] in ("you", "done"))
              + _router_warning()
              + "<div class=stepacts>"
-             f"<button onclick='sendReviews(this)' data-ai-pending='{n_ai}'>"
-             "Process Part 2</button></div>"
+             f"<button onclick='sendReviews(this)' data-ai-pending='{n_ai}' "
+             f"data-label=\"{html.escape(btn_label)}\">{html.escape(btn_label)}</button></div>"
              # Part 2 ENDS here. Merging and the Foundry upload are decisions ABOUT a request
              # that already exists, not steps in submitting one, and they live on the PRs tab
              # where the request can be seen next to its checks. Listing them here as
@@ -8934,7 +8954,7 @@ class H(BaseHTTPRequestHandler):
                         return self._send(200, json.dumps({"ok": False, "output": (
                             "No change request was created — " + why + ".\n\n"
                             "Tick \"Include Eval Review\" and press "
-                            "Process Part 2. It uploads the candidate files, asks the agents "
+                            "the <b>Process</b> button. It uploads the candidate files, asks the agents "
                             "this batch's questions, puts Foundry back, and shows you the "
                             "answers. Read them, then send it in.\n\n"
                             "Nothing has been pushed and nothing was lost — your work is saved "
