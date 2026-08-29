@@ -420,7 +420,7 @@ PEOPLE_KEYS = ("reviewer",)
 # underscores swapped for spaces and the first letter capitalised.
 FIELD_LABEL = {
     "review_status": "Review status",
-    "reviewer":      "Reviewer (you)",
+    "reviewer":      "Reviewer",
     "suggested_to":  "Suggested to",
     "reassign_to":   "Reassign to",
     "review_round":  "Review round",
@@ -557,16 +557,16 @@ CHOICES = {
 FIELD_DOC = {
     "review_status": {
         "flow": "pending → suggested → reviewed → pushed        (excluded = out of scope)",
-        "about": "Where this transcript sits in the review lifecycle. You normally change this "
+        "about": "Where this transcript sits in the review lifecycle. Normally changed "
                  "with the buttons at the bottom rather than the dropdown. `suggested` is "
-                 "optional — skip it for areas you own.",
+                 "optional — skip it for an owned area.",
         "values": {
             "pending": "Nobody has reached a conclusion yet. Saving with fields filled in and "
                        "leaving it here is a deliberate note-to-self — nobody else will act on it.",
-            "suggested": "You worked it up but the call is not yours to make. Goes to whoever is "
+            "suggested": "Worked up, but the call belongs to someone else. Goes to whoever is "
                          "named in `suggested_to`. Claude will NOT act on it.",
-            "reviewed": "Your verdict, on the record. This is the queue Claude works from, so "
-                        "only set it when you are content for changes to be made on this basis.",
+            "reviewed": "The reviewer's verdict, on the record. This is the queue Claude works from, so "
+                        "only set it when changes may be made on this basis.",
             "pushed": "Processed AND live in Foundry. Claude sets this after verifying the "
                       "upload — it is a claim about Foundry, not about the repo. Don't set it by hand.",
             "excluded": "Not real feedback, so it leaves the queue without counting as review "
@@ -574,27 +574,26 @@ FIELD_DOC = {
         },
     },
     "reviewer": {
-        "about": "You — whoever is reviewing this. Defaulted to the person who opened it and "
-                 "never cleared, including when you suggest: suggesting is still something you "
+        "about": "Whoever is reviewing this. Defaulted to the person who opened it and "
+                 "never cleared, including on a suggestion: suggesting is still something a person "
                  "did. Restricted to contributors.json, which is generated from GitHub team "
-                 "membership — if your name is missing you are not on the team yet, and typing "
+                 "membership — a missing name means the person is not on the team yet, and typing "
                  "it in will not help.",
         "values": {},
     },
     "suggested_to": {
-        "about": "The PERSON you are handing this to. Setting it moves the transcript into "
-                 "their queue and out of yours — you are giving up the decision, not just "
+        "about": "The PERSON this is handed to. Setting it moves the transcript into "
+                 "their queue and out of the current one — the decision is given up, not just "
                  "asking for a second opinion.\n\n"
                  "`Reassign to` is the same act one level up: name an AGENT when the problem "
-                 "belongs to another corpus and you do not know or care who owns it this "
+                 "belongs to another corpus and its current owner is unknown or irrelevant this "
                  "month. Set either one and **Mark reviewed** no longer applies, because the "
-                 "call is no longer yours to make — use **Suggest** instead.",
+                 "call has been handed over — use **Suggest** instead.",
         "values": {},
     },
     "review_round": {
-        "about": "Which pass over this transcript this is — **maintained for you, not typed**. "
-                 "The Re-review button raises it by one; nothing else should. Raising it is how "
-                 "you re-open "
+        "about": "Which pass over this transcript this is — **maintained automatically, not typed**. "
+                 "The Re-review button raises it by one; nothing else should. Raising it re-opens "
                  "something already decided without overwriting the previous verdict — both end "
                  "up on the record. Use the Re-review button rather than editing the number; CI "
                  "rejects a second first-review at the same round.",
@@ -617,11 +616,11 @@ FIELD_DOC = {
     # rather than the wrong person is deciding.
     "reassign_to": {
         "about": "Which AGENT should own this instead — the same act as `Suggested to`, one "
-                 "level up. Use it when the problem belongs to another corpus and you do not "
+                 "level up. Use it when the problem belongs to another corpus and there is no need to "
                  "know, or should not need to know, who owns that corpus this month; it "
                  "resolves through ownership, so it survives the owner changing.\n\n"
                  "Setting it moves the transcript into that agent's owners' queue and out of "
-                 "yours, and **Mark reviewed** no longer applies — the call is no longer yours. "
+                 "the current one, and **Mark reviewed** no longer applies — the call has been handed over. "
                  "Repeated reassignments to the same target are the strongest evidence the team "
                  "routing rules need changing.",
         "values": {
@@ -638,11 +637,11 @@ FIELD_DOC = {
         },
     },
     "answer_verdict": {
-        "about": "Quality of the answer the user actually received. Judge it against what you "
+        "about": "Quality of the answer the user actually received. Judge it against what a "
                  "would have told them — not against whether the agent tried hard.",
         "values": {
             "": "Not assessed.",
-            "good": "You would have been happy to send this.",
+            "good": "Fit to send as-is.",
             "incomplete": "Correct as far as it goes, but missing something that matters. The "
                           "most common real verdict.",
             "wrong": "Materially incorrect — it would mislead someone who acted on it.",
@@ -652,9 +651,9 @@ FIELD_DOC = {
     },
     "diagnosis": {
         "about": "WHY it went wrong — the single most important field, because it decides who "
-                 "fixes it. Read the 'Tools called' line on the exchange: it tells you what the "
+                 "fixes it. Read the 'Tools called' line on the exchange: it reports what the "
                  "agent actually did, which four different failures all look identical in the "
-                 "visible chat. Do not guess; if you cannot tell, say so in `notes`.",
+                 "visible chat. Do not guess; if it cannot be told from the record, say so.",
         "values": {
             "": "Not assessed.",
             "n-a": "Nothing went wrong. This is the pre-filled default on a clean transcript.",
@@ -714,37 +713,37 @@ FIELD_DOC = {
         "about": "Whether the change has actually been made. This is the field that stops open "
                  "work being quietly buried — a transcript cannot be closed out while this says "
                  "`open` and kb_action asks for something.\n\n"
-                 "**Mostly set for you.** `none-needed` and `open` follow from `kb_action`, so "
-                 "picking them is not your job. `applied` is Claude's, after the work is done. "
+                 "**Mostly automatic.** `none-needed` and `open` follow from `kb_action`, so "
+                 "picking them is not a reviewer task. `applied` is Claude's, after the work is done. "
                  "`wontfix` is the only one that is genuinely a decision — and it wants a "
                  "reason written in Correction or in the summary.",
         "values": {
             "": "Not assessed.",
-            "none-needed": "Nothing had to change. **Set for you** when `kb_action` is `none`.",
+            "none-needed": "Nothing had to change. **Set automatically** when `kb_action` is `none`.",
             "open": "A change is required and has not been made yet — Claude's to-do list. "
-                    "**Set for you** when `kb_action` asks for something.",
-            "applied": "The change has been made. Set by Claude after doing it, not by you, and "
+                    "**Set automatically** when `kb_action` asks for something.",
+            "applied": "The change has been made. Set by Claude after doing it, not by a reviewer, and "
                        "never overwritten automatically — it is a claim about work, not a "
                        "restatement of `kb_action`.",
-            "wontfix": "Decided against acting on it. Your call, never set for you — say why "
+            "wontfix": "Decided against acting on it. A reviewer decision, never automatic — say why "
                        "in Correction or in the summary, so the reason sits with the reasoning.",
         },
     },
     # Not frontmatter fields — the two free-text boxes. Same treatment so the page reads
     # uniformly: a label, an icon, and nothing else.
     "correction": {
-        "about": "What the agent SHOULD have said, in your own words. The single most valuable "
-                 "thing you can write here — it is what Claude turns into content, so a vague "
-                 "\"this is wrong\" produces a vague fix. Write it as you would have answered "
+        "about": "What the agent SHOULD have said, in plain words. The single most valuable "
+                 "thing to write here — it is what Claude turns into content, so a vague "
+                 "\"this is wrong\" produces a vague fix. Write it as the answer should have read "
                  "the person. Leave it empty if the answer was fine.",
         "values": {},
     },
     "bp_updates": {
-        "about": "Tick this when your feedback also implies a change to the **Blueprint** "
+        "about": "Tick this when the feedback also implies a change to the **Blueprint** "
                  "documentation — either because a correction contradicts what Blueprint says, "
                  "or because Blueprint should be checked for the same problem.\n\n"
-                 "You do not edit Blueprint yourself. Ticking it tells the assistant to work "
-                 "both repos: apply what your corrections imply, and scan the Blueprint docs for "
+                 "Blueprint is not edited here. Ticking it tells the assistant to work "
+                 "both repos: apply what the corrections imply, and scan the Blueprint docs for "
                  "conflicts with the same subject. Part 2 then opens a SECOND change request "
                  "against Blueprint alongside this one, and both are merged together.\n\n"
                  "**Required, not optional, when the fix lands in a `Docusaurus-` file.** Those "
@@ -752,8 +751,8 @@ FIELD_DOC = {
                  "knowledge file is silently deleted by the next reconciliation. The agent "
                  "answers correctly for a while and then quietly regresses, with the transcript "
                  "closed out and nobody looking. Fixing Blueprint is the only durable fix.\n\n"
-                 "This box ticks itself when you name a `Docusaurus-` file in KB files, for that "
-                 "reason. Untick it only if you know the Blueprint page already says the right "
+                 "This box ticks itself when a `Docusaurus-` file is named in KB files, for that "
+                 "reason. Untick it only if the Blueprint page already says the right "
                  "thing.",
         "values": {},
     },
@@ -772,7 +771,7 @@ FIELD_DOC = {
     "notes": {
         "about": "One line, free text — long-form belongs in Proposed fix at the bottom of the "
                  "page. Context that does not fit the structured fields: who to "
-                 "ask, why you are unsure, what you decided against. Long-form belongs in "
+                 "ask, what is uncertain, what was decided against. Long-form belongs in "
                  "Proposed fix at the bottom of the page. Claude appends its own processing "
                  "notes here after a '||' separator, so expect this to grow.",
         "values": {},
@@ -1557,7 +1556,7 @@ background:var(--forge-theme-surface-container);border:1px solid var(--forge-the
 white-space:pre-wrap;word-break:break-word;max-height:320px;overflow:auto;
 background:var(--forge-theme-surface-container);color:var(--forge-theme-text-high);
 border:1px solid var(--forge-theme-outline-low)}
-/* "It ran; now YOU decide." Deliberately not `done`: a green tick on the eval would say the
+/* "It ran; a person decides." Deliberately not `done`: a green tick on the eval would say the
    step is complete when the only thing that completes it is a human reading the answers. It
    was the absence of any such state that made the eval invisible in this list. */
 ol.prog li.you{color:var(--forge-theme-text-high)}
@@ -1678,7 +1677,7 @@ td.fbcell,th.fbcell{width:1%;text-align:center;padding-left:6px;padding-right:6p
 .fb{font-size:15px;line-height:1;cursor:help}
 .fb-none{color:var(--fb-none-fg);cursor:help}
 /* The thumbs-down signal lives in its own CELL, not on the row. A row tint or a left bar
-   would compete with the amber/blue "this row is yours" highlighting below, and on a row that
+   would compete with the amber/blue "this row is assigned" highlighting below, and on a row that
    is both, one has to lose - it would be the thumbs-down, since the ownership rules are
    declared later and win on equal specificity. A badge in its own column always shows. */
 /* Review banners. These were inline styles, which is why they broke in dark: an inline
@@ -2015,9 +2014,9 @@ function proseTyped(v){
 // Neutral values come from the same NEUTRAL table the label and the eval read, so "cleared"
 // means exactly "the eval will not replay this" and not merely "looks empty".
 function clearChanges(btn){
- confirmThen(btn, 'Clear the changes you have suggested?',
+ confirmThen(btn, 'Clear the suggested changes?',
    'Puts every verdict field back to its default and empties the corrections and the summary, '
-   + 'so this records as <b>no changes needed</b>. Your typed text is discarded &mdash; there is '
+   + 'so this records as <b>no changes needed</b>. Typed text is discarded &mdash; there is '
    + 'no undo.',
    ()=>{
      for (const e of document.querySelectorAll('[data-fm]')) {
@@ -2066,8 +2065,8 @@ function refreshMarkLabel(){
                   : 'Nothing suggested yet';
  }
  b.title = asks
-   ? 'Records your verdict and the changes you asked for. This transcript WILL appear under '
-     + 'Eval Review so you can check the fix.'
+   ? 'Records the verdict and the changes requested. This transcript WILL appear under '
+     + 'Eval Review, where the fix can be checked.'
    : 'Records that the answer was fine as-is. This transcript will NOT appear under Eval Review '
      + '\u2014 there is nothing to test.';
 }
@@ -2253,7 +2252,7 @@ async function suggestAndNext(path,next){
    return;
  }
  const rv=document.querySelector('[data-fm=reviewer]');
- if(rv&&!rv.value){toast('Pick your name in Reviewer first',false);return}
+ if(rv&&!rv.value){toast('Pick a name in Reviewer first',false);return}
  document.querySelector('[data-fm=review_status]').value='suggested';
  await saveDoc(path,next)}
 // Re-review RE-OPENS a transcript; it does not record a verdict. So the status goes back to
@@ -2268,7 +2267,7 @@ async function reReview(path){
  const st=document.querySelector('[data-fm=review_status]');
  st.value='pending';
  await saveDoc(path);
- toast('Re-opened for a fresh look — record your verdict when you are done');
+ toast('Re-opened for a fresh look — record a verdict when done');
 }
 // Stage states for step 3's progress list. Only `push` and `pr` are driven from here,
 // because they are the only two this button performs; `merge` and `foundry` stay as they were
@@ -2318,7 +2317,7 @@ function discardSave(btn,hash,when,newer){
  confirmThen(btn,'Discard the save from '+when+(newer?' and '+newer+' newer?':'?'),
    (newer?'This rewinds past <b>'+(newer+1)+'</b> saves. Discarding cannot take one out of '
         +'the middle, so everything newer goes too.':'This rewinds one save.')
-   +'<br><br>A recovery point is created first, and the output tells you how to use it.',
+   +'<br><br>A recovery point is created first, and the output explains how to use it.',
    ()=>gitDo('discard',{hash}));
 }
 
@@ -2357,7 +2356,7 @@ function prMerge(btn,number,title,checks){
 // plain merge would be refused for being behind the checks.
 function bpMerge(btn,number,title){
  confirmThen(btn,'Queue Blueprint #'+number+' to merge when checks pass?',
-   '<code>'+title+'</code><br><br>GitHub merges it the moment Blueprint\u2019s CI passes, so you '
+   '<code>'+title+'</code><br><br>GitHub merges it the moment Blueprint\u2019s CI passes, so there is '
    +'do not have to wait here. Squash merge, branch deleted.<br><br><b>Merge the knowledge '
    +'request as well</b> \u2014 most indexed knowledge is derived from Blueprint, so shipping '
    +'one without the other leaves a fix the next reconciliation undoes.',
@@ -2369,7 +2368,7 @@ function prOverride(btn,number,title,checks){
  confirmThen(btn,'Merge #'+number+' bypassing review?',
    warn+'<code>'+title+'</code><br><br>This skips the required approval \u2014 the one action '
    +'here that removes a safety gate rather than passing through it, and reasonable only on '
-   +'your own work.<br><br>Rebases onto main and deletes the branch, brings it up to date '
+   +'own work.<br><br>Rebases onto main and deletes the branch, brings it up to date '
    +'first if needed, then <b>uploads any knowledge files to Foundry and verifies them</b>. '
    +'The agents change as soon as it finishes.',
    ()=>prDo(btn,'merge-override',number));
@@ -2388,9 +2387,9 @@ function sendReviews(btn){
  const n = parseInt(btn.dataset.aiPending||'0',10)||0;
  const detail = n
    ? '<b>'+n+' reviewed transcript(s)</b> are still waiting on the knowledge-file update in '
-     +'Part 2.<br><br>If you have not run the assistant prompt yet, the change request will '
-     +'carry your verdicts with no fix behind them \u2014 it will look complete, merge, and the '
-     +'agents will keep giving the answers you just reviewed.<br><br>Have the assistant '
+     +'Part 2.<br><br>If the assistant prompt has not been run yet, the change request will '
+     +'carry verdicts with no fix behind them \u2014 it will look complete, merge, and the '
+     +'agents will keep giving the answers just reviewed.<br><br>Have the assistant '
      +'instructions been completed?'
    : 'No transcript in this batch is waiting on a knowledge update, so there is nothing for '
      +'the assistant to have done.<br><br>Send it in?';
@@ -2402,9 +2401,9 @@ function sendReviews(btn){
  // Two different presses, so two different notes. The old text said "then puts Foundry back",
  // which stopped being true when the content started staying live for adjacent phrasings.
  const evalNote = wantEval
-   ? '<br><br><b>The check runs first.</b> It saves your work, uploads the changed knowledge '
+   ? '<br><br><b>The check runs first.</b> It saves the work in progress, uploads the changed knowledge '
      +'files and asks the agents this batch\u2019s questions. The content STAYS live afterwards '
-     +'so you can try other phrasings. Nothing is sent in until you have read the answers.'
+     +'so other phrasings can be tried. Nothing is sent in until the answers have been read.'
    : (_cb && _cb.disabled
       ? '<br><br>The check has already run for this version, so this goes straight on to the '
         +'change request \u2014 and takes the eval content back out of Foundry.'
@@ -2425,7 +2424,7 @@ function runEval(btn){
  btn.disabled=true; btn.textContent='Checking\u2026';
  stage('eval','run');
  if(out){out.style.display='block';
-   out.textContent='Saving your work, uploading the candidate files, asking the agents.\n'
+   out.textContent='Saving work in progress, uploading the candidate files, asking the agents.\n'
      +'This takes a few minutes - two Bedrock syncs plus one question at a time.\n'
      +'Foundry is restored automatically when it finishes.\n\nWorking\u2026';}
  fetch('/git',{method:'POST',headers:{'Content-Type':'application/json'},
@@ -2471,8 +2470,8 @@ function runEval(btn){
 // A state change nobody can see is indistinguishable from a no-op.
 function resetPending(btn){
  confirmThen(btn,'Put this batch back to pending?',
-   'Clears the reviewed status on the transcripts in this batch so you can keep working on '
-   +'them. Your corrections, summaries and field values are all kept \u2014 only the status '
+   'Clears the reviewed status on the transcripts in this batch so work can continue on '
+   +'them. Corrections, summaries and field values are all kept \u2014 only the status '
    +'changes.<br><br>Part 2 resets: the check will need to run again once the answers are '
    +'right.',
    ()=>gitDo('reset-pending').then(()=>resetPart2()));
@@ -2501,7 +2500,7 @@ function evTally(r){
  if(st) st.innerHTML = r.allOk
    ? '<b>All '+r.nTot+' approved.</b> The batch can be sent in.'
    : '<b>'+r.nOk+' of '+r.nTot+' approved.</b> Tick every transcript whose answer is right. '
-     +'Anything you leave unticked is not ready, and the send stays shut.';
+     +'Anything left unticked is not ready, and the send stays shut.';
  const send=document.getElementById('evsend');
  if(send){send.disabled=!r.allOk;
    send.title = r.allOk ? '' : 'Approve every transcript first';}
@@ -2524,14 +2523,14 @@ function evAsk(btn,key,agent){
  const nStale=parseInt(btn.dataset.stale||'0',10)||0;
  if(edited||notLive||nStale){
    const parts=[];
-   if(edited) parts.push('<b>Your edits to Now will be replaced</b> by the new answer, '
-     +'including any <code>{{...}}</code> you have typed. Copy the prompt first if you want '
+   if(edited) parts.push('<b>Edits to Now will be replaced</b> by the new answer, '
+     +'including any <code>{{...}}</code> typed there. Copy the prompt first to '
      +'to keep them.');
    if(notLive) parts.push('<b>Nothing is live in Foundry</b>, so the answer will come from the '
-     +'PUBLISHED content — it will not reflect your knowledge edits. Use '
-     +'<b>Foundry re-upload</b> first if you want to test those.');
+     +'PUBLISHED content — it will not reflect the pending knowledge edits. Use '
+     +'<b>Foundry re-upload</b> first to test those.');
    else if(nStale) parts.push('<b>'+nStale+' knowledge file(s) have changed since the last '
-     +'upload</b>, so the answer will come from the PREVIOUS round, not your latest edits — '
+     +'upload</b>, so the answer will come from the PREVIOUS round, not the latest edits — '
      +'which looks exactly like the fix not working. Press <b>Foundry re-upload</b> first.');
    confirmThen(btn,'Ask again?',parts.join('<br><br>'),()=>evAskGo(btn,key,agent,q));
    return;
@@ -2572,10 +2571,10 @@ function evAskGo(btn,key,agent,q){
      const t=r.pct>=70?'ok':(r.pct>=40?'warn':'bad');
      const chip=document.createElement('span');
      chip.className='evmatch '+t;
-     chip.title='Share of the substantive words in your correction that appear in this answer. '
+     chip.title='Share of the substantive words in the correction that appear in this answer. '
        +'A word-overlap hint only \u2014 it cannot tell a paraphrase from a contradiction, so '
        +'read the answer.';
-     chip.textContent='Match '+r.pct+'% against your correction';
+     chip.textContent='Match '+r.pct+'% against the correction';
      lab.appendChild(chip);
    }
    now.querySelector('pre').textContent=r.answer||'(no answer returned)';
@@ -2604,8 +2603,8 @@ function evResetQ(btn){
 // Bedrock sync - so the button says what it is doing rather than looking hung.
 function evRemove(btn){
  confirmThen(btn,'Remove the eval content from Foundry?',
-   'Puts the published content back, so the agents stop answering from your candidate files. '
-   +'Your knowledge edits and approvals are untouched — this only affects what is live in '
+   'Puts the published content back, so the agents stop answering from the candidate files. '
+   +'Knowledge edits and approvals are untouched — this only affects what is live in '
    +'Foundry, and it goes back up permanently when the change is merged.',
    ()=>{
      const was=btn.textContent; btn.disabled=true; btn.textContent='Removing…';
@@ -2649,7 +2648,7 @@ function evResetNow(btn){
 // looks like the fix not working.
 function evReupload(btn){
  confirmThen(btn,'Re-upload the knowledge files to Foundry?',
-   'Pushes every changed knowledge file over the live eval content, so Ask again tests your '
+   'Pushes every changed knowledge file over the live eval content, so Ask again tests the '
    +'latest edits. A few minutes. The restore point is kept, so Remove evals still puts the '
    +'published content back.',
    ()=>{
@@ -2681,7 +2680,7 @@ function evCopyPrompt(btn,key){
 // context, and 127.0.0.1 counts - but a browser with the permission denied still has to work,
 // so the textarea fallback stays.
 function copyText(text, btn, was){
- const done=ok=>{btn.textContent = ok ? '\u2713 Copied — paste it to your assistant'
+ const done=ok=>{btn.textContent = ok ? '\u2713 Copied — ready to paste to an assistant'
                                       : 'Could not copy — select the text below instead';
    if(!ok){const ta=document.createElement('textarea'); ta.value=text;
      ta.style.cssText='width:100%;margin-top:8px;font:inherit'; ta.rows=8;
@@ -2698,7 +2697,7 @@ function copyText(text, btn, was){
 }
 function evSend(btn){
  confirmThen(btn,'Send the batch in?',
-   'Opens the change request(s) for your knowledge updates and verdicts. On merge, the '
+   'Opens the change request(s) for the knowledge updates and verdicts. On merge, the '
    +'knowledge files are published to Foundry and the agents change.',
    ()=>post('/git',{action:'pr'}).then(r=>{
      const o=document.getElementById('gitout');
@@ -2707,8 +2706,8 @@ function evSend(btn){
 }
 function evReset(btn){
  confirmThen(btn,'Put the batch back to pending?',
-   'Clears the reviewed status on every transcript in this batch so you can keep working. '
-   +'Your corrections, summaries and field values are all kept — only the status changes, and '
+   'Clears the reviewed status on every transcript in this batch so work can continue. '
+   +'Corrections, summaries and field values are all kept — only the status changes, and '
    +'Part 2 resets.',
    ()=>post('/git',{action:'reset-pending'}).then(r=>{
      const o=document.getElementById('gitout');
@@ -2734,7 +2733,7 @@ function resetPart2(){
 }
 function copyPrompt(btn){
  const text=window.AI_PROMPT||'';
- const done=ok=>{btn.textContent = ok ? '\u2713 Copied — paste it to your assistant'
+ const done=ok=>{btn.textContent = ok ? '\u2713 Copied — ready to paste to an assistant'
                                       : 'Could not copy — select the text below instead';
    if(!ok){const ta=document.createElement('textarea');ta.value=text;
      ta.style.cssText='width:100%;margin-top:8px;font:inherit';ta.rows=4;
@@ -2756,9 +2755,12 @@ function setOutHead(action){
  // The heading no longer changes - see where it is rendered. Only the sub-line moves, because
  // which of the two things the panel is showing is still worth saying.
  if(action==='diff'){
-   s.textContent='Files this process is about to move. Green is added, red is removed.';
+   s.textContent='Pending edits are reflected in color: Green indicates addition, '
+     +'Red indicates removal.';
  } else {
-   s.textContent='What the step you just ran reported. If something failed, paste this to your '
+   // Impersonal for the same reason: "what the step you just ran reported" and "paste this to
+   // your AI assistant" both address the reader rather than describing the panel.
+   s.textContent='Output from the step just run. If it failed, this text can be passed to an '
      +'AI assistant.';}
 }
 function stage(name,state){const el=document.querySelector('#prog li[data-stage='+name+']');
@@ -2816,7 +2818,7 @@ function ckSync(){const n=ckSel().length;
  const bar=document.getElementById('bulkbar'); if(!bar) return;
  bar.style.display = n ? '' : 'none';
  document.getElementById('cknum').textContent=n;
- const w=document.getElementById('ckwho'); if(w) w.textContent = ckWho() || 'nobody — pick your name on a transcript first';
+ const w=document.getElementById('ckwho'); if(w) w.textContent = ckWho() || 'nobody — pick a name on a transcript first';
 }
 function clearCk(){ckList().forEach(c=>c.checked=false);
  const a=document.getElementById('ckall'); if(a)a.checked=false; ckSync()}
@@ -2824,7 +2826,7 @@ async function bulkReview(){
  const paths=ckSel().map(c=>c.value);
  if(!paths.length) return;
  const who=ckWho();
- if(!who){toast('Open any transcript and pick your name first',false);return}
+ if(!who){toast('Open any transcript and pick a name first',false);return}
  if(!confirm(`Mark ${paths.length} transcript(s) reviewed with NO changes needed, as ${who}?`)) return;
  const r=await post('/bulk',{paths,reviewer:who});
  if(!r.ok){toast(r.error||'failed',false);return}
@@ -2936,18 +2938,18 @@ if(es&&em){
    const seeAll=SHOW_ALL_LINK
      ? ' &nbsp;<a href="/?all=1">or see All Transcripts</a>' : '';
    if(mineOnly&&total===0){
-     em.textContent='There is nothing assigned to you \u2014 no transcript is waiting on you '
-       +'by name, and none of the agents you own has an open conversation.';
+     em.textContent='Nothing is assigned \u2014 no transcript is waiting by name '
+       +'and none of the owned agents has an open conversation.';
      ea.innerHTML=SHOW_ALL_LINK
        ? '<a href="/?all=1">Click on All Transcripts to see all transcripts.</a>'
        : '<button class=sec onclick="syncNow()">Sync transcripts</button>';
    } else if(mineOnly&&onlyDefaultStatus){
-     em.innerHTML='Nothing of yours is <b>'+dflt.replace(/__/g,'')+'</b>. '
-       +'You have '+total+' transcript(s) in total \u2014 remove the <b>Status</b> filter to '
+     em.innerHTML='Nothing assigned is <b>'+dflt.replace(/__/g,'')+'</b>. '
+       +'There are '+total+' transcript(s) in total \u2014 remove the <b>Status</b> filter to '
        +'see them all.';
-     ea.innerHTML='<button onclick="dropStatus()">Show all '+total+' of my transcripts</button>';
+     ea.innerHTML='<button onclick="dropStatus()">Show all '+total+' transcripts</button>';
    } else if(mineOnly&&anyFilter){
-     em.textContent='Nothing of yours matches these filters.';
+     em.textContent='Nothing assigned matches these filters.';
      ea.innerHTML='<button class=sec onclick="clearFilters()">Clear the filters</button>'+seeAll;
    } else {
      em.textContent='No transcripts match these filters.';
@@ -3275,7 +3277,7 @@ THEME_ICONS = {
 }
 THEME_MODES = [("light", "Light", "light", "Use light theme"),
                ("dark", "Dark", "dark", "Use dark theme"),
-               ("auto", "Automatic", "auto", "Use your browser's setting")]
+               ("auto", "Automatic", "auto", "Follow the browser setting")]
 
 
 def _svg(path, cls):
@@ -3290,7 +3292,7 @@ MODE_SWITCH = (
     "<div class=fg-dialog role=dialog aria-modal=true aria-labelledby=themetitle>"
     "<h2 id=themetitle>Display theme</h2>"
     "<div class=fg-dialog-body>"
-    "<p>Choose what theme you would like to use for this application.</p>"
+    "<p>Choose the theme for this application.</p>"
     "<div class=fg-toggle-group role=group aria-label='Display theme'>"
     + "".join(
         f"<button type=button class=fg-toggle data-mode-set={v} aria-pressed=false "
@@ -3599,12 +3601,12 @@ def list_page(show_all=False):
         bits = []
         if mine_a:
             bits.append(f"<a href='#' onclick='showStatus(\"\");return false'>"
-                        f"<b>{mine_a}</b> handed to you</a>")
+                        f"<b>{mine_a}</b> handed over</a>")
         if mine_r:
-            bits.append(f"<b>{mine_r}</b> open in your area")
+            bits.append(f"<b>{mine_r}</b> open in the owned area")
         youline = ("<p class=youline>"
-                   + (" &middot; ".join(bits) if bits else "Nothing open is yours right now.")
-                   + " &nbsp;&mdash;&nbsp; amber rows were handed to you, blue rows are your "
+                   + (" &middot; ".join(bits) if bits else "Nothing open is assigned right now.")
+                   + " &nbsp;&mdash;&nbsp; amber rows were handed over, blue rows are the owned "
                      "area.</p>")
 
     # (label, filter-kind, select-id). kind: "" = not filterable, "sel" = value dropdown,
@@ -3695,7 +3697,7 @@ def list_page(show_all=False):
         kpi("Pending", counts["pending"], tone="red",
             why="Nobody has looked at these yet. This is the queue to work through."),
         kpi("Reviewed, Not saved", rev_unsaved, tone="red",
-            why="You have ruled on these but the verdict is only in a file on this laptop. "
+            why="These have a verdict, but only in a file on this laptop. "
                 "Nothing protects it yet — Save progress on the Save & Publish page does."),
         kpi("Reviewed, Saved locally", rev_saved, tone="yellow",
             why="Ruled on and checkpointed, but not finished: the knowledge change either has "
@@ -3739,7 +3741,7 @@ def list_page(show_all=False):
               "<button class=sec onclick='clearFilters()'>Clear</button></div>"
               f"<p class=shown><b id=shown>0</b> of {tot} shown"
               + (f" &middot; <span class=hint>{total_all - tot} other row(s) hidden &mdash; "
-                 "this view is only yours</span>" if mine_only and total_all > tot else "")
+                 "this view is per-person</span>" if mine_only and total_all > tot else "")
               + "</p>")
 
 
@@ -3815,12 +3817,12 @@ def awaiting_cell(r):
     is visible at a glance rather than requiring you to know the mapping.
     """
     if r["suggested_to"]:
-        badge = " <span class='pill mineflag'>you</span>" if r["mine_awaiting"] else ""
+        badge = " <span class='pill mineflag'>assigned</span>" if r["mine_awaiting"] else ""
         return (f"<span class=whocell>{avatar(r['suggested_to'], 20)}"
                 f"<b>{html.escape(r['suggested_to'])}</b></span>{badge}")
     if r["owners"]:
         faces = "".join(avatar(o, 20) for o in r["owners"])
-        tag = " <span class='pill mineflag'>your area</span>" if r["mine_area"] else ""
+        tag = " <span class='pill mineflag'>owned area</span>" if r["mine_area"] else ""
         return (f"<span class=whocell>{faces}"
                 f"<span class=owner>{html.escape(', '.join(r['owners']))}</span></span>{tag}")
     return "<span class=owner>—</span>"
@@ -3953,7 +3955,7 @@ def field(k, val):
             rows += [f"<label class=kbrow><input type=checkbox value=\"{html.escape(g)}\" checked>"
                      f"<span>{html.escape(g)}</span></label>" for g in gone]
         scope = ("" if is_admin() or not ME else
-                 "<div class=hint style='margin-bottom:8px'>Showing the corpora you own. "
+                 "<div class=hint style='margin-bottom:8px'>Showing the owned corpora. "
                  "An admin can name any file.</div>")
         # The BUTTON carries the state - "Select…" or "Selected (5)". A separate summary line
         # above it listed the chosen paths, which pushed this field taller than every other
@@ -4027,11 +4029,11 @@ def button_legend():
     rows = [
         ("Save",
          "reviewed", False,
-         "Saves what you typed. Decides nothing.",
+         "Saves what was typed. Decides nothing.",
          "Park a half-finished review."),
         ("Suggest &amp; next &rarr;",
          "suggested", True,
-         "Hands it over &mdash; you give up the decision.",
+         "Hands it over &mdash; the decision is given up.",
          "Needs <b>Suggested to</b> (a person) or <b>Reassign to</b> (an agent)."),
         ("Re-review",
          "pending", False,
@@ -4039,7 +4041,7 @@ def button_legend():
          "Verdict fields clear. Round 2 means someone decided before &mdash; read theirs first."),
         ("Mark reviewed &amp; next &rarr;",
          "reviewed", True,
-         "Your verdict, done.",
+         "Verdict recorded.",
          "Blocked while a hand-off is set."),
     ]
     out = ["<details class=card><summary>"
@@ -4127,8 +4129,8 @@ def detail_page(rel):
                      if (fm.get("suggested_to") or fm.get("reassign_to"))
                      else " — no destination named")
                   + ". <b>Not a verdict.</b> Nothing has been accepted and Claude will not act "
-                    "on it. Read the correction and the proposed fix, change what you disagree "
-                    "with, then <b>Mark reviewed</b> to accept it under your own name — or "
+                    "on it. Read the correction and the proposed fix, change anything to disagree "
+                    "with, then <b>Mark reviewed</b> to accept it under a new name — or "
                     "<b>Suggest</b> again to hand it on.</div>")
     else:
         banner = (f"<div class='bar bnr-done'>"
@@ -4185,7 +4187,7 @@ def detail_page(rel):
         f"<div style='display:flex;gap:8px'>"
         f"<button class=sec onclick=\"saveDoc('{html.escape(rel)}')\">Save</button>"
         f"<button class=sec onclick=\"suggestAndNext('{html.escape(rel)}','{next_}')\" "
-        f"title='Record this as a suggestion for the area owner, not as your verdict'>"
+        f"title='Record this as a suggestion for the area owner, not as a verdict'>"
         f"Suggest &amp; next &rarr;</button>"
         f"<button class=sec onclick=\"reReview('{html.escape(rel)}')\">Re-review</button>"
         # LABEL FOLLOWS THE FORM. "Mark reviewed" said the same thing whether the reviewer had
@@ -4285,7 +4287,7 @@ def ensure_lane():
         # change request will carry more than the reviewer expects.
         rc2, out2 = git("switch", "-c", name)
         if rc2 != 0:
-            raise RuntimeError(f"could not set your work aside: {out}\n{out2}")
+            raise RuntimeError(f"could not set the work aside: {out}\n{out2}")
         SITTING_LANE = name
         return name, True
     SITTING_LANE = name
@@ -4316,7 +4318,7 @@ def save_reviews(msg):
     if created:
         # Said in plain terms, without the word "branch": the reviewer did not ask for this
         # and should not have to know what it is, but silence about it would be worse.
-        lines.append("Your work has been set aside from everyone else's, so it cannot "
+        lines.append("The work has been set aside from everyone else's, so it cannot "
                      "disturb the shared copy while it is being checked.")
     paths = ["transcripts"] + sorted(d.name for d in REPO.iterdir()
                                      if d.is_dir() and d.name.startswith("Knowledge-"))
@@ -4434,7 +4436,7 @@ def discard_saves(target):
     _, dirty = git("status", "--porcelain", "--", *review_scope())
     if dirty.strip():
         n = len([l for l in dirty.splitlines() if l.strip()])
-        return 1, (f"You have {n} edited file(s) that are not saved yet. Discarding rewinds the "
+        return 1, (f"There are {n} edited file(s) not saved yet. Discarding rewinds the "
                    "files on disk, which would destroy those edits with no way back — they "
                    "have never been saved anywhere.\n\n"
                    "Save progress first, then discard. Everything saved is recoverable.")
@@ -4544,7 +4546,7 @@ def review_diff():
     parts = []
     if new:
         parts.append("# new transcript file(s), not yet saved — pulled by Sync, "
-                     "nothing typed by you:\n"
+                     "nothing hand-written:\n"
                      + "\n".join(f"#   {f}" for f in new))
     if patch.strip():
         parts.append(patch)
@@ -4738,11 +4740,11 @@ def bp_sync():
         head = bp_git("rev-parse", "HEAD")[1].strip()
         want = bp_git("rev-parse", "origin/master")[1].strip()
         if head == want:
-            return True, "Blueprint is up to date (with your uncommitted edits left alone)."
+            return True, "Blueprint is up to date (uncommitted edits left alone)."
         return False, ("Blueprint has uncommitted edits AND is behind origin/master, so it "
                        "cannot be fast-forwarded without touching them. Commit, stash or "
                        "discard them, then sync — staging from a stale tree would attribute "
-                       "other people's reverted work to your transcript.")
+                       "other people's reverted work to this transcript.")
     rc, out = bp_git("merge", "--ff-only", "origin/master")
     if rc != 0:
         return False, "Blueprint could not be fast-forwarded:\n" + out
@@ -4859,7 +4861,7 @@ def bp_stage_add(rel):
     if chk.returncode != 0:
         bp_stage_path(rel).unlink(missing_ok=True)
         return False, ("The captured Blueprint patch does not describe the Blueprint tree "
-                       "faithfully, so nothing was staged and your Blueprint edits are "
+                       "faithfully, so nothing was staged and the Blueprint edits are "
                        "untouched:\n" + (chk.stdout + chk.stderr)[:400])
     # Back to clean, so the next transcript's capture is only its own. Reset AND clean: reset
     # restores tracked files, and a newly added page would otherwise survive as untracked and be
@@ -5296,13 +5298,13 @@ def git_fragments():
         elif n_bp and not n:
             where = " (in Blueprint)"
         state = (f"<span class='pill pending'>{n_all} unsent</span> "
-                 f"You have <b>{n_all}</b> edited file(s) not yet saved{where}.")
+                 f"<b>{n_all}</b> edited file(s) not yet saved{where}.")
     elif unpushed != "0":
         state = (f"<span class='pill reviewed'>saved</span> Saved, but "
                  f"<b>{unpushed}</b> change(s) have not been sent in yet — do Part 2.")
     else:
         state = ("<span class='pill pushed'>all sent</span> Nothing waiting. "
-                 "Everything you have reviewed has been sent in.")
+                 "Everything reviewed has been sent in.")
 
     # GROUPED, and the Blueprint group folded in from what used to be its own panel below. A
     # reviewer asked for this: two panels listing what is about to go out, one per repo, with the
@@ -5368,10 +5370,10 @@ def git_fragments():
                 for i, s in enumerate(saves))
             + "</table>"
             "<div class=hint>Sending in covers all of these. Discarding rewinds to just before the "
-            "save you pick, and always leaves a recovery point.</div></details>")
+            "save selected, and always leaves a recovery point.</div></details>")
     else:
         saves_html = ("<div class=saves><span class=hint>Nothing saved and unsent — either "
-                      "you have not saved yet this sitting, or everything is already sent "
+                      "not yet saved this sitting, or everything is already sent "
                       "in.</span></div>")
     # The change list now lives INSIDE the state bar, collapsed. It was a permanently-open
     # panel between the "Publish your reviews" heading and Part 1, so the first actual step
@@ -5574,9 +5576,9 @@ def pull_main():
         # Not checked out, so this cannot touch the working tree; still fast-forward-only.
         git("fetch", "origin", "main:main")
         if behind:
-            return True, ("Your in-progress work is left exactly as it is, so "
+            return True, ("In-progress work is left exactly as it is, so "
                           + (f"{behind} changes" if behind > 1 else "1 change")
-                          + " other people sent in is not on your copy yet. It arrives on its "
+                          + " other people sent in is not on this copy yet. It arrives on its "
                           "own once this batch is sent in.")
         return True, ""
 
@@ -5594,9 +5596,9 @@ def pull_main():
         # doing exactly what they are supposed to be doing. It is a note, and it resolves
         # itself the moment they save. The raw git text is dropped on purpose: "Updating
         # 16fe4c1..bc889c2" is not something anyone here should have to read.
-        return True, ("You have unsaved edits, so the newest copies of a few files are not in "
+        return True, ("There are unsaved edits, so the newest copies of a few files are not in "
                       f"yet ({behind} waiting). Nothing was changed or discarded. They come in "
-                      "on their own once you save.")
+                      "on their own once saved.")
     return True, (f"Brought in {behind} updates from the shared copy." if behind > 1
                   else "Brought in 1 update from the shared copy.")
 
@@ -6090,7 +6092,7 @@ def pr_page(force=False):
             "<button class=sec>" + icon("refresh", 15) + " Refresh PRs</button></a>"
             f"<span class=fresh id=freshness data-age='{prs_age}' data-kind=prs></span></div>"
             "<p class=sub style='margin:-14px 0 20px'>Refreshes by itself when it is more "
-            "than 30 minutes stale, and whenever you come back to this tab.</p>"]
+            "than 30 minutes stale, and on every return to this tab.</p>"]
     if err:
         body.append(f"<div class='bar bnr-done'>{html.escape(err)}</div>")
     # Blueprint requests this workflow opened, listed alongside. They ship WITH the knowledge
@@ -6208,8 +6210,8 @@ def pr_page(force=False):
         elif mine:
             acts.append(f"<button onclick=\"prOverride(this,{pr['number']},"
                         f"'{html.escape(pr['title'][:60])}','{cls}')\" "
-                        "title='Merge using your admin override, which skips the required "
-                        "approval you cannot give yourself'>Merge anyway</button>")
+                        "title='Merge using the admin override, which skips the required "
+                        "approval an author cannot give themselves'>Merge anyway</button>")
         else:
             acts.append(f"<button onclick=\"prMerge(this,{pr['number']},"
                         f"'{html.escape(pr['title'][:60])}','{cls}')\">Merge</button>")
@@ -6222,17 +6224,17 @@ def pr_page(force=False):
             behind = (" Main has also moved since this branch was cut; the merge brings it up "
                       "to date first, so there is nothing to do by hand."
                       if state == "BEHIND" else "")
-            selfnote = ("<div class=hint style='margin-top:8px'>This is your own change "
+            selfnote = ("<div class=hint style='margin-top:8px'>This is the current user's change "
                         "request, so a plain merge is refused: an approval is required and "
                         "GitHub does not let anyone approve their own. <b>Merge anyway</b> "
-                        "uses your admin override, which skips that gate &mdash; reasonable on "
-                        "your own work, and the only way through on a repo with one code "
+                        "uses the admin override, which skips that gate &mdash; reasonable on "
+                        "own work, and the only way through on a repo with one code "
                         f"owner.{behind}</div>")
         elif state == "BLOCKED":
             selfnote = ("<div class=hint style='margin-top:8px'>Somebody else's request. Two "
-                        "different things you can do: <b>Approve, they merge</b> unblocks it and "
+                        "different options: <b>Approve, they merge</b> unblocks it and "
                         "leaves the last step with them &mdash; right for a contributor's work. "
-                        "<b>Merge</b> puts it in yourself, which is quicker but closes their "
+                        "<b>Merge</b> puts it in directly, which is quicker but closes their "
                         "change for them.</div>")
         elif state == "BEHIND":
             selfnote = ("<div class=hint style='margin-top:8px'>Main has moved and this repo "
@@ -6345,7 +6347,7 @@ def backups(force=False):
     if err:
         # The most likely cause by far is no access, and saying so beats a raw gh error.
         return None, (f"Could not read {BACKUP_REPO}. This is admin-only, so the usual cause is "
-                      f"that your `gh` account is not on the onetyler-tcp-pm-admins team.\n\n{err}")
+                      f"that this `gh` account is not on the onetyler-tcp-pm-admins team.\n\n{err}")
     d["last_run"] = txt.strip()
 
     rows, err = _bk_ls("snapshots")
@@ -6572,7 +6574,7 @@ def bk_restore_fields(slug, date, fields):
     if unexpected:
         lines += ["", "⚠ These fields ALSO changed and were not selected: "
                       + ", ".join(unexpected),
-                  "  The restore point above is how you undo this."]
+                  "  The restore point above is the undo for this."]
     else:
         lines += ["", "Verified: only the selected field(s) changed."]
     lines += ["", "Now ask the agent a question it should answer from this config. Text landing "
@@ -6873,7 +6875,7 @@ def bk_agent_view(slug, date):
     else:
         body.append(
             "<p class=sub style='margin:0 0 10px'>" + str(len(rows)) + " field(s) differ. Tick "
-            "only what you want reverted &mdash; the payload is built from the <b>live</b> "
+            "only the fields to revert &mdash; the payload is built from the <b>live</b> "
             "agent with those fields swapped in, so nothing else moves. Restoring a whole "
             "snapshot would also undo every legitimate change made since it was taken, which "
             "looks surgical and is not.</p>"
@@ -7197,7 +7199,7 @@ def backups_page(force=False, browse="", compare="", agent="", date=""):
         "<tr><td><b>Collection file records</b></td>"
         "<td><span class='pill excluded'>no</span></td>"
         "<td>There is no write API for a file record at all &mdash; only upload and delete. The "
-        "snapshot is descriptive: it tells you what should exist.</td></tr>"
+        "snapshot is descriptive: it records what should exist.</td></tr>"
         "</table></div>"
         "<div class='bar bnr-note'>Every write takes a Foundry version first &mdash; that version is the undo.</div>")
 
@@ -7579,7 +7581,7 @@ def eval_remove():
         (d / "FINGERPRINT").unlink(missing_ok=True)
         (d / "APPROVALS.json").unlink(missing_ok=True)
     return True, ("Foundry is back to what it was, and the Eval Review step is reset — run it "
-                  "again when you are ready.\n\n" + tail)
+                  "again when ready.\n\n" + tail)
 
 
 def _var_path():
@@ -7850,10 +7852,10 @@ def _eval_optin(spent=False):
         "<label class=evalrow><input type=checkbox id=doeval checked>"
         "<span><b>Include Eval Review</b></span></label>"
         f"<div class=hint style='margin:6px 0 0 26px'>"
-        f"Asks the agents this batch's {n_q} question(s) against your {len(files)} changed "
+        f"Asks the agents this batch's {n_q} question(s) against the {len(files)} changed "
         f"file(s). <b>~{mins} min.</b><br>"
-        "<b>The candidate content STAYS live in Foundry afterwards</b> so you can try other "
-        "phrasings on Eval Review &mdash; best done off-hours. It comes down when you press "
+        "<b>The candidate content STAYS live in Foundry afterwards</b> so other "
+        "phrasings can be tried on Eval Review &mdash; best done off-hours. It comes down on "
         "Remove evals or send the batch in. Required before a change request.</div></div>")
 
 
@@ -8015,9 +8017,9 @@ def match_html(pct):
     if pct is None:
         return ""
     tone = "ok" if pct >= 70 else ("warn" if pct >= 40 else "bad")
-    return (f"<span class='evmatch {tone}' title='Share of the substantive words in your "
+    return (f"<span class='evmatch {tone}' title='Share of the substantive words in the "
             "correction that appear in this answer. A word-overlap hint only — it cannot tell a "
-            f"paraphrase from a contradiction, so read the answer.'>Match {pct}% against your "
+            f"paraphrase from a contradiction, so read the answer.'>Match {pct}% against the "
             "correction</span>")
 
 
@@ -8063,7 +8065,7 @@ def eval_review_page():
     a pair of buttons underneath. A reviewer said plainly they could not find anything to
     approve, and they were right - the one screen in this app where somebody has to read
     carefully and make a per-transcript judgement was rendered as terminal output, in a panel
-    whose stated job is "paste this to your assistant if a step failed". Approval per transcript
+    whose stated job is "for passing to an assistant if a step failed". Approval per transcript
     was not expressible at all: the two buttons acted on the whole batch.
 
     So each replayed exchange gets a card with the question, the answer BEFORE, the answer NOW,
@@ -8116,16 +8118,16 @@ def eval_review_page():
         age = f" for {mins} min" if isinstance(mins, int) else ""
         livebar = (
             "<div class='bar bnr-router' id=evlive>"
-            f"<b>Your candidate content is LIVE in Foundry{age}.</b> "
+            f"<b>Candidate content is LIVE in Foundry{age}.</b> "
             f"{len(live.get('files') or [])} file(s) in "
             + ", ".join(f"<code>{html.escape(c)}</code>"
                         for c in (live.get("collections") or []))
             + " &mdash; every user of these agents is answering from it.<br>"
-            "Left up on purpose so you can try adjacent phrasings below. It comes down when you "
-            "press <b>Remove evals</b>, or by itself when you send the batch in &mdash; and goes "
+            "Left up on purpose so adjacent phrasings can be tried below. It comes down on "
+            "<b>Remove evals</b>, or by itself when the batch is sent in &mdash; and goes "
             "back up permanently on merge."
             + (f"<br><br><b>{len(live['stale'])} knowledge file(s) have changed since that "
-               "upload</b>, so what is live is behind your repo. Press <b>Foundry re-upload</b> "
+               "upload</b>, so what is live is behind the repo. Press <b>Foundry re-upload</b> "
                "before asking again, or the answers will come from the previous round:"
                + "".join(f"<br>&nbsp;&nbsp;<code>{html.escape(f)}</code>"
                          for f in live["stale"])
@@ -8157,7 +8159,7 @@ def eval_review_page():
         + "</p>"
         + f"<p class=sub style='margin:4px 0 0'><code>{html.escape(when)}</code> &middot; "
         f"{len(files)} file(s) &middot; {n_q} question(s) &middot; <b>Match %</b> is word overlap "
-        "with your correction, a hint not a verdict.</p>"
+        "with the correction, a hint not a verdict.</p>"
         + "<div class=stepacts style='margin-top:10px'>"
         + "<button class=sec onclick=\"evAll(1)\">Approve all</button>"
         + "<button class=sec onclick=\"evAll(0)\">Clear all</button>"
@@ -8165,7 +8167,7 @@ def eval_review_page():
         # filename and the save dialog right. The title carries what a whole caption line used
         # to say underneath.
         + "<a class='btn sec' href='/evalreview.txt' download "
-          "title='Every exchange, demarcated — paste it back to your assistant'>"
+          "title='Every exchange, demarcated — for passing back to an assistant'>"
           "Download as .txt</a>"
         # Lives here rather than in a banner that only existed while something was live, which
         # is why it could not be found.
@@ -8233,7 +8235,7 @@ def eval_review_page():
             # per-card: it pushes every changed knowledge file. The label says "Foundry" so it
             # does not read as a per-question action.
             + ("<button class=sec onclick='evReupload(this)' title='Push the current knowledge "
-               "files over the live eval content, so Ask again tests your latest edits. Affects "
+               "files over the live eval content, so Ask again tests the latest edits. Affects "
                "the whole batch.'>Foundry re-upload</button>"
                if live else
                "<button class=sec disabled title='Nothing is live to replace'>"
@@ -8245,10 +8247,10 @@ def eval_review_page():
             # the only layout that lets that be read in one glance. Before drops to a disclosure
             # for the occasions when someone wants to see what changed.
             "<div class=evcols>"
-            + (f"<div class=evtarget><div class=evlab>Your correction</div>"
+            + (f"<div class=evtarget><div class=evlab>Correction</div>"
                f"<pre>{html.escape(corr)}</pre></div>"
                if corr else
-               "<div class=evtarget><div class=evlab>Your correction</div>"
+               "<div class=evtarget><div class=evlab>Correction</div>"
                "<pre>(none written for this exchange)</pre></div>")
             # NOW IS EDITABLE, and editing it is how a reviewer marks what is still wrong:
             # `{{...}}` inline against the sentence it is about. The marker carries its own
@@ -8265,7 +8267,7 @@ def eval_review_page():
             f"data-orig=\"{html.escape(latest.get('answer') or '')}\">"
             f"{html.escape(latest.get('answer') or '(no answer returned)')}</textarea>"
             "<div class=hint style='margin:5px 0 0'>To improve response type comments in "
-            "<code>{{ }}</code> inside Now and click <b>Copy prompt</b> to provide your AI to "
+            "<code>{{ }}</code> inside Now and click <b>Copy prompt</b> to pass to an AI for "
             "further refine content.</div>"
             # DIRECTLY UNDER THE INSTRUCTION THAT NAMES THEM, inside the Now column. They began
             # ABOVE the box, which pushed this column down and left the two compared panes
@@ -8289,10 +8291,10 @@ def eval_review_page():
             + "</div>")
 
     foot = (
-        "<div class=card><h3>When you are done</h3>"
+        "<div class=card><h3>When finished</h3>"
         + ("<p class=sub>Sending in opens the change request(s); merging publishes to Foundry.</p>"
            if all_ok else
-           "<p class=sub>If an answer is wrong, put the batch back to pending &mdash; your "
+           "<p class=sub>If an answer is wrong, put the batch back to pending &mdash; the "
            "corrections are kept.</p>")
         + "<div class=stepacts>"
         + (f"<button id=evsend onclick=\"evSend(this)\">Send the batch in</button>"
@@ -8314,7 +8316,7 @@ def part2_state():
     only turned green if you happened to be on the page when the step ran - so a reviewer who
     reloaded, or came back the next morning, saw four untouched steps and no way to tell what had
     already happened. Worse, the assistant step stayed grey after the knowledge files had been
-    written, which reads as "you still need to do this".
+    written, which reads as "this still needs doing".
 
     Derived per stage, cheaply:
       ai    knowledge work outstanding? awaiting_analysis() is the same count the stage prints.
@@ -8462,25 +8464,25 @@ def git_page():
         return f"<div class=step><div class=stepbody>{sub}{inner}</div></div>"
 
     body = (
-      f"<h2 class=sec>Save &amp; Share Your Reviews</h2>"
+      f"<h2 class=sec>Save &amp; Share Reviews</h2>"
       # NO BRANCH NAME HERE, deliberately. This line used to read "You are working on
       # feature/owner-highlighting", which is git vocabulary a reviewer has no use for and
       # cannot act on. The branch is handled entirely server-side now - see ensure_lane().
       f"<div class=bar id=gitstate>{state}</div>"
 
       "<div class=card>"
-      "<h3>Back up your progress</h3>"
+      "<h3>Back up review progress</h3>"
       # DIRECTLY UNDER THE HEADING, matching the publish card. It was the step's description,
       # which put it below a rule and read as a caption for the label field rather than as what
       # this card is for. (The line that used to sit here described publishing and had been
       # duplicated from the other card - see #75.)
-      "<p class=sub>A local checkpoint you can go back to. Nothing is shared yet.</p>"
+      "<p class=sub>A local checkpoint that can be returned to. Nothing is shared yet.</p>"
       + step(
              "",
              # Empty by DEFAULT, not prefilled. A prefilled box asks to be read, edited and
              # worried about; an empty one labelled "optional" asks for nothing. Blank is
              # handled server-side by auto_commit_message().
-             "<label>Optional label for your changes<span class=hint> — leave blank and your "
+             "<label>Optional label for these changes<span class=hint> — leave blank and the reviewer "
              "name and the time are used</span></label>"
              "<input id=cmsg value='' placeholder='e.g. identity transcripts, first pass'>"
              "<div class=stepacts>"
@@ -8492,14 +8494,14 @@ def git_page():
       # deliverable. The knowledge file that stops the agent repeating that answer is, and
       # writing it is the ONE job here that needs an assistant.
       + "<div class=card>"
-      + "<h3>Publish your reviews</h3>"
+      + "<h3>Publish reviewed transcripts</h3>"
       + "<p class=sub>Publishing needs an assistant for the knowledge files; the rest is buttons.</p>"
       + step("",
              "<ol class=prog id=prog>"
              + ai_stage
              + eval_stage +
              f"<li data-stage=push class='{st['push']}'><b>Upload to GitHub</b>"
-             "<span>pushes your branch</span></li>"
+             "<span>pushes the review branch</span></li>"
              f"<li data-stage=pr class='{st['pr']}'><b>Create the change request</b>"
              "<span>a pull request, for review</span></li>"
              + "</ol>"
@@ -8516,7 +8518,7 @@ def git_page():
              # greyed-out stages implied this button was somehow responsible for them.
              + ("<div class=handoff>Merging and the Foundry upload are on <a href='/prs'><b>PRs</b></a>."
                 if is_admin() else
-                "<div class=handoff>An admin merges it from there. You are done.")
+                "<div class=handoff>An admin merges it from there. Nothing further is needed.")
              + "</div>")
       + "</div>"
       f"<script>window.AI_PROMPT={prompt_json};</script>"
@@ -8534,8 +8536,8 @@ def git_page():
       # you are currently looking at.
       "<div class=card>"
       "<h3 id=outhead>Processing output</h3>"
-      "<p class=sub id=outsub>Files this process is about to move. Green is added, red is "
-      "removed.</p>"
+      "<p class=sub id=outsub>Pending edits are reflected in color: Green indicates addition, "
+      "Red indicates removal.</p>"
       "<pre class=out id=gitout>" + diff_html(review_diff()) + "</pre></div>"
 
       "<details class=card><summary>"
@@ -8560,9 +8562,9 @@ def git_page():
       "<div class=dzrow><div>"
       "<b>Reset unsaved edits</b>"
       "<div class=sub>Puts edited transcripts back to their last saved state. Only touches "
-      "edits you have not saved; anything already saved is untouched, and newly synced "
+      "edits not yet saved; anything already saved is untouched, and newly synced "
       "conversations are left alone. Undoable — the edits are set aside rather than deleted, "
-      "and the output tells you how to put them back.</div>"
+      "and the output explains how to put them back.</div>"
       "</div><div class=dzact>"
       "<button class=sec onclick='resetUnsaved(this)'>Reset unsaved edits</button>"
       "</div></div></div>")
@@ -8644,7 +8646,7 @@ class H(BaseHTTPRequestHandler):
             if not is_admin():
                 return self._send(200, page("Change Requests",
                     "<div class=card><h3>Admins only</h3><p class=sub>Merging is an admin "
-                    "action. Send your reviews in from <b>Save &amp; Share</b> and an admin "
+                    "action. Send the reviews in from <b>Save &amp; Share</b> and an admin "
                     "will merge them.</p></div>", active="git"))
             return self._send(200, pr_page(force="refresh=1" in self.path))
         if self.path == "/git":
@@ -8699,7 +8701,7 @@ class H(BaseHTTPRequestHandler):
                                              or (fields.get("reassign_to") or "").strip()):
                     raise ValueError("a suggestion needs a destination — set 'Suggested to' "
                                      "(a person) or 'Reassign to' (an agent), otherwise it "
-                                     "sits in your queue and nobody is asked to decide")
+                                     "sits in the current queue and nobody is asked to decide")
                 # Refuse to drag a pre-go-live conversation into the review queue. Without
                 # this, one click of Suggest or Mark reviewed silently overwrote an `excluded`
                 # verdict and put months-old internal testing back in front of a reviewer.
@@ -8808,7 +8810,7 @@ class H(BaseHTTPRequestHandler):
                 rels = data.get("paths") or []
                 who = (data.get("reviewer") or "").strip()
                 if not who:
-                    raise ValueError("pick your name first — the reviewer box on any "
+                    raise ValueError("pick a name first — the reviewer box on any "
                                      "transcript, or the filter bar")
                 if who not in contributors():
                     raise ValueError(f"'{who}' is not in contributors.json")
@@ -8974,7 +8976,7 @@ class H(BaseHTTPRequestHandler):
                                  "--delete-branch")
                     if rc == 0:
                         out = ("Queued. GitHub merges it as soon as Blueprint's checks pass — "
-                               "you do not need to stay here.\n\n" + out
+                               "there is no need to wait here.\n\n" + out
                                + "\n\nMerge the knowledge request too, or the fix ships without "
                                  "the documentation it was derived from.")
                 elif act in ("merge", "merge-override"):
@@ -9013,9 +9015,9 @@ class H(BaseHTTPRequestHandler):
                         out = "\n\n".join(parts)
                     elif not override and _needs_override(out):
                         out += ("\n\nGitHub refused because the required approval is missing. "
-                                "You can merge it anyway as an admin — that BYPASSES the review "
-                                "gate, so only do it on your own work:\n"
-                                "  press Merge anyway on your own change request")
+                                "It can be merged anyway as an admin — that BYPASSES the review "
+                                "gate, so only do it on own work:\n"
+                                "  press Merge anyway on an own change request")
                     elif updated:
                         out += ("\n\nThe branch WAS brought up to date, so that part is done "
                                 "— the refusal above is a different reason. Required checks "
@@ -9074,12 +9076,12 @@ class H(BaseHTTPRequestHandler):
                         rc0, out0 = save_reviews(auto_commit_message())
                         if rc0 != 0:
                             return self._send(200, json.dumps({"ok": False, "output": (
-                                "Could not save your work, so the check did NOT run — five "
+                                "Could not save the work in progress, so the check did NOT run — five "
                                 "minutes of Foundry calls is too long to hold uncommitted "
                                 "edits:\n\n" + out0.strip()[:400])}), "application/json")
-                        pre = "Saved your work first:\n" + out0.strip()[:400]
+                        pre = "Saved the work in progress first:\n" + out0.strip()[:400]
                     else:
-                        pre = "Nothing to save — your work is already committed."
+                        pre = "Nothing to save — the work is already committed."
                     if sync_notes:
                         pre = "Synced first:\n  " + "\n  ".join(sync_notes) + "\n\n" + pre
 
@@ -9179,9 +9181,9 @@ class H(BaseHTTPRequestHandler):
                             "No change request was created — " + why + ".\n\n"
                             "Tick \"Include Eval Review\" and press "
                             "the <b>Process</b> button. It uploads the candidate files, asks the agents "
-                            "this batch's questions, puts Foundry back, and shows you the "
+                            "this batch's questions, puts Foundry back, and reports the "
                             "answers. Read them, then send it in.\n\n"
-                            "Nothing has been pushed and nothing was lost — your work is saved "
+                            "Nothing has been pushed and nothing was lost — the work is saved "
                             "locally either way.")}), "application/json")
 
                     # AND every replayed transcript must be individually approved. Running the
@@ -9305,7 +9307,7 @@ def main():
     global ME
     ap = argparse.ArgumentParser()
     ap.add_argument("--port", type=int, default=7777)
-    ap.add_argument("--me", help="your GitHub username, for highlighting your own rows; "
+    ap.add_argument("--me", help="the GitHub username to highlight rows for; "
                                  "defaults to whatever `gh api user` reports")
     ap.add_argument("--no-browser", action="store_true")
     ap.add_argument("--no-avatars", action="store_true",
@@ -9320,18 +9322,18 @@ def main():
         # flush=True throughout: stdout is block-buffered when redirected to a file, and
         # serve_forever() never returns, so an unflushed diagnostic is never seen at all.
         print(f"note: '{ME}' is not in contributors.json, so no rows will be marked "
-              f"as yours. Pass --me with a registered name if that is wrong.", flush=True)
+              f"as the reviewer. Pass --me with a registered name if that is wrong.", flush=True)
         ME = None
     if not ME:
-        print("note: could not identify you, so no rows are highlighted as yours. "
-              "Pass --me <your-github-username>, or check `gh auth status`.", flush=True)
+        print("note: no reviewer identified, so no rows are highlighted. "
+              "Pass --me <github-username>, or check `gh auth status`.", flush=True)
     else:
         by, dflt = agent_owners()
         if not by and not dflt:
             print("note: agent-owners.json is missing or unreadable — no ownership "
                   "highlighting. Row colouring is a convenience; everything else works.",
                   flush=True)
-        print(f"you are: {ME}", flush=True)
+        print(f"identified as: {ME}", flush=True)
     if not TDIR.is_dir() or not tfiles():
         sys.exit("No transcripts found. Run: python3 scripts/fetch_transcripts.py")
     url = f"http://127.0.0.1:{a.port}/"
