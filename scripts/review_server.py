@@ -8042,6 +8042,74 @@ def eval_review_page():
     return page("Eval Review", head + "".join(cards) + foot, active="evalrev")
 
 
+def part2_state():
+    """Which Part 2 stages are already done, derived from reality. {stage: cls}.
+
+    THE PROGRESS LIST USED TO BE CLIENT-SIDE ONLY. Every stage rendered as `wait` on load and
+    only turned green if you happened to be on the page when the step ran - so a reviewer who
+    reloaded, or came back the next morning, saw four untouched steps and no way to tell what had
+    already happened. Worse, the assistant step stayed grey after the knowledge files had been
+    written, which reads as "you still need to do this".
+
+    Derived per stage, cheaply:
+      ai    knowledge work outstanding? awaiting_analysis() is the same count the stage prints.
+      eval  has an eval run against THIS content, and is every transcript approved?
+      push  is the current lane on the remote, with nothing unsent?
+      pr    is there an open change request for it?
+    """
+    out = {}
+    # THREE OUTCOMES, NOT TWO. "Nothing waiting" is ambiguous: it means either the assistant has
+    # finished, or no review in this batch ever asked for a change. Rendering both as `none`
+    # struck through "nothing to update" told a reviewer who HAD run the assistant that their
+    # work did not count. So: `done` when something in this batch is marked applied, `none` only
+    # when there was genuinely nothing to do.
+    applied = 0
+    _, listed = git("diff", "--name-only", "origin/main", "--", "transcripts")
+    for rel in (l.strip() for l in listed.splitlines()):
+        if not rel.endswith(".md") or Path(rel).name in ("README.md", "INDEX.md",
+                                                         "ONBOARDING.md"):
+            continue
+        f = REPO / rel
+        if not f.is_file():
+            continue
+        fm, _b = parse(f)
+        if (fm or {}).get("action_status", "").strip() == "applied":
+            applied += 1
+    if awaiting_analysis():
+        out["ai"] = "wait ai"
+    elif applied:
+        out["ai"] = "done"
+    else:
+        out["ai"] = "none"
+
+    fp = candidate_fingerprint()
+    ran = eval_ran_fingerprint()
+    all_ok, _n_ok, n_tot = eval_all_approved()
+    if not fp:
+        out["eval"] = "none"                      # nothing to evaluate
+    elif ran != fp:
+        out["eval"] = "wait"                      # never run, or the content moved on
+    elif n_tot and all_ok:
+        out["eval"] = "done"
+    else:
+        out["eval"] = "you"                       # ran; waiting on the reviewer to read it
+
+    branch, _ = current_lane()
+    pushed = False
+    if branch:
+        rc, _o = git("rev-parse", "--verify", "--quiet", f"refs/remotes/origin/{branch}")
+        pushed = rc == 0 and not unsent_saves()
+    out["push"] = "done" if pushed else "wait"
+
+    out["pr"] = "wait"
+    if branch:
+        r = subprocess.run(["gh", "pr", "list", "--head", branch, "--state", "open",
+                            "--json", "number", "-q", ".[].number"],
+                           cwd=REPO, capture_output=True, text=True, timeout=60)
+        if (r.stdout or "").strip():
+            out["pr"] = "done"
+    return out
+
 def git_page():
     """Send a finished batch of reviews in.
 
@@ -8056,21 +8124,27 @@ def git_page():
 
     fdry = pending_foundry_uploads()
     n_ai = awaiting_analysis()
+    # DERIVED ON LOAD, so a reload or a fresh morning shows what has actually
+    # happened rather than four untouched steps. The classes used to be set only by
+    # the JS that ran the step, so progress existed solely for whoever was watching.
+    # Must come BEFORE ai_stage is built - it is read there.
+    st = part2_state()
     if n_ai:
         # A stage with its own state, `ai`, because it is neither waiting on this button nor
         # something the page can do. The prompt is a copy button rather than text to retype:
         # the words matter (read all the feedback as one body, ask rather than guess) and
         # nobody should have to remember them.
         ai_stage = (
-            "<li data-stage=ai class='wait ai'><b>Update the knowledge files</b>"
+            f"<li data-stage=ai class='{st['ai']}'><b>Update the knowledge files</b>"
             f"<span><b>{n_ai}</b> transcript(s) waiting. Needs an assistant.<br>"
             "<button type=button class=sec id=aiprompt onclick='copyPrompt(this)' "
             "style='margin-top:8px'>Copy the prompt for my assistant</button>"
             "</span></li>")
     else:
         ai_stage = (
-            "<li data-stage=ai class=none><b>Update the knowledge files</b>"
-            "<span>nothing to update</span></li>")
+            f"<li data-stage=ai class='{st['ai']}'><b>Update the knowledge files</b>"
+            + ("<span>done</span></li>" if st["ai"] == "done"
+               else "<span>nothing to update</span></li>"))
 
     # The eval used to be invisible until it ran: the checkbox described it, but the numbered
     # progress list jumped straight from "Update the knowledge files" to "Upload to GitHub", so
@@ -8081,7 +8155,7 @@ def git_page():
     ev_files, ev_q, _ev_mins = eval_estimate()   # the cost is stated on the checkbox above
     if ev_files and ev_q:
         eval_stage = (
-            "<li data-stage=eval class=wait><b>Eval Review</b>"
+            f"<li data-stage=eval class='{st['eval']}'><b>Eval Review</b>"
             # The cost line lived here AND on the "Include Eval Review" checkbox directly above.
             # One statement of it is enough; this stage only needs to say what to do next.
             "<span>Read/test the updated responses on the <b>Eval Review</b> tab, select "
@@ -8129,9 +8203,9 @@ def git_page():
              "<ol class=prog id=prog>"
              + ai_stage
              + eval_stage +
-             "<li data-stage=push class=wait><b>Upload to GitHub</b>"
+             f"<li data-stage=push class='{st['push']}'><b>Upload to GitHub</b>"
              "<span>pushes your branch</span></li>"
-             "<li data-stage=pr class=wait><b>Create the change request</b>"
+             f"<li data-stage=pr class='{st['pr']}'><b>Create the change request</b>"
              "<span>a pull request, for review</span></li>"
              + "</ol>"
              + _eval_optin()

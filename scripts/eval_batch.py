@@ -214,20 +214,84 @@ def sync_once():
     return None
 
 
-def wait_for_content(col, filename, expect_sha, budget=420):
-    """Poll until the collection serves the expected bytes. Returns seconds waited, or None.
+def probe_string(new_text, old_text, minlen=40):
+    """A sentence present in the NEW file and absent from the OLD one, for a retrieval probe.
 
-    Waits on CONTENT, not on `ingestionStatus`. The status field lagged retrieval by minutes when
-    measured, in both directions - so it is the weaker signal for "is this live yet", and using it
-    would either start the eval too early or waste minutes after it was already ready.
+    The longest such line, because a longer string is less likely to appear by chance in another
+    chunk and more likely to survive intact inside one. Returns None when nothing distinguishes
+    them - a brand-new file, or an edit too small to probe for.
+    """
+    oldset = set(old_text.splitlines())
+    cands = [l.strip() for l in new_text.splitlines()
+             if l not in oldset and len(l.strip()) >= minlen and not l.strip().startswith("#")]
+    return max(cands, key=len) if cands else None
+
+
+def retrieval_has(col, probe, query):
+    """Is `probe` in any chunk the retriever returns for `query`? Scoped to one collection."""
+    try:
+        rs = api("/api/tenant-knowledge-base/retrieve", method="POST", payload={
+            "query": query, "numberOfResults": 10, "searchType": "HYBRID",
+            "filterCollectionNames": [col]}) or []
+    except SystemExit:
+        raise
+    except Exception:                                                     # noqa: BLE001
+        return False
+    return any(probe in (r.get("content") or "") for r in rs)
+
+
+def probe_for(rdir, col, rel):
+    """(probe, query) for one candidate file, or (None, None). Derived from the restore point.
+
+    The restore point holds the bytes Foundry was serving BEFORE the upload, which is exactly the
+    "old version" a distinguishing probe needs. Nothing else on disk has it: git's origin/main
+    copy is what SHOULD have been live, not necessarily what was.
+    """
+    name = pathlib.Path(rel).name
+    old = rdir / col / name
+    if not old.is_file():
+        return None, None
+    try:
+        probe = probe_string((REPO / rel).read_text(encoding="utf-8", errors="replace"),
+                             old.read_text(encoding="utf-8", errors="replace"))
+    except Exception:                                                     # noqa: BLE001
+        return None, None
+    if not probe:
+        return None, None
+    # The query only has to make the retriever surface this file's neighbourhood; the probe is
+    # what actually decides. First words of the probe are as good a query as any.
+    return probe, " ".join(probe.split()[:12])
+
+def wait_for_content(col, filename, expect_sha, budget=420, probe=None, query=None):
+    """Poll until the collection SERVES the new text to a retriever. Seconds waited, or None.
+
+    THE BUG THIS FIXES, AND WHY IT MATTERED MORE THAN ANY OTHER IN THIS FILE.
+    ------------------------------------------------------------------------
+    This used to download the file and compare hashes. That reads the STORED OBJECT, which is
+    written the instant the upload lands - so it returned "live after 0s" every time, while the
+    Bedrock vector index the agent actually searches was still serving the previous chunks. The
+    eval then asked its questions against stale retrieval and recorded the OLD answer, which
+    reads as the knowledge fix not working. Measured 2026-08-29 on a 4-file run: all four
+    reported live after 0s, the replayed answer still contained the exact claim the change
+    removed, and a retrieval probe minutes later showed the new text had by then arrived.
+
+    So: probe RETRIEVAL for a string that exists only in the new version. That is the same test
+    CLAUDE.md prescribes for verifying an upload by hand, and the only one that speaks for the
+    index rather than the store.
+
+    Falls back to the object-hash check when no probe can be derived - a new file has no old
+    version to differ from. That fallback is weak for the reason above and is reported as such
+    by the caller, rather than quietly passing for a stronger check than it is.
     """
     t0 = time.time()
     while time.time() - t0 < budget:
-        recs = remote_records(col)
-        rec = recs.get(filename)
-        if rec:
-            got = download(col, rec["id"])
-            if hashlib.sha256(got).hexdigest() == expect_sha:
+        if probe and query:
+            if retrieval_has(col, probe, query):
+                return int(time.time() - t0)
+        else:
+            recs = remote_records(col)
+            rec = recs.get(filename)
+            if rec and hashlib.sha256(download(col, rec["id"])).hexdigest() == expect_sha:
                 return int(time.time() - t0)
         time.sleep(15)
     return None
@@ -385,11 +449,19 @@ def main():
     for col, fs in cols.items():
         for f in fs:
             want = hashlib.sha256((REPO / f).read_bytes()).hexdigest()
-            waited = wait_for_content(col, pathlib.Path(f).name, want)
+            probe, query = probe_for(rdir, col, f)
+            waited = wait_for_content(col, pathlib.Path(f).name, want,
+                                      probe=probe, query=query)
             propagation.append({"collection": col, "file": pathlib.Path(f).name,
-                                "live": waited is not None, "seconds": waited})
+                                "live": waited is not None, "seconds": waited,
+                                # Recorded so a run verified only against the stored object -
+                                # the weak check - cannot be mistaken for one verified against
+                                # the index.
+                                "verified_by": "retrieval" if probe else "stored-object"})
             print(f"      {col}/{pathlib.Path(f).name}: "
-                  + (f"live after {waited}s" if waited is not None
+                  + (f"live after {waited}s"
+                     + ("" if probe else "  (stored object only — retrieval NOT confirmed)")
+                     if waited is not None
                      else "TIMED OUT — the answers below may not reflect the change"))
     (rdir / "PROPAGATION.json").write_text(json.dumps(propagation, indent=2))
     stale = [p for p in propagation if not p["live"]]
@@ -516,7 +588,9 @@ def reupload(rdir):
     for col, fs in cols.items():
         for f in fs:
             want = hashlib.sha256((REPO / f).read_bytes()).hexdigest()
-            waited = wait_for_content(col, pathlib.Path(f).name, want)
+            probe, query = probe_for(rdir, col, f)
+            waited = wait_for_content(col, pathlib.Path(f).name, want,
+                                      probe=probe, query=query)
             if waited is None:
                 stale.append(f"{col}/{pathlib.Path(f).name}")
             print(f"      {col}/{pathlib.Path(f).name}: "
