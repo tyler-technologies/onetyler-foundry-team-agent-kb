@@ -3258,7 +3258,7 @@ def page(title, inner, active="", all_view=False, rel="", agent=""):
         # is not. Admin-only for the same reason the backup repo is - snapshots carry agent
         # instructions, tenant storage paths, and per-file IDs that are direct DELETE handles.
         + ("<div class=grp>Backups</div>"
-           + item("/backups", icon("backup_restore", 19, "ic-bk"), "Config Backups", None, "backups")
+           + item("/backups", icon("backup_restore", 19, "ic-bk"), "Backups", None, "backups")
            if is_admin() else "")
         + "</nav>")
     return f"""<!doctype html><meta charset=utf-8><title>{html.escape(title)}</title>
@@ -6820,9 +6820,33 @@ def backups_page(force=False, browse="", compare="", agent="", date=""):
                        "Conclusion of the most recent `snapshot` workflow run.",
                        html.escape(((last_run or {}).get("createdAt") or "")[:16].replace("T", " ")))
                 + tile("Mirror bundles", len(d["releases"]), "grey",
-                       "Weekly full git bundles of the knowledge repo, kept as release assets. "
-                       "Zero is expected until MAIN_REPO_READ_TOKEN is set.")
+                       "Weekly full git bundles of the knowledge repo, kept as release assets.")
+                # THE HEADLINE FACT, not a detail. A snapshot used to pin config precisely and
+                # say nothing about which knowledge commit accompanied it, so a day could not be
+                # restored as a unit - config and knowledge were two backups of one system. This
+                # tile is the answer to "can I actually roll back to this day".
+                + tile("Restorable as a day",
+                       "yes" if m.get("restorable") else "no",
+                       "green" if m.get("restorable") else "red",
+                       "Green means the knowledge commit is pinned AND every live Foundry file "
+                       "matches it, so config and knowledge can be put back together. Red means "
+                       "the commit is unknown, or a file was edited in Foundry and those exact "
+                       "bytes exist nowhere.",
+                       (f"knowledge @ {html.escape((m.get('kb_repo') or {}).get('commit','')[:8])}"
+                        if (m.get("kb_repo") or {}).get("commit") else "not pinned"))
                 + "</div>")
+
+    drifted = m.get("kb_files_drifted") or []
+    if drifted:
+        body.append("<div class='bar bnr-router'><b>"
+                    + str(len(drifted))
+                    + " live file(s) do not match the pinned commit</b>, so this day cannot be "
+                      "restored exactly. Those bytes were written in Foundry and exist nowhere "
+                      "else."
+                    + "".join(f"<br>&nbsp;&nbsp;<code>{html.escape(x.get('collection',''))}/"
+                              f"{html.escape(x.get('file',''))}</code> — "
+                              f"{html.escape(x.get('why',''))}" for x in drifted[:10])
+                    + "</div>")
 
     body.append("<h3 class=angroup>What the newest snapshot captured</h3><div class=kpis>"
                 + tile("Agent configs", f"{agents_n}/{exp.get('agents', 5)}",
