@@ -2589,7 +2589,7 @@ function resetPart2(){
  document.querySelectorAll('.evalgate').forEach(g=>g.remove());
  const cb=document.getElementById('doeval'); if(cb) cb.checked=true;
  const b=document.querySelector('[data-ai-pending]');
- if(b){b.disabled=false; b.textContent='Send my reviews in';}
+ if(b){b.disabled=false; b.textContent='Process Part 2';}
 }
 function copyPrompt(btn){
  const text=window.AI_PROMPT||'';
@@ -4119,7 +4119,7 @@ NOTHING_TO_SAVE = 99
 def save_reviews(msg):
     """Put this sitting on its own branch if needed, then commit the reviewer's work.
 
-    This is "Save my reviews", and it is also the first thing "Send my reviews in" does. The
+    This is "Save my reviews", and it is also the first thing "Process Part 2" does. The
     branch part is invisible: it happens here rather than as a step on the page, because it is
     just a git branch with no decision in it.
 
@@ -4285,7 +4285,7 @@ def auto_commit_message():
     """Used when the reviewer leaves the label box empty, which is the expected case.
 
     Carries the git user and a timestamp. Git records both itself, so this is redundant in
-    `git log` - but it is NOT redundant where it actually gets read: "Send my reviews in" runs
+    `git log` - but it is NOT redundant where it actually gets read: "Process Part 2" runs
     `gh pr create --fill`, which takes the change request's TITLE from the first commit. A
     generic title makes a list of open requests from several reviewers unreadable, and the
     timestamp separates one sitting from the same person's next one.
@@ -8105,7 +8105,7 @@ def git_page():
              + _router_warning()
              + "<div class=stepacts>"
              f"<button onclick='sendReviews(this)' data-ai-pending='{n_ai}'>"
-             "Send my reviews in</button></div>"
+             "Process Part 2</button></div>"
              # Part 2 ENDS here. Merging and the Foundry upload are decisions ABOUT a request
              # that already exists, not steps in submitting one, and they live on the PRs tab
              # where the request can be seen next to its checks. Listing them here as
@@ -8651,7 +8651,7 @@ class H(BaseHTTPRequestHandler):
                     if bp_batch():
                         _okb, msgb = bp_sync()
                         sync_notes.append(msgb.strip())
-                    # SAVE THE REVIEWER'S WORK FIRST, for the same reason "Send my reviews in"
+                    # SAVE THE REVIEWER'S WORK FIRST, for the same reason "Process Part 2"
                     # does. The eval reads the WORKING TREE, so it evaluates uncommitted edits -
                     # and then spends five minutes talking to Foundry, which is a long window in
                     # which to lose them to a crash or a closed laptop.
@@ -8768,7 +8768,7 @@ class H(BaseHTTPRequestHandler):
                         return self._send(200, json.dumps({"ok": False, "output": (
                             "No change request was created — " + why + ".\n\n"
                             "Tick \"Include Eval Review\" and press "
-                            "Send my reviews in. It uploads the candidate files, asks the agents "
+                            "Process Part 2. It uploads the candidate files, asks the agents "
                             "this batch's questions, puts Foundry back, and shows you the "
                             "answers. Read them, then send it in.\n\n"
                             "Nothing has been pushed and nothing was lost — your work is saved "
@@ -8806,7 +8806,7 @@ class H(BaseHTTPRequestHandler):
                                          else "COULD NOT remove the live eval content — "
                                               "it may still be serving users. " + msgr[:200]))
 
-                    # Save FIRST, always. "Send my reviews in" used to push and open a PR
+                    # Save FIRST, always. "Process Part 2" used to push and open a PR
                     # without committing, so a reviewer who never clicked Save sent an empty
                     # change request and was told it worked. Save is a checkpoint a reviewer
                     # may want; it must not be a prerequisite they can forget.
