@@ -424,10 +424,14 @@ def main():
     # directory, the UI shows a standing warning with the elapsed time, and removal is one
     # button. The restore point is on disk either way, so nothing here is unrecoverable.
     if keep:
+        # HASHES, not just names. Without them nothing downstream can tell that the reviewer's
+        # assistant has edited a file since this upload - so "Ask again" would answer from the
+        # PREVIOUS round and read as the fix not working.
         (rdir / "LIVE").write_text(json.dumps({
             "since": dt.datetime.now(dt.timezone.utc).isoformat(),
             "collections": sorted(cols),
             "files": files,
+            "hashes": {f: hashlib.sha256((REPO / f).read_bytes()).hexdigest() for f in files},
         }, indent=2))
         print("\n[5/5] LEAVING THE CANDIDATE CONTENT LIVE (--keep)")
         print("      The agents answer from it until you remove it. Try adjacent phrasings now.")
@@ -524,6 +528,7 @@ def reupload(rdir):
         "reuploaded": dt.datetime.now(dt.timezone.utc).isoformat(),
         "collections": sorted(cols),
         "files": files,
+        "hashes": {f: hashlib.sha256((REPO / f).read_bytes()).hexdigest() for f in files},
     }, indent=2))
     if stale:
         print(f"\n  ⚠ {len(stale)} file(s) did not go live: " + ", ".join(stale)

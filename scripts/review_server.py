@@ -2363,10 +2363,38 @@ function evTally(r){
 }
 // Ask an adjacent phrasing against the live candidate content. The answer is appended, never
 // substituted for the scripted one - consistency across phrasings is the thing being judged.
+// TWO HAZARDS, BOTH WARNED RATHER THAN BLOCKED.
+//  1. The answer replaces what is in Now - so unsaved {{...}} markup is lost. That is the one
+//     that costs work, so it leads.
+//  2. With nothing live, the answer comes from the PUBLISHED content and says nothing about the
+//     change under review. Worth knowing, not worth forbidding: a reviewer may want to see what
+//     the agent says today, and the answer is labelled accordingly in Earlier either way.
 function evAsk(btn,key,agent){
  const card=btn.closest('.evcard'), box=card.querySelector('.evqbox');
  const q=(box.value||'').trim();
  if(!q){toast('Type a question first');return}
+ const nowBox=card.querySelector('.evnowbox');
+ const edited=nowBox && (nowBox.value||'')!==(nowBox.dataset.orig||'');
+ const notLive=btn.dataset.live==='0';
+ const nStale=parseInt(btn.dataset.stale||'0',10)||0;
+ if(edited||notLive||nStale){
+   const parts=[];
+   if(edited) parts.push('<b>Your edits to Now will be replaced</b> by the new answer, '
+     +'including any <code>{{...}}</code> you have typed. Copy the prompt first if you want '
+     +'to keep them.');
+   if(notLive) parts.push('<b>Nothing is live in Foundry</b>, so the answer will come from the '
+     +'PUBLISHED content — it will not reflect your knowledge edits. Use '
+     +'<b>Foundry re-upload</b> first if you want to test those.');
+   else if(nStale) parts.push('<b>'+nStale+' knowledge file(s) have changed since the last '
+     +'upload</b>, so the answer will come from the PREVIOUS round, not your latest edits — '
+     +'which looks exactly like the fix not working. Press <b>Foundry re-upload</b> first.');
+   confirmThen(btn,'Ask again?',parts.join('<br><br>'),()=>evAskGo(btn,key,agent,q));
+   return;
+ }
+ evAskGo(btn,key,agent,q);
+}
+function evAskGo(btn,key,agent,q){
+ const card=btn.closest('.evcard');
  // An agent round-trip is seconds, and the reviewer is staring at a screen that looks the same
  // as before. So: the button counts, the answer is stamped with the server's own time, and the
  // new block flashes. Without the stamp two Asks produced identical-looking blocks and there was
@@ -7135,6 +7163,29 @@ def eval_live():
         pass
     m["minutes"] = mins
     m["dir"] = str(d.relative_to(REPO))
+    # WHICH FILES HAVE MOVED ON SINCE THE UPLOAD. This is the gap that made the iteration loop
+    # quietly lie: the assistant edits a knowledge file, the reviewer presses Ask again, and the
+    # agent answers from the content uploaded BEFORE those edits - which reads as the fix not
+    # working. Nothing warned, because the marker recorded only file NAMES.
+    import hashlib as _h
+    stale = []
+    for f, want in (m.get("hashes") or {}).items():
+        fp = REPO / f
+        if not fp.is_file():
+            continue
+        if _h.sha256(fp.read_bytes()).hexdigest() != want:
+            stale.append(f)
+    # A file added to the candidate set since the upload has never been uploaded at all.
+    known = set((m.get("hashes") or {}).keys())
+    try:
+        sys.path.insert(0, str(REPO / "scripts"))
+        import eval_batch as _eb
+        for f in _eb.candidate_files():
+            if f not in known:
+                stale.append(f)
+    except Exception:                                                     # noqa: BLE001
+        pass
+    m["stale"] = sorted(set(stale))
     return m
 
 
@@ -7209,7 +7260,7 @@ def eval_variants():
         return {}
 
 
-def eval_add_variant(key, question, answer):
+def eval_add_variant(key, question, answer, was_live=True):
     """Store one variant and RETURN THE RECORD, so the response can echo the exact stamp.
 
     Returning the whole dict was the mistake: the caller then had nothing specific to send back,
@@ -7218,7 +7269,7 @@ def eval_add_variant(key, question, answer):
     the same write that stored it.
     """
     p = _var_path()
-    rec = {"question": question, "answer": answer,
+    rec = {"question": question, "answer": answer, "live": bool(was_live),
            "at": datetime.now().strftime("%H:%M:%S")}
     if p is None:
         return rec
@@ -7664,7 +7715,9 @@ def variants_html(earlier):
         return ""
     rows = "".join(
         f"<div class=evvar><div class=evlab>{html.escape(v.get('at') or '')}"
-        + (" &middot; from the run" if v.get("scripted") else " &middot; asked")
+        + (" &middot; from the run" if v.get("scripted")
+           else (" &middot; asked" if v.get("live", True)
+                 else " &middot; asked against PUBLISHED content"))
         + f"</div><div class=evvq>{html.escape(v.get('question') or '')}</div>"
         f"<pre>{html.escape(v.get('answer') or '(no answer)')}</pre></div>"
         for v in earlier)
@@ -7745,8 +7798,14 @@ def eval_review_page():
             "Left up on purpose so you can try adjacent phrasings below. It comes down when you "
             "press <b>Remove evals</b>, or by itself when you send the batch in &mdash; and goes "
             "back up permanently on merge."
-            "<div class=stepacts style='margin-top:10px'>"
-            "<button class=sec onclick='evRemove(this)'>Remove evals</button></div></div>")
+            + (f"<br><br><b>{len(live['stale'])} knowledge file(s) have changed since that "
+               "upload</b>, so what is live is behind your repo. Press <b>Foundry re-upload</b> "
+               "before asking again, or the answers will come from the previous round:"
+               + "".join(f"<br>&nbsp;&nbsp;<code>{html.escape(f)}</code>"
+                         for f in live["stale"])
+               if live.get("stale") else "")
+            + "<div class=stepacts style='margin-top:10px'>"
+            + "<button class=sec onclick='evRemove(this)'>Remove evals</button></div></div>")
     else:
         livebar = ("<div class='bar bnr-note'>The candidate content is <b>not</b> live &mdash; "
                    "Foundry holds the published content. Answers below are from the run; asking "
@@ -7821,10 +7880,16 @@ def eval_review_page():
             f"<textarea class=evqbox data-orig=\"{html.escape(q)}\" rows=2 "
             f"oninput='evQEdited(this)'>{html.escape(q)}</textarea>"
             "<div class=stepacts style='margin:6px 0 0'>"
-            + (f"<button onclick=\"evAsk(this,'{html.escape(key)}','{html.escape(agent)}')\">"
-               "Ask again</button>"
-               if live else
-               "<button disabled title='The candidate content is not live'>Ask again</button>")
+            # ALWAYS ENABLED. It used to be disabled whenever nothing was live, on the grounds
+            # that the answer would come from PUBLISHED content and so say nothing about the
+            # change being reviewed. That reasoning is right but the remedy was wrong: a
+            # reviewer may legitimately want to see what the agent says today, and a dead button
+            # cannot explain itself. Both hazards - answering from published content, and
+            # replacing unsaved {{...}} markup - are now warnings on the click.
+            + f"<button data-live='{'1' if live else '0'}' "
+            f"data-stale='{len((live or {}).get('stale') or [])}' "
+            f"onclick=\"evAsk(this,'{html.escape(key)}','{html.escape(agent)}')\">"
+            "Ask again</button>"
             + "<button class='sec evresetq' disabled title='The question is unchanged' "
             "onclick='evResetQ(this)'>Reset question</button>"
             # Sits with the other two because this is where the loop happens - mark up, copy the
@@ -8348,15 +8413,15 @@ class H(BaseHTTPRequestHandler):
             if not q:
                 return self._send(200, json.dumps(
                     {"ok": False, "output": "Type a question first."}), "application/json")
-            if not eval_live():
-                return self._send(200, json.dumps({"ok": False, "output": (
-                    "The candidate content is not live, so an answer now would come from the "
-                    "PUBLISHED content and would tell you nothing about your change. Run the "
-                    "check again.")}), "application/json")
+            # No longer refused when nothing is live - the reviewer is warned on the click and
+            # may still want to see today's answer. But the provenance is RECORDED, because an
+            # answer from published content sitting unlabelled in Earlier would later be read as
+            # evidence about the candidate change, which is the opposite of what it is.
+            was_live = bool(eval_live())
             ok, ans = eval_ask_live(slug, q)
             at, pct = "", None
             if ok:
-                at = (eval_add_variant(key, q, ans) or {}).get("at", "")
+                at = (eval_add_variant(key, q, ans, was_live) or {}).get("at", "")
                 # Recomputed server-side rather than in the page: the tokeniser and the stop
                 # list live here, and a second implementation in JS would drift from this one
                 # and disagree with what a reload shows.
@@ -8373,7 +8438,7 @@ class H(BaseHTTPRequestHandler):
                             break
             return self._send(200, json.dumps(
                 {"ok": ok, "answer": ans, "question": q, "at": at, "pct": pct,
-                 "output": "" if ok else ans}), "application/json")
+                 "live": was_live, "output": "" if ok else ans}), "application/json")
         if self.path == "/evalprompt":
             ok, text = eval_improve_prompt((data.get("key") or "").strip(),
                                            data.get("edited") or "")
