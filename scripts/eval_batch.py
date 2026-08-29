@@ -278,14 +278,26 @@ def main():
     ap.add_argument("--restore-only", metavar="DIR",
                     help="put Foundry back from a saved restore point and exit")
     ap.add_argument("--yes", action="store_true", help="skip the confirmation")
+    ap.add_argument("--keep", action="store_true",
+                    help="leave the candidate content LIVE in Foundry after the questions, so "
+                         "adjacent phrasings can be tried. Writes a LIVE marker; remove with "
+                         "--restore-only.")
     a = ap.parse_args()
 
     if not KEY:
         die("FOUNDRY_API_KEY is not set.")
 
     if a.restore_only:
-        return restore(pathlib.Path(a.restore_only))
+        d = pathlib.Path(a.restore_only)
+        rc = restore(d)
+        # Clear the marker only on success. A failed restore that still looked "removed" would
+        # leave candidate content live with nothing in the UI saying so - the exact state this
+        # marker exists to make visible.
+        if rc == 0:
+            (d / "LIVE").unlink(missing_ok=True)
+        return rc
 
+    keep = a.keep
     files = candidate_files()
     transcripts = batch_transcripts()
     pairs = []
@@ -391,9 +403,32 @@ def main():
             print(f"  A: {ans[:600]}")
     (rdir / "RESULTS.json").write_text(json.dumps(results, indent=2))
 
-    # ---- 5. put it back ------------------------------------------------------------------
-    print("\n[5/5] Restoring Foundry")
-    restore(rdir)
+    # ---- 5. put it back, OR leave it up on purpose ---------------------------------------
+    #
+    # WHY --keep EXISTS, AND WHY IT IS NOT THE SAFE-LOOKING OPTION.
+    # One phrasing of one question does not establish that a knowledge change is sound. The
+    # reviewer needs to try adjacent questions - the same thing asked differently, the
+    # neighbouring topic that shares a chunk - and that is impossible if the candidate content
+    # is torn down the moment the scripted questions finish.
+    #
+    # The cost is real and must not be soft-pedalled: the candidate content stays LIVE for
+    # every user of these agents until somebody removes it. That is a much longer exposure than
+    # the few minutes the auto-restore gave. So --keep writes a LIVE marker naming the restore
+    # directory, the UI shows a standing warning with the elapsed time, and removal is one
+    # button. The restore point is on disk either way, so nothing here is unrecoverable.
+    if keep:
+        (rdir / "LIVE").write_text(json.dumps({
+            "since": dt.datetime.now(dt.timezone.utc).isoformat(),
+            "collections": sorted(cols),
+            "files": files,
+        }, indent=2))
+        print("\n[5/5] LEAVING THE CANDIDATE CONTENT LIVE (--keep)")
+        print("      The agents answer from it until you remove it. Try adjacent phrasings now.")
+        print(f"      Remove with: python3 scripts/eval_batch.py --restore-only "
+              f"{rdir.relative_to(REPO)}")
+    else:
+        print("\n[5/5] Restoring Foundry")
+        restore(rdir)
 
     print(f"\nResults saved to {(rdir / 'RESULTS.json').relative_to(REPO)}")
     print("Read the answers above. If they are wrong, the change is not ready — reset those "

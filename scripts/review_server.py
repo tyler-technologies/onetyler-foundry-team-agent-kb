@@ -1488,6 +1488,16 @@ line-height:1.5;white-space:pre-wrap;word-break:break-word;max-height:320px;over
 border:1px solid var(--forge-theme-outline-low)}
 .evbefore pre{background:var(--d-del-bg,var(--forge-theme-surface-container))}
 .evafter pre{background:var(--d-add-bg,var(--forge-theme-surface-container))}
+.evask{margin:0 0 10px}
+.evqbox{width:100%;box-sizing:border-box;font:inherit;font-size:13.5px;padding:8px 10px;
+border:1px solid var(--forge-theme-outline-medium);border-radius:5px;resize:vertical;
+background:var(--forge-theme-surface);color:var(--forge-theme-text-high)}
+.evqbox:focus{outline:2px solid var(--forge-theme-primary);outline-offset:-1px}
+.evvar{margin-top:10px;padding-left:10px;border-left:2px solid var(--forge-theme-outline-low)}
+.evvq{font-size:13px;font-weight:500;margin:0 0 5px}
+.evvar pre{margin:0;padding:9px 10px;border-radius:5px;font-size:12px;line-height:1.5;
+white-space:pre-wrap;word-break:break-word;max-height:260px;overflow:auto;
+background:var(--forge-theme-surface-container);border:1px solid var(--forge-theme-outline-low)}
 .evcorr{margin-top:10px}
 .evcorr summary{cursor:pointer;font-size:13px;color:var(--forge-theme-primary)}
 .evcorr pre{margin:8px 0 0;padding:10px;border-radius:5px;font-size:12.5px;white-space:pre-wrap;
@@ -2302,6 +2312,51 @@ function evTally(r){
  const send=document.getElementById('evsend');
  if(send){send.disabled=!r.allOk;
    send.title = r.allOk ? '' : 'Approve every transcript first';}
+}
+// Ask an adjacent phrasing against the live candidate content. The answer is appended, never
+// substituted for the scripted one - consistency across phrasings is the thing being judged.
+function evAsk(btn,key,agent){
+ const card=btn.closest('.evcard'), box=card.querySelector('.evqbox');
+ const q=(box.value||'').trim();
+ if(!q){toast('Type a question first');return}
+ const was=btn.textContent; btn.disabled=true; btn.textContent='Asking…';
+ post('/evalask',{key:key,agent:agent,question:q}).then(r=>{
+   btn.disabled=false; btn.textContent=was;
+   if(r.ok===false){toast(r.output||'Could not ask');return}
+   const host=card.querySelector('.evvars');
+   const d=document.createElement('div'); d.className='evvar';
+   d.innerHTML='<div class=evlab>just now &middot; asked</div>'
+     +'<div class=evvq></div><pre></pre>';
+   d.querySelector('.evvq').textContent=r.question||q;
+   d.querySelector('pre').textContent=r.answer||'(no answer)';
+   host.appendChild(d);
+   d.scrollIntoView({block:'nearest',behavior:'smooth'});
+ }).catch(e=>{btn.disabled=false; btn.textContent=was; toast('Could not ask: '+e)});
+}
+// Back to what the transcript actually asked. Cheap to provide and the alternative is asking
+// someone to remember an exact wording they have since typed over three times.
+function evResetQ(btn){
+ const box=btn.closest('.evcard').querySelector('.evqbox');
+ box.value=box.dataset.orig||''; box.focus();
+}
+// Take the candidate content out of production. Minutes long - it is a second upload plus a
+// Bedrock sync - so the button says what it is doing rather than looking hung.
+function evRemove(btn){
+ confirmThen(btn,'Remove the eval content from Foundry?',
+   'Puts the published content back, so the agents stop answering from your candidate files. '
+   +'Your knowledge edits and approvals are untouched — this only affects what is live in '
+   +'Foundry, and it goes back up permanently when the change is merged.',
+   ()=>{
+     const was=btn.textContent; btn.disabled=true; btn.textContent='Removing…';
+     const out=document.getElementById('gitout');
+     if(out){out.style.display='block';
+       out.textContent='Uploading the previous content back and waiting for the sync.\nA few minutes.\n\nWorking…';}
+     return post('/evalremove',{}).then(r=>{
+       if(out){out.textContent=r.output||'(no output)';}
+       btn.disabled=false; btn.textContent=was;
+       if(r.ok && !r.live){ location.reload(); }
+     });
+   });
 }
 function evSend(btn){
  confirmThen(btn,'Send the batch in?',
@@ -4234,20 +4289,29 @@ def bp_git(*args, timeout=120):
     return r.returncode, (r.stdout + r.stderr).strip()
 
 
-def bp_git_raw(*args, timeout=120):
-    """git in Blueprint, returning stdout EXACTLY as produced. (rc, stdout, stderr).
+def bp_git_bytes(*args, timeout=120):
+    """git in Blueprint, returning stdout as RAW BYTES. (rc, stdout_bytes, stderr_text).
 
-    A patch is whitespace-significant: a blank context line is a single space, and `.strip()`
-    deletes the trailing ones while the hunk header goes on claiming they are there. That yields
-    `error: corrupt patch at line N` from `git apply` - which reads like a damaged file rather
-    than a caller that trimmed it. Measured on the first real staged patch: a hunk header saying
-    7 old lines with only 6 left after stripping.
+    THE ONLY SAFE WAY TO CAPTURE A PATCH. Two separate things corrupt one, and both have
+    actually happened here:
 
-    Mixing stderr into stdout would corrupt a patch just as effectively, so they stay apart.
+    1. `.strip()` (see bp_git) deletes trailing blank context lines - a blank context line is a
+       single space - while the hunk header goes on claiming they are there. Result:
+       `error: corrupt patch at line N`, which reads like a damaged file rather than a caller
+       that trimmed it.
+
+    2. `text=True` performs universal-newline translation, silently rewriting every `\\r\\n` as
+       `\\n`. Blueprint has CRLF files (`workspaces.md` is 95 CRLF lines, 0 LF), so a patch
+       captured in text mode does not match the file it came from and `git apply` refuses it.
+       This one is nastier than the first: the patch looks perfectly well-formed, and the same
+       diff applies fine from the command line, so the bug appears to be in the repo rather
+       than in the capture.
+
+    Bytes mode fixes both, and stderr stays separate because mixing it into stdout would
+    corrupt a patch just as effectively.
     """
-    r = subprocess.run(["git", *args], cwd=BP_REPO, capture_output=True, text=True,
-                       timeout=timeout)
-    return r.returncode, r.stdout, r.stderr
+    r = subprocess.run(["git", *args], cwd=BP_REPO, capture_output=True, timeout=timeout)
+    return r.returncode, r.stdout, (r.stderr or b"").decode(errors="replace")
 
 
 def bp_sync():
@@ -4379,8 +4443,9 @@ def bp_stage_add(rel):
     # -N so a brand-new page appears in `git diff` at all; without it an added file is untracked
     # and the patch would silently omit the whole thing.
     bp_git("add", "-AN")
-    # RAW, not bp_git: see bp_git_raw. Stripping this output produces a patch git refuses.
-    rc, patch, err = bp_git_raw("diff", "--binary", "origin/master")
+    # BYTES, not bp_git and not text mode: see bp_git_bytes. Stripping the output, or letting
+    # Python translate newlines, each produce a patch git refuses.
+    rc, patch, err = bp_git_bytes("diff", "--binary", "origin/master")
     if rc != 0:
         return False, f"could not read the Blueprint diff: {err[:300]}"
     if not patch.strip():
@@ -4388,7 +4453,7 @@ def bp_stage_add(rel):
                        "to this transcript. Make the Blueprint edits first, then stage them.")
     files = bp_changes()
     BP_STAGE.mkdir(exist_ok=True)
-    bp_stage_path(rel).write_text(patch if patch.endswith("\n") else patch + "\n")
+    bp_stage_path(rel).write_bytes(patch if patch.endswith(b"\n") else patch + b"\n")
     # Prove the patch is sound BEFORE throwing the working tree away. Writing a patch that
     # cannot be replayed and then resetting would destroy the edits with nothing recoverable,
     # and the failure would surface days later at send time with the work gone. That is not
@@ -4428,7 +4493,10 @@ def bp_staged():
     out = {}
     for p in sorted(BP_STAGE.glob("*.patch")):
         rel = known.get(p.stem, p.stem)
-        files = sorted({m.group(1) for m in
+        # rstrip("\r") because a CRLF file's patch mixes line endings: git writes the header
+        # lines with LF but the content lines carry the file's own CRLF, and a stray \r on a
+        # captured path would make every filename comparison miss.
+        files = sorted({m.group(1).rstrip("\r") for m in
                         re.finditer(r"^\+\+\+ b/(.+)$", p.read_text(errors="replace"), re.M)})
         out[rel] = files
     return out
@@ -6877,6 +6945,108 @@ def eval_propagation():
         return []
 
 
+def eval_live():
+    """The LIVE marker for the newest run, or None. {since, collections, files, minutes}.
+
+    A run started with --keep leaves the candidate content SERVING REAL USERS until somebody
+    takes it down. That is the point - one phrasing of one question does not establish that a
+    change is sound, and adjacent phrasings cannot be tried against content that has already
+    been torn down - but it is also a standing production exposure, so it has to be impossible
+    to forget. Hence a marker on disk rather than in memory: it survives a server restart, and
+    the UI can show how long it has been up.
+    """
+    d = latest_eval_dir()
+    if d is None or not (d / "LIVE").is_file():
+        return None
+    try:
+        m = json.loads((d / "LIVE").read_text())
+    except Exception:                                                     # noqa: BLE001
+        return None
+    mins = None
+    try:
+        since = datetime.fromisoformat(m["since"])
+        mins = int((datetime.now(since.tzinfo) - since).total_seconds() // 60)
+    except Exception:                                                     # noqa: BLE001
+        pass
+    m["minutes"] = mins
+    m["dir"] = str(d.relative_to(REPO))
+    return m
+
+
+def eval_remove():
+    """Put Foundry back and clear the LIVE marker. (ok, message)."""
+    d = latest_eval_dir()
+    if d is None:
+        return False, "There is no eval run to remove."
+    if not (d / "LIVE").is_file():
+        return True, "Nothing is live — Foundry is already back to what it was."
+    if not os.environ.get("FOUNDRY_API_KEY"):
+        return False, ("FOUNDRY_API_KEY is not set in the environment this server was started "
+                       "from, so the removal did not run. The candidate content is STILL LIVE. "
+                       f"Remove it from a shell that has the key:\n"
+                       f"  python3 scripts/eval_batch.py --restore-only {d.relative_to(REPO)}")
+    r = subprocess.run([sys.executable, str(REPO / "scripts" / "eval_batch.py"),
+                        "--restore-only", str(d)],
+                       cwd=REPO, capture_output=True, text=True, timeout=1800)
+    out = ((r.stdout or "") + (r.stderr or "")).strip()
+    tail = "\n".join(out.splitlines()[-20:])
+    if r.returncode != 0:
+        return False, ("The removal FAILED and the candidate content may still be live:\n\n"
+                       + tail)
+    return True, "Foundry is back to what it was.\n\n" + tail
+
+
+def _var_path():
+    d = latest_eval_dir()
+    return None if d is None else d / "VARIANTS.json"
+
+
+def eval_variants():
+    """{key: [{question, answer, at}]} — the adjacent phrasings tried against the live content.
+
+    Kept because they are the actual evidence that a change holds up. The scripted question is
+    the one the transcript happened to record; the variants are what shows the fix is not tuned
+    to a single wording, and they are the most useful thing to hand back to an assistant.
+    """
+    p = _var_path()
+    if p is None or not p.is_file():
+        return {}
+    try:
+        return json.loads(p.read_text())
+    except Exception:                                                     # noqa: BLE001
+        return {}
+
+
+def eval_add_variant(key, question, answer):
+    p = _var_path()
+    if p is None:
+        return {}
+    v = eval_variants()
+    v.setdefault(key, []).append({
+        "question": question, "answer": answer,
+        "at": datetime.now().strftime("%H:%M:%S")})
+    p.write_text(json.dumps(v, indent=2))
+    return v
+
+
+def eval_ask_live(slug, question):
+    """Ask a live agent one question, right now. (ok, answer).
+
+    Goes through eval_batch.ask so the two stream payload shapes stay handled in one place -
+    the team endpoint returns {"delta":...} and the agent endpoint {"payload":{"text":...}},
+    and a second implementation would eventually read only one and return an empty answer that
+    looks like the agent refusing.
+    """
+    if not os.environ.get("FOUNDRY_API_KEY"):
+        return False, "FOUNDRY_API_KEY is not set in the environment this server was started from."
+    try:
+        sys.path.insert(0, str(REPO / "scripts"))
+        import eval_batch
+        return True, (eval_batch.ask(slug, question) or "")
+    except Exception as e:                                                # noqa: BLE001
+        return False, f"the agent could not be reached: {e}"
+
+
 def _appr_path():
     d = latest_eval_dir()
     return None if d is None else d / "APPROVALS.json"
@@ -6983,9 +7153,10 @@ def _eval_optin():
         "<span><b>Check the change against these transcripts first</b></span></label>"
         f"<div class=hint style='margin:6px 0 0 26px'>"
         f"Asks the agents this batch's {n_q} question(s) against your {len(files)} changed "
-        f"file(s), then puts Foundry back. <b>~{mins} min.</b><br>"
-        "<b>Live agents answer from the candidate content while it runs</b> &mdash; best done "
-        "off-hours. Required before a change request.</div></div>")
+        f"file(s). <b>~{mins} min.</b><br>"
+        "<b>The candidate content STAYS live in Foundry afterwards</b> so you can try other "
+        "phrasings on Eval Review &mdash; best done off-hours. It comes down when you press "
+        "Remove evals or send the batch in. Required before a change request.</div></div>")
 
 
 def _bp_panel():
@@ -7061,6 +7232,7 @@ def eval_txt():
     d = latest_eval_dir()
     files, n_q, _ = eval_estimate()
     prop = eval_propagation()
+    allvars = eval_variants()
     bar = "=" * 78
     sep = "-" * 78
     L = [bar,
@@ -7106,6 +7278,13 @@ def eval_txt():
             L += ["REVIEWER'S CORRECTION  (what the answer was supposed to become)",
                   "---------------------------------------------------------------",
                   corr.strip(), ""]
+        # The adjacent phrasings, because they are what shows the fix is not tuned to one
+        # wording - which is the single most useful thing to hand back to an assistant.
+        for v in (allvars.get(f"{rel}#{n}") or []):
+            L += [f"ALSO ASKED  ({v.get('at','')})",
+                  "-----------",
+                  (v.get("question") or "").strip(), "",
+                  "  ->", (v.get("answer") or "(no answer)").strip(), ""]
         L.append("")
 
     L += [bar,
@@ -7116,6 +7295,27 @@ def eval_txt():
           bar, ""]
     stamp = d.name if d else "no-run"
     return f"eval-{stamp}.txt", "\n".join(L)
+
+
+def variants_html(vlist):
+    """The adjacent phrasings tried against the live content, newest last.
+
+    Rendered as a list rather than replacing the scripted answer, because what a reviewer is
+    judging is CONSISTENCY - three phrasings that all come back right is the evidence; one that
+    does is a coincidence. Collapsed by default once there are more than two, so a card with a
+    long history stays readable.
+    """
+    if not vlist:
+        return ""
+    rows = "".join(
+        f"<div class=evvar><div class=evlab>{html.escape(v.get('at') or '')} &middot; asked</div>"
+        f"<div class=evvq>{html.escape(v.get('question') or '')}</div>"
+        f"<pre>{html.escape(v.get('answer') or '(no answer)')}</pre></div>"
+        for v in vlist)
+    n = len(vlist)
+    if n <= 2:
+        return f"<div class=evlab style='margin-top:12px'>Also asked ({n})</div>" + rows
+    return (f"<details class=evcorr><summary>Also asked ({n})</summary>{rows}</details>")
 
 
 def eval_review_page():
@@ -7175,9 +7375,31 @@ def eval_review_page():
                 "Look for your new wording in the answers; if it is absent, re-run rather than "
                 "approve.</div>")
 
+    live = eval_live()
+    if live:
+        mins = live.get("minutes")
+        age = f" for {mins} min" if isinstance(mins, int) else ""
+        livebar = (
+            "<div class='bar bnr-router' id=evlive>"
+            f"<b>Your candidate content is LIVE in Foundry{age}.</b> "
+            f"{len(live.get('files') or [])} file(s) in "
+            + ", ".join(f"<code>{html.escape(c)}</code>"
+                        for c in (live.get("collections") or []))
+            + " &mdash; every user of these agents is answering from it.<br>"
+            "Left up on purpose so you can try adjacent phrasings below. It comes down when you "
+            "press <b>Remove evals</b>, or by itself when you send the batch in &mdash; and goes "
+            "back up permanently on merge."
+            "<div class=stepacts style='margin-top:10px'>"
+            "<button class=sec onclick='evRemove(this)'>Remove evals</button></div></div>")
+    else:
+        livebar = ("<div class='bar bnr-note'>The candidate content is <b>not</b> live &mdash; "
+                   "Foundry holds the published content. Answers below are from the run; asking "
+                   "again now would tell you nothing about your change.</div>")
+
     head = (
         f"<h2 class=sec>Eval Review</h2>"
         + warn
+        + livebar
         + f"<div class=bar id=evstate>"
         + (f"<b>All {n_tot} approved.</b> The batch can be sent in."
            if all_ok else
@@ -7201,9 +7423,11 @@ def eval_review_page():
         "it back to your assistant.</p>"
         "</div>")
 
+    allvars = eval_variants()
     cards = []
     for rel, agent, n, q, before, after, ok, xnum in recs:
         key = f"{rel}#{n}"
+        vlist = allvars.get(key) or []
         loc = f"/t/{rel.split('/', 1)[1].rsplit('/', 1)[0]}/{Path(rel).name}" \
             if rel.startswith("transcripts/") and rel.count("/") >= 2 else "/"
         # The reviewer's own correction, quoted back. They wrote it hours or days ago and it is
@@ -7226,13 +7450,29 @@ def eval_review_page():
             f"<a href=\"{html.escape(loc)}\">{html.escape(Path(rel).name)}</a> &middot; "
             f"agent <code>{html.escape(agent)}</code> &middot; "
             f"exchange {html.escape(str(xnum))}</div>"
-            f"<div class=evq><b>Q</b> {html.escape(q)}</div>"
+            # EDITABLE, because tailoring content to one phrasing is the failure mode this
+            # whole step exists to catch. The original is kept in data-orig so Reset can put it
+            # back - a reviewer who has typed three variants should not have to remember what
+            # the transcript actually asked.
+            "<div class=evask>"
+            "<div class=evlab>Question &mdash; edit it and ask again</div>"
+            f"<textarea class=evqbox data-orig=\"{html.escape(q)}\" rows=2>{html.escape(q)}</textarea>"
+            "<div class=stepacts style='margin:6px 0 0'>"
+            + (f"<button onclick=\"evAsk(this,'{html.escape(key)}','{html.escape(agent)}')\">"
+               "Ask again</button>"
+               if live else
+               "<button disabled title='The candidate content is not live'>Ask again</button>")
+            + "<button class=sec onclick='evResetQ(this)'>Reset question</button>"
+            "</div></div>"
             "<div class=evcols>"
             f"<div class=evbefore><div class=evlab>Before</div><pre>{html.escape(before or '(not recorded)')}</pre></div>"
             f"<div class=evafter><div class=evlab>Now</div><pre>{html.escape(after or '(no answer returned)')}</pre></div>"
             "</div>"
             + (f"<details class=evcorr><summary>Your correction, for comparison</summary>"
                f"<pre>{html.escape(corr)}</pre></details>" if corr else "")
+            # Variants accumulate rather than replacing the scripted answer: the consistency
+            # across phrasings IS the evidence, so losing the earlier ones would lose the point.
+            + f"<div class=evvars>{variants_html(vlist)}</div>"
             + "</div>")
 
     foot = (
@@ -7294,8 +7534,9 @@ def git_page():
     if ev_files and ev_q:
         eval_stage = (
             "<li data-stage=eval class=wait><b>Review eval</b>"
-            f"<span>{ev_q} question(s) against {len(ev_files)} changed file(s), ~{ev_mins} min. "
-            "<b>You read the answers and decide.</b></span></li>")
+            f"<span>{ev_q} question(s) against {len(ev_files)} changed file(s), ~{ev_mins} min.<br>"
+            "Read/test the updated responses on the <b>Eval Review</b> tab, select "
+            "agreeable outputs and return to this part to publish changes.</span></li>")
     else:
         eval_stage = (
             "<li data-stage=eval class=none><b>Review eval</b>"
@@ -7685,6 +7926,30 @@ class H(BaseHTTPRequestHandler):
             except Exception as e:
                 return self._send(200, json.dumps({"ok": False, "error": str(e)}),
                                   "application/json")
+        if self.path == "/evalask":
+            # Ask a live agent an ADJACENT phrasing. This is the point of leaving the candidate
+            # content up: a fix that only works for the exact wording the transcript recorded is
+            # not a fix, it is a coincidence, and the only way to know is to ask differently.
+            key = (data.get("key") or "").strip()
+            slug = (data.get("agent") or "").strip()
+            q = (data.get("question") or "").strip()
+            if not q:
+                return self._send(200, json.dumps(
+                    {"ok": False, "output": "Type a question first."}), "application/json")
+            if not eval_live():
+                return self._send(200, json.dumps({"ok": False, "output": (
+                    "The candidate content is not live, so an answer now would come from the "
+                    "PUBLISHED content and would tell you nothing about your change. Run the "
+                    "check again.")}), "application/json")
+            ok, ans = eval_ask_live(slug, q)
+            if ok:
+                eval_add_variant(key, q, ans)
+            return self._send(200, json.dumps(
+                {"ok": ok, "answer": ans, "question": q}), "application/json")
+        if self.path == "/evalremove":
+            ok, msg = eval_remove()
+            return self._send(200, json.dumps(
+                {"ok": ok, "output": msg, "live": bool(eval_live())}), "application/json")
         if self.path == "/evalapprove":
             # Per-exchange approval. Kept on disk beside the run it approves, not in memory:
             # the reviewer reads several long answers and will navigate away, and an approval
@@ -7877,7 +8142,11 @@ class H(BaseHTTPRequestHandler):
                                       "to Foundry.")
                     else:
                         r = subprocess.run(
-                            [sys.executable, str(REPO / "scripts" / "eval_batch.py"), "--yes"],
+                            # --keep: the content stays live so adjacent phrasings can be
+                            # tried on the Eval Review tab. It comes down when the reviewer
+                            # clicks Remove, or automatically when they send the batch in.
+                            [sys.executable, str(REPO / "scripts" / "eval_batch.py"),
+                             "--yes", "--keep"],
                             cwd=REPO, capture_output=True, text=True, timeout=1800)
                         out = pre + "\n\n" + ((r.stdout or "") + (r.stderr or "")).strip()
                         rc = r.returncode
@@ -7981,6 +8250,21 @@ class H(BaseHTTPRequestHandler):
                                 "put the batch back to pending and keep working.\n\n"
                                 "Nothing has been pushed and nothing was lost.")}),
                                 "application/json")
+
+                    # TAKE THE CANDIDATE CONTENT DOWN NOW. It was left live so adjacent
+                    # phrasings could be tried; from here the batch is going through review, and
+                    # unapproved content has no business serving users while it waits. It goes
+                    # back up permanently on Merge, via publish_after_merge - so this is a
+                    # hand-off, not a loss.
+                    #
+                    # Placed AFTER the gates above on purpose: a send refused for want of an
+                    # eval or an approval must leave the reviewer's live content exactly where
+                    # it was, or the refusal would cost them the thing they were still using.
+                    if eval_live():
+                        okr, msgr = eval_remove()
+                        sync_pre.append(("Removed the live eval content." if okr
+                                         else "COULD NOT remove the live eval content — "
+                                              "it may still be serving users. " + msgr[:200]))
 
                     # Save FIRST, always. "Send my reviews in" used to push and open a PR
                     # without committing, so a reviewer who never clicked Save sent an empty
