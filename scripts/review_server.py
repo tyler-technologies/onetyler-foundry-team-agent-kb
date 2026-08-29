@@ -1520,6 +1520,13 @@ color:var(--forge-theme-text-high)}
 .evnowbox:focus{outline:2px solid var(--forge-theme-primary);outline-offset:-1px}
 .evmarks{font-size:11.5px;color:var(--forge-theme-text-medium);align-self:center}
 .evedited{font-size:10.5px;font-weight:600;color:var(--forge-theme-warning);margin-left:8px}
+/* Group headers inside the review form. Deliberately quiet - they orient, they are not a
+   warning, and the form has enough going on. */
+.fldgrp{grid-column:1/-1;margin:14px 0 2px;padding-top:10px;
+border-top:1px solid var(--forge-theme-outline-low)}
+.fldgrp:first-child{margin-top:0;padding-top:0;border-top:0}
+.fldgrp-h{font-weight:600;font-size:11.5px;letter-spacing:.05em;text-transform:uppercase;
+color:var(--forge-theme-text-medium)}
 .evask{margin:0 0 10px}
 .evqbox{width:100%;box-sizing:border-box;font:inherit;font-size:13.5px;padding:8px 10px;
 border:1px solid var(--forge-theme-outline-medium);border-radius:5px;resize:vertical;
@@ -1956,6 +1963,47 @@ if(e.target.closest('.tip')||e.target.closest('button.info')) return;
 document.querySelectorAll('.tip').forEach(o=>o.hidden=true)});
 function toast(m,ok=true){const t=document.getElementById('toast');t.textContent=m;
 t.style.background=ok?'#0f6b34':'#a11';t.classList.add('on');setTimeout(()=>t.classList.remove('on'),2600)}
+// WHICH FIELDS MEAN "SOMETHING SHOULD CHANGE" - the same two pools eval_batch.py uses, injected
+// rather than restated, because a second copy of this rule would drift and the label would then
+// promise something the eval did not honour. null = the field is pure bookkeeping and never
+// signals; a list = the field signals EXCEPT at these values.
+const NEUTRAL = {"review_status": null, "reviewer": null, "review_round": null, "notes": null, "delegated_to": null, "orchestration": null, "routing_verdict": ["", "correct"], "answer_verdict": ["", "good"], "diagnosis": ["", "n-a"], "fix_target": ["", "none"], "kb_action": ["", "none"], "action_status": ["", "none-needed", "open", "wontfix"], "bp_updates": ["", "0", "false", "no"], "suggested_to": [""], "reassign_to": [""], "kb_files": [""]};
+function formAsksForChange(){
+ for (const e of document.querySelectorAll('[data-fm]')) {
+   const k = e.dataset.fm;
+   if (!(k in NEUTRAL)) continue;
+   const neutral = NEUTRAL[k];
+   if (neutral === null) continue;
+   const v = e.dataset.multi ? [...e.selectedOptions].map(o=>o.value).join(', ')
+           : e.dataset.bool  ? (e.checked ? 'yes' : '')
+           : (e.value || '');
+   if (!neutral.includes(v.trim().toLowerCase())) return true;
+ }
+ // The prose counts too, and counts MORE: the form opens on "nothing wrong", and a reviewer who
+ // writes "it should have said X" without touching a dropdown has still asked for a change.
+ for (const e of document.querySelectorAll('[data-ex]')) if ((e.value||'').trim()) return true;
+ const pf = document.getElementById('proposed');
+ if (pf && (pf.value||'').trim()) return true;
+ return false;
+}
+function refreshMarkLabel(){
+ const b = document.getElementById('markbtn');
+ if (!b) return;
+ const asks = formAsksForChange();
+ b.textContent = (asks ? 'Changes suggested' : 'No changes') + ' & next \u2192';
+ b.title = asks
+   ? 'Records your verdict and the changes you asked for. This transcript WILL appear under '
+     + 'Eval Review so you can check the fix.'
+   : 'Records that the answer was fine as-is. This transcript will NOT appear under Eval Review '
+     + '\u2014 there is nothing to test.';
+}
+document.addEventListener('input', e=>{
+ if (e.target.matches('[data-fm],[data-ex],#proposed')) refreshMarkLabel();
+});
+document.addEventListener('change', e=>{
+ if (e.target.matches('[data-fm]')) refreshMarkLabel();
+});
+document.addEventListener('DOMContentLoaded', refreshMarkLabel);
 async function saveDoc(path,then){const fields={},ex={};
 const rv=document.querySelector('[data-fm=reviewer]');
 if(rv&&rv.value){try{localStorage.setItem('lastReviewer',rv.value)}catch(e){}}
@@ -3712,7 +3760,33 @@ def _render_fields(rel, prefill):
     global _round_for_this_doc
     _round_for_this_doc = derived_round(rel)
     try:
-        return "".join(field(k, prefill.get(k, "")) for k in REVIEW_KEYS)
+        # TWO GROUPS, NOT THIRTEEN TAGGED LABELS. Which fields put a transcript into an eval is
+        # the single most consequential thing about this form, and tagging each label
+        # "(triggers changes)" would have added the same six words to nine rows - noise that
+        # stops being read by the third one. Grouped, the answer is the layout.
+        #
+        # Membership comes from eval_batch.NEUTRAL_VALUES, the same table the eval reads, so a
+        # field cannot appear under one heading here and behave as the other there.
+        try:
+            sys.path.insert(0, str(REPO / "scripts"))
+            import eval_batch as _eb
+            acts = {k for k in REVIEW_KEYS if _eb.NEUTRAL_VALUES.get(k, None) is not None}
+        except Exception:                                                 # noqa: BLE001
+            acts = set()
+        triggering = [k for k in REVIEW_KEYS if k in acts]
+        neutral = [k for k in REVIEW_KEYS if k not in acts]
+        out = []
+        if triggering:
+            out.append("<div class=fldgrp><span class=fldgrp-h>Triggers changes</span>"
+                       "<span class=hint> &mdash; anything here puts this transcript into "
+                       "<b>Eval Review</b></span></div>")
+            out += [field(k, prefill.get(k, "")) for k in triggering]
+        if neutral:
+            out.append("<div class=fldgrp><span class=fldgrp-h>No action</span>"
+                       "<span class=hint> &mdash; recorded, but never puts it into Eval Review"
+                       "</span></div>")
+            out += [field(k, prefill.get(k, "")) for k in neutral]
+        return "".join(out)
     finally:
         _round_for_this_doc = None
 
@@ -4036,7 +4110,13 @@ def detail_page(rel):
         f"title='Record this as a suggestion for the area owner, not as your verdict'>"
         f"Suggest &amp; next &rarr;</button>"
         f"<button class=sec onclick=\"reReview('{html.escape(rel)}')\">Re-review</button>"
-        f"<button onclick=\"markAndNext('{html.escape(rel)}','{next_}')\">Mark reviewed &amp; next &rarr;</button>"
+        # LABEL FOLLOWS THE FORM. "Mark reviewed" said the same thing whether the reviewer had
+        # asked for a change or explicitly signed the answer off - two very different acts, and
+        # only one of them puts the transcript in an eval. The label is recomputed as the form is
+        # edited, from the SAME neutral-value pools eval_batch uses to decide what to replay, so
+        # a transcript labelled "No changes" is guaranteed not to appear under Eval Review.
+        f"<button onclick=\"markAndNext('{html.escape(rel)}','{next_}')\" id=markbtn>"
+        "No changes &amp; next &rarr;</button>"
         f"</div></div>"
         # Directly under the buttons, collapsed. The four labels do not distinguish themselves -
         # "Save" and "Mark reviewed" both sound like saving, and nothing on the faces hints that

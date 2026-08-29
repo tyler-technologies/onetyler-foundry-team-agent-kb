@@ -160,6 +160,51 @@ def parse_transcript(rel):
     return slug, qs, fm, body
 
 
+# WHICH FIELDS MEAN "SOMETHING SHOULD CHANGE", AND WHICH DO NOT.
+#
+# Stated as two explicit pools rather than left implicit in an if-chain, because the question
+# "does this transcript belong in an eval" is answered from these lists and nowhere else - and a
+# field quietly landing in the wrong pool either replays a review nobody asked to change (which
+# blocks the send) or skips one that did.
+#
+# NEUTRAL means the value carries no request. Note that for most fields it is the VALUE that is
+# neutral, not the field: `answer_verdict: good` says nothing needs doing, while
+# `answer_verdict: stale` is a change request in one word.
+NEUTRAL_VALUES = {
+    # bookkeeping - who, when, what state. Never a request in itself.
+    "review_status":   None,          # None = the whole field is bookkeeping
+    "reviewer":        None,
+    "review_round":    None,
+    "notes":           None,
+    "delegated_to":    None,
+    "orchestration":   None,
+    # the "nothing wrong" end of each verdict. The review form OPENS on these values, so they
+    # are also what an untouched form looks like.
+    "routing_verdict": {"", "correct"},
+    "answer_verdict":  {"", "good"},
+    "diagnosis":       {"", "n-a"},
+    "fix_target":      {"", "none"},
+    "kb_action":       {"", "none"},
+    # `open` is the FETCH TEMPLATE's default, so it cannot signal intent; `none-needed` and
+    # `wontfix` are explicit declines. Only `applied` claims work was done.
+    "action_status":   {"", "none-needed", "open", "wontfix"},
+    "bp_updates":      {"", "no", "false", "0"},
+    "suggested_to":    {""},
+    "reassign_to":     {""},
+    "kb_files":        {""},
+}
+
+
+def field_asks_for_change(key, value):
+    """Does this one field, at this value, ask for something to change?"""
+    if key not in NEUTRAL_VALUES:
+        return False                  # unknown field - not a signal
+    neutral = NEUTRAL_VALUES[key]
+    if neutral is None:
+        return False                  # pure bookkeeping
+    return (value or "").strip().lower() not in neutral
+
+
 def wants_change(fm, body):
     """Did this review actually ask for something to change? Bool.
 
@@ -173,16 +218,9 @@ def wants_change(fm, body):
     X" is a common and legitimate state. Reading only the field would drop exactly the reviews
     that matter most.
     """
-    if (fm.get("kb_action") or "").strip() in ("add", "update", "split"):
-        return True
-    # "applied" only, NOT "open". `action_status: open` is what the FETCH template writes into
-    # every new transcript, so treating it as a signal made this function true for everything
-    # ever downloaded - which would have re-admitted exactly the transcripts it exists to
-    # exclude. "applied" is different: it is a claim that work was done.
-    if (fm.get("action_status") or "").strip() == "applied":
-        return True
-    if (fm.get("fix_target") or "").strip() not in ("", "none"):
-        return True
+    for k, v in (fm or {}).items():
+        if field_asks_for_change(k, v):
+            return True
     # Written feedback: a non-empty correction under any exchange, or a proposed fix.
     for m in re.finditer(r"<!-- review:\d+ -->\n(.*?)<!-- /review:\d+ -->", body or "", re.S):
         t = re.sub(r"\*\*Review\s*[—-]\*\*.*?(?:\n|$)", "", m.group(1), count=1)
