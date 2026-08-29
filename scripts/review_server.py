@@ -4029,11 +4029,11 @@ def button_legend():
     rows = [
         ("Save",
          "reviewed", False,
-         "Saves what was typed. Decides nothing.",
-         "Park a half-finished review."),
+         "Saves entered text. No verdict recorded.",
+         "For incomplete reviews."),
         ("Suggest &amp; next &rarr;",
          "suggested", True,
-         "Hands it over &mdash; the decision is given up.",
+         "Transfers the decision to another owner.",
          "Needs <b>Suggested to</b> (a person) or <b>Reassign to</b> (an agent)."),
         ("Re-review",
          "pending", False,
@@ -4041,8 +4041,8 @@ def button_legend():
          "Verdict fields clear. Round 2 means someone decided before &mdash; read theirs first."),
         ("Mark reviewed &amp; next &rarr;",
          "reviewed", True,
-         "Verdict recorded.",
-         "Blocked while a hand-off is set."),
+         "Records the verdict.",
+         "Unavailable while a hand-off is set."),
     ]
     out = ["<details class=card><summary>"
            "<span class=info aria-hidden=true>i</span>"
@@ -4114,11 +4114,9 @@ def detail_page(rel):
         # and all of it above the transcript the reviewer had come to read. The defaults do not
         # need explaining if they are correct, and the rest is on the buttons' own legend.
         banner = ("<div class='bar bnr-ok'>"
-                  "Review exchanges and put a correction below each. Then fill out the "
-                  "<b>Summary</b> section for overall changes and suggestions. If the transcript "
-                  "is good as-is and no changes are necessary, set <b>Answer verdict = good</b> "
-                  "(optional) and click <b>Mark reviewed &amp; next &rarr;</b> to proceed to the "
-                  "next transcript."
+                  "Add a correction under each exchange, then complete the <b>Summary</b>. "
+                  "If no change is required, set <b>Answer verdict = good</b> and select "
+                  "<b>No changes &amp; next &rarr;</b>."
                   "</div>")
     elif (fm.get("review_status") or "") == "suggested":
         # Nothing here is a verdict yet. Say so loudly, or the owner reads a filled-in form
@@ -4166,9 +4164,8 @@ def detail_page(rel):
     pi, pp = doc_popover("proposed_fix")
     parts.append(
         "<h2 class=sec style='margin-top:var(--forge-spacing-large)'>Summary</h2>"
-        "<p class=sub style='margin:0 0 12px'>Fill this in after reading the exchanges above. "
-        "The prose is the valuable part &mdash; the fields underneath just classify it so the "
-        "right person picks it up.</p>"
+        "<p class=sub style='margin:0 0 12px'>Complete after reviewing the exchanges. "
+        "Prose carries the substance; the fields route it.</p>"
         f"<div class=card><div class=fld>"
         f"<label>Overall suggestions and comments{pi}"
           f"<span class=trigtag>triggers changes</span></label>{pp}"
@@ -5372,9 +5369,8 @@ def git_fragments():
             "<div class=hint>Sending in covers all of these. Discarding rewinds to just before the "
             "save selected, and always leaves a recovery point.</div></details>")
     else:
-        saves_html = ("<div class=saves><span class=hint>Nothing saved and unsent — either "
-                      "not yet saved this sitting, or everything is already sent "
-                      "in.</span></div>")
+        saves_html = ("<div class=saves><span class=hint>Nothing saved and unsent."
+                      "</span></div>")
     # The change list now lives INSIDE the state bar, collapsed. It was a permanently-open
     # panel between the "Publish your reviews" heading and Part 1, so the first actual step
     # started well down the page - and the list is reference material, not something you act on.
@@ -7852,11 +7848,9 @@ def _eval_optin(spent=False):
         "<label class=evalrow><input type=checkbox id=doeval checked>"
         "<span><b>Include Eval Review</b></span></label>"
         f"<div class=hint style='margin:6px 0 0 26px'>"
-        f"Asks the agents this batch's {n_q} question(s) against the {len(files)} changed "
-        f"file(s). <b>~{mins} min.</b><br>"
-        "<b>The candidate content STAYS live in Foundry afterwards</b> so other "
-        "phrasings can be tried on Eval Review &mdash; best done off-hours. It comes down on "
-        "Remove evals or send the batch in. Required before a change request.</div></div>")
+        f"{n_q} question(s) against {len(files)} changed file(s). <b>~{mins} min.</b><br>"
+        "Content stays live in Foundry until removed or sent. Best outside business hours. "
+        "Required before a change request.</div></div>")
 
 
 def _router_warning():
@@ -8154,12 +8148,11 @@ def eval_review_page():
         + "<p class=sub style='margin:0' id=evstate>"
         + (f"<b>All {n_tot} approved.</b> Ready to send in."
            if all_ok else
-           f"<b>{n_ok} of {n_tot} approved.</b> Tick the ones whose answer is right &mdash; the "
-           "send needs all of them.")
+           f"<b>{n_ok} of {n_tot} approved.</b> All must be approved before sending.")
         + "</p>"
         + f"<p class=sub style='margin:4px 0 0'><code>{html.escape(when)}</code> &middot; "
-        f"{len(files)} file(s) &middot; {n_q} question(s) &middot; <b>Match %</b> is word overlap "
-        "with the correction, a hint not a verdict.</p>"
+        f"{len(files)} file(s) &middot; {n_q} question(s) &middot; <b>Match %</b> is word "
+        "overlap, indicative only.</p>"
         + "<div class=stepacts style='margin-top:10px'>"
         + "<button class=sec onclick=\"evAll(1)\">Approve all</button>"
         + "<button class=sec onclick=\"evAll(0)\">Clear all</button>"
@@ -8266,9 +8259,8 @@ def eval_review_page():
             f"<textarea class=evnowbox oninput='evNowEdited(this)' "
             f"data-orig=\"{html.escape(latest.get('answer') or '')}\">"
             f"{html.escape(latest.get('answer') or '(no answer returned)')}</textarea>"
-            "<div class=hint style='margin:5px 0 0'>To improve response type comments in "
-            "<code>{{ }}</code> inside Now and click <b>Copy prompt</b> to pass to an AI for "
-            "further refine content.</div>"
+            "<div class=hint style='margin:5px 0 0'>Mark defects inline as "
+            "<code>{{ }}</code>, then <b>Copy prompt</b> for an AI-enabled terminal.</div>"
             # DIRECTLY UNDER THE INSTRUCTION THAT NAMES THEM, inside the Now column. They began
             # ABOVE the box, which pushed this column down and left the two compared panes
             # starting at different heights; moving them to the card's bottom fixed that but
@@ -8294,8 +8286,7 @@ def eval_review_page():
         "<div class=card><h3>When finished</h3>"
         + ("<p class=sub>Sending in opens the change request(s); merging publishes to Foundry.</p>"
            if all_ok else
-           "<p class=sub>If an answer is wrong, put the batch back to pending &mdash; the "
-           "corrections are kept.</p>")
+           "<p class=sub>If an answer is wrong, return the batch to pending. Corrections are kept.</p>")
         + "<div class=stepacts>"
         + (f"<button id=evsend onclick=\"evSend(this)\">Send the batch in</button>"
            if all_ok else
@@ -8476,7 +8467,7 @@ def git_page():
       # which put it below a rule and read as a caption for the label field rather than as what
       # this card is for. (The line that used to sit here described publishing and had been
       # duplicated from the other card - see #75.)
-      "<p class=sub>A local checkpoint that can be returned to. Nothing is shared yet.</p>"
+      "<p class=sub>Local checkpoint. Not shared.</p>"
       + step(
              "",
              # Empty by DEFAULT, not prefilled. A prefilled box asks to be read, edited and
@@ -8487,7 +8478,7 @@ def git_page():
              "<input id=cmsg value='' placeholder='e.g. identity transcripts, first pass'>"
              "<div class=stepacts>"
              "<button class=sec onclick=\"gitDo('commit')\">Save progress</button>"
-             "<button class=sec onclick=\"gitDo('diff')\">Show me exactly what changed</button>"
+             "<button class=sec onclick=\"gitDo('diff')\">View pending changes</button>"
              "</div>" + "<div id=githist>" + saves_html + "</div>")
       + "</div>"
       # The honest division of labour, stated where it is acted on: a verdict is not the
@@ -8495,7 +8486,7 @@ def git_page():
       # writing it is the ONE job here that needs an assistant.
       + "<div class=card>"
       + "<h3>Publish reviewed transcripts</h3>"
-      + "<p class=sub>Publishing needs an assistant for the knowledge files; the rest is buttons.</p>"
+      + "<p class=sub>Requires an AI-enabled terminal with access to the affected files.</p>"
       + step("",
              "<ol class=prog id=prog>"
              + ai_stage
@@ -8542,10 +8533,10 @@ def git_page():
 
       "<details class=card><summary>"
       "<span class=info aria-hidden=true>i</span>"
-      "<h3>Worth knowing</h3>"
+      "<h3>Reference</h3>"
       "<span class=chev aria-hidden=true></span></summary>"
       "<ul class=sub style='margin:10px 0 0 20px;padding:0'>"
-      "<li>A review with nothing to fix is still worth sending.</li>"
+      "<li>Reviews with no changes should still be submitted.</li>"
       "<li>Writing what <i>should</i> have been said is the valuable part — a knowledge-file "
       "change is not required.</li>"
       "<li>Suggestions handed to someone else need sending in too; that is how they reach "
@@ -8557,14 +8548,12 @@ def git_page():
       # stage of it - numbering it first implied you were meant to pass through it every time,
       # and made the first thing on the publish page a way to throw work away.
       "<div class='card dangerzone'>"
-      "<h3>Something went wrong?</h3>"
+      "<h3>Recovery</h3>"
       "<p class=sub>Not part of the normal flow — only for undoing.</p>"
       "<div class=dzrow><div>"
       "<b>Reset unsaved edits</b>"
-      "<div class=sub>Puts edited transcripts back to their last saved state. Only touches "
-      "edits not yet saved; anything already saved is untouched, and newly synced "
-      "conversations are left alone. Undoable — the edits are set aside rather than deleted, "
-      "and the output explains how to put them back.</div>"
+      "<div class=sub>Reverts unsaved transcript edits. Saved work and newly synced "
+      "conversations are untouched. Recoverable — edits are set aside, not deleted.</div>"
       "</div><div class=dzact>"
       "<button class=sec onclick='resetUnsaved(this)'>Reset unsaved edits</button>"
       "</div></div></div>")
