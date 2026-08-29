@@ -2751,13 +2751,15 @@ function copyPrompt(btn){
  }
 }
 function setOutHead(action){
- const h=document.getElementById('outhead'), s=document.getElementById('outsub');
- if(!h||!s)return;
- if(action==='diff'){h.textContent='Your changes';
-   s.textContent='Every edit you have made and not yet sent in. Green is added, red is removed.';
- } else {h.textContent='Output';
-   s.textContent='From the step you just ran. If something failed, paste this to your AI '
-     +'assistant.';}
+ const s=document.getElementById('outsub');
+ if(!s)return;
+ // The heading no longer changes - see where it is rendered. Only the sub-line moves, because
+ // which of the two things the panel is showing is still worth saying.
+ if(action==='diff'){
+   s.textContent='Files this process is about to move. Green is added, red is removed.';
+ } else {
+   s.textContent='What the step you just ran reported. If something failed, paste this to your '
+     +'AI assistant.';}
 }
 function stage(name,state){const el=document.querySelector('#prog li[data-stage='+name+']');
  if(!el||el.classList.contains('none'))return;
@@ -8299,7 +8301,7 @@ def eval_review_page():
            "onclick=\"evSend(this)\">Send the batch in</button>")
         + "<button class=sec onclick=\"evReset(this)\">Put the batch back to pending</button>"
         "</div></div>"
-        "<div class=card><h3 id=outhead>Output</h3>"
+        "<div class=card><h3 id=outhead>Processing output</h3>"
         "<pre class=out id=gitout style='display:none'></pre></div>")
 
     return page("Eval Review", head + "".join(cards) + foot, active="evalrev")
@@ -8519,15 +8521,21 @@ def git_page():
       + "</div>"
       f"<script>window.AI_PROMPT={prompt_json};</script>"
 
-      # The heading FOLLOWS the content, because this panel shows two different things.
-      # "What happened" was wrong from the moment the panel started rendering a diff on load:
-      # nothing has happened yet at that point, it is showing your pending edits. "Output" is
-      # right after a step runs and wrong before one. So it starts as "Your changes" and
-      # gitDo() switches it to "Output" - see setOutHead() in the JS.
+      # ONE HEADING FOR BOTH STATES, and not "Your changes".
+      #
+      # This panel shows the pending git diff on load and a step's console output after one runs,
+      # and it used to rename itself between "Your changes" and "Output". The first was actively
+      # misleading: on a page about reviewing transcripts, "your changes" reads as the reviewer's
+      # own suggestions and comments - which live in the transcript, not here. What this panel
+      # actually shows is the machinery reporting on itself: which files the process is about to
+      # move, and what each step said when it ran.
+      #
+      # So the heading stays fixed and describes that, while the sub-line says which of the two
+      # you are currently looking at.
       "<div class=card>"
-      "<h3 id=outhead>Your changes</h3>"
-      "<p class=sub id=outsub>Every edit you have made and not yet sent in. Green is added, "
-      "red is removed.</p>"
+      "<h3 id=outhead>Processing output</h3>"
+      "<p class=sub id=outsub>Files this process is about to move. Green is added, red is "
+      "removed.</p>"
       "<pre class=out id=gitout>" + diff_html(review_diff()) + "</pre></div>"
 
       "<details class=card><summary>"
