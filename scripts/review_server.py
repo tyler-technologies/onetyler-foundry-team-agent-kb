@@ -8258,11 +8258,13 @@ def git_page():
 
       "<div class=card>"
       "<h3>Back up your progress</h3>"
-      # No sub-heading here. The "needs an assistant" line was DUPLICATED onto this card when
-      # Part 2 got a card of its own, so the same sentence appeared under both headings - and it
-      # describes publishing, which this card has nothing to do with.
+      # DIRECTLY UNDER THE HEADING, matching the publish card. It was the step's description,
+      # which put it below a rule and read as a caption for the label field rather than as what
+      # this card is for. (The line that used to sit here described publishing and had been
+      # duplicated from the other card - see #75.)
+      "<p class=sub>A local checkpoint you can go back to. Nothing is shared yet.</p>"
       + step(
-             "A local checkpoint you can go back to. Nothing is shared yet.",
+             "",
              # Empty by DEFAULT, not prefilled. A prefilled box asks to be read, edited and
              # worried about; an empty one labelled "optional" asks for nothing. Blank is
              # handled server-side by auto_commit_message().
