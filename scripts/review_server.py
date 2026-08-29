@@ -14,13 +14,13 @@ Stdlib only — no pip install, no build step. Binds to loopback only.
 Everything it writes lands in transcripts/*.md. Commit and open a PR as normal,
 or use the Git panel in the UI.
 """
-import argparse, html, json, os, re, shutil, subprocess, sys, time, webbrowser
+import argparse, csv, html, io, json, os, re, shutil, subprocess, sys, time, webbrowser
 from collections import Counter
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from golive import GO_LIVE, EXCLUDE_NOTE, is_pre_go_live
-from reviewtext import has_feedback, needs_triage
+from reviewtext import has_feedback, needs_triage, PLACEHOLDERS
 from urllib.parse import unquote
 
 REPO = Path(__file__).resolve().parent.parent
@@ -943,6 +943,228 @@ def refresh_index():
                        capture_output=True, timeout=60)
     except Exception:
         pass
+
+
+# ---------------------------------------------------------------------------------------------
+# CSV round-trip for corrections
+#
+# The point is COLLABORATION OUTSIDE THIS TOOL. Corrections are the one part of a review that
+# somebody else may be better placed to write - a product owner who knows what the answer should
+# have been but is never going to open a local review server. Export the questions and answers,
+# let them fill the fourth column in whatever they already use, import it back.
+#
+# ONLY THE CORRECTION IS IMPORTED. The first three columns are identity, not payload: they say
+# WHICH exchange a correction belongs to. An edited question therefore does not rewrite the
+# transcript - it stops the row matching anything, and the row is dropped. That is the intended
+# behaviour and the reason those headers carry (DO NOT MODIFY): the failure mode of a mutable
+# identity column is silently attaching a correction to the wrong exchange, which is worse than
+# losing the row.
+CSV_ID_HEAD = "Transcript id (DO NOT MODIFY)"
+CSV_HEADERS = [CSV_ID_HEAD,
+               "Exchange question (DO NOT MODIFY)",
+               "Answer given (DO NOT MODIFY)",
+               "Correction"]
+
+# Excel guesses the encoding of a .csv unless a BOM tells it, and guesses wrong on anything
+# non-ASCII - so an exported transcript comes back with mojibake in the questions, which then
+# fails to match on import. Written on export, stripped on import.
+CSV_BOM = "﻿"
+
+
+def _qkey(s):
+    """Match key for a question. Whitespace-collapsed and case-folded, nothing else.
+
+    Deliberately NOT fuzzy. The column is identity, so a near-match must fail rather than pick
+    a probable exchange - but a spreadsheet that re-wraps a long cell or changes its case is
+    reformatting, not editing, and should still match.
+    """
+    return re.sub(r"\s+", " ", (s or "")).strip().casefold()
+
+
+def _is_placeholder(s):
+    """The fetch template's empty-state line, which is not a correction anybody wrote."""
+    t = (s or "").strip()
+    return not t or t in PLACEHOLDERS
+
+
+def _neutralise_markers(s):
+    """Make imported text incapable of closing the block it is being written into.
+
+    A correction containing `<!-- /review:1 -->` would otherwise terminate its own block: the
+    stored correction is truncated at that point and the remainder leaks into the document body
+    as loose prose. Measured, not theorised - a five-line correction came back as one word with
+    the other four sitting outside the block.
+
+    `&lt;!--` renders as literal text in markdown and can never terminate anything, so the
+    correction stays readable and the file stays parseable. Every HTML-comment opener is
+    converted, not just the review ones: `proposed-fix` has the same shape, and a rule with an
+    exception list is a rule waiting to be outgrown.
+    """
+    return (s or "").replace("<!--", "&lt;!--")
+
+
+def csv_export(rels):
+    """One row per EXCHANGE across the given transcripts. (csv_text, n_rows, skipped).
+
+    Row order is the order of the transcripts as given, then document order within each - so the
+    file reads like the queue it came from.
+    """
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(CSV_HEADERS)
+    n, skipped = 0, []
+    for rel in rels:
+        f = (TDIR / rel).resolve()
+        if not str(f).startswith(str(TDIR.resolve())) or not f.is_file():
+            skipped.append((rel, "not found"))
+            continue
+        fm, body = parse(f)
+        if fm is None:
+            skipped.append((rel, "no frontmatter"))
+            continue
+        exs = exchanges_of(body or "")
+        if not exs:
+            skipped.append((rel, "no exchanges"))
+            continue
+        for num, _tools, q, a, rv in exs:
+            # The placeholder goes out EMPTY. Shipping template text to a collaborator invites
+            # them to edit around it, and it would then import as a correction saying nothing.
+            w.writerow([rel, q, a, "" if _is_placeholder(rv) else rv])
+            n += 1
+    return CSV_BOM + buf.getvalue(), n, skipped
+
+
+def _sniff_reader(text):
+    """A csv reader for text that may not use commas.
+
+    Excel writes the LIST SEPARATOR of the machine's locale, which is a semicolon across much of
+    Europe. Someone editing an export in that Excel and sending it back produces a file that
+    parses as one column per row and matches nothing - a confusing failure, since the file looks
+    right when opened in the same Excel.
+    """
+    head = (text.split("\n", 1)[0] or "")[:2000]
+    delim = ","
+    try:
+        delim = csv.Sniffer().sniff(head, delimiters=",;\t|").delimiter
+    except csv.Error:
+        pass
+    return csv.reader(io.StringIO(text), delimiter=delim), delim
+
+
+def csv_import(text):
+    """Apply the Correction column back onto matching exchanges. Returns a report dict.
+
+    MATCHING is by transcript id plus question text, never by row position. Position would break
+    the moment a collaborator sorted the sheet or deleted a row they had nothing to say about,
+    and both are things people do to a spreadsheet without thinking of it as destructive.
+
+    A question repeated inside one transcript is resolved in document order: the first CSV row
+    carrying it takes the first such exchange, the second takes the second. Claiming exchanges as
+    they are matched is what makes that work - without it both rows would write to exchange 1 and
+    the second exchange would silently keep its old text.
+    """
+    text = (text or "").lstrip(CSV_BOM)
+    if not text.strip():
+        return {"ok": False, "error": "that file is empty"}
+    reader, delim = _sniff_reader(text)
+    rows = list(reader)
+    if not rows:
+        return {"ok": False, "error": "no rows in that file"}
+
+    # A header is optional. Recognised by its first cell rather than by position, so a file with
+    # the header stripped still imports and a file that kept it does not treat it as data.
+    if _qkey(rows[0][0] if rows[0] else "").startswith(_qkey("transcript id")):
+        rows = rows[1:]
+
+    # Group by transcript first: each file is opened, matched and written ONCE, so a transcript
+    # with six corrections is one read and one write rather than six of each.
+    by_rel = {}
+    ignored = []
+    for i, row in enumerate(rows, start=2):          # 2 = first data line in a headered file
+        if not row or not any((c or "").strip() for c in row):
+            continue                                  # blank spacer line, not an error
+        if len(row) < 4:
+            ignored.append((i, f"only {len(row)} column(s) — needs 4"))
+            continue
+        rel = (row[0] or "").strip()
+        if not rel:
+            ignored.append((i, "no transcript id"))
+            continue
+        by_rel.setdefault(rel, []).append((i, row[1], row[3]))
+
+    applied, unchanged, skipped = [], 0, []
+    for rel, items in by_rel.items():
+        f = (TDIR / rel).resolve()
+        if not str(f).startswith(str(TDIR.resolve())) or not f.is_file():
+            for i, _q, _c in items:
+                ignored.append((i, f"no such transcript: {rel}"))
+            continue
+        fm, body = parse(f)
+        if fm is None:
+            skipped.append((rel, "no frontmatter"))
+            continue
+        st = (fm.get("review_status") or "pending").strip() or "pending"
+        # A closed transcript is not a place to land new prose. `pushed` asserts the content is
+        # already live in Foundry and `excluded` asserts the conversation is out of scope; both
+        # are decisions, and quietly editing their body would leave the assertion false.
+        if st in ("pushed", "excluded"):
+            skipped.append((rel, f"{st} — reopen it before importing corrections"))
+            continue
+        exs = exchanges_of(body or "")
+        pool = [[num, _qkey(q), False] for num, _tools, q, _a, _rv in exs]
+        current = {num: rv for num, _t, _q, _a, rv in exs}
+
+        writes = {}
+        for i, q_csv, corr in items:
+            key = _qkey(q_csv)
+            hit = next((slot for slot in pool if slot[1] == key and not slot[2]), None)
+            if hit is None:
+                # Either the question was edited, or it belongs to a different transcript, or
+                # every matching exchange is already claimed by an earlier row.
+                ignored.append((i, f"question does not match an unclaimed exchange in {rel}"))
+                continue
+            hit[2] = True
+            num = hit[0]
+            new = _neutralise_markers(corr).strip()
+            # BLANK MEANS "NOTHING SUPPLIED", NOT "DELETE". A round-trip through a spreadsheet
+            # drops cells for all sorts of dull reasons, and an import that wiped corrections on
+            # a blank would destroy work that is not recoverable from anywhere else. Clearing a
+            # correction stays a deliberate act in the transcript form.
+            if not new:
+                unchanged += 1
+                continue
+            if new == (current.get(num) or "").strip():
+                unchanged += 1
+                continue
+            writes[num] = new
+
+        if not writes:
+            continue
+        txt = f.read_text(encoding="utf-8")
+        for num, new in writes.items():
+            txt = re.sub(rf"(<!-- review:{num} -->\n).*?(<!-- /review:{num} -->)",
+                         lambda m: m.group(1) + new.strip() + "\n" + m.group(2),
+                         txt, flags=re.S)
+        f.write_text(txt, encoding="utf-8")
+        applied.append((rel, sorted(writes, key=lambda x: int(x))))
+
+        # Same consistency repair the transcript form does: a reviewed file that gains written
+        # feedback would otherwise assert "nothing wrong" in its fields while its body says
+        # otherwise, and the field-driven queries would skip the work.
+        fm2, body2 = parse(f)
+        if (fm2 and fm2.get("review_status") in ("reviewed", "suggested")
+                and needs_triage(fm2, body2 or "")):
+            note = fm2.get("notes", "")
+            mark = "needs-triage: written feedback, fields not classified"
+            upd = {"action_status": "open"}
+            if mark not in note:
+                upd["notes"] = (note + " || " if note else "") + mark
+            set_fields(f, upd)
+
+    if applied:
+        refresh_index()
+    return {"ok": True, "applied": applied, "unchanged": unchanged,
+            "ignored": ignored, "skipped": skipped, "delimiter": delim}
 
 
 def git(*args, timeout=60):
@@ -2826,17 +3048,29 @@ function ckWho(){let w=null;try{w=localStorage.getItem('lastReviewer')}catch(e){
 function ckList(){return [...document.querySelectorAll('tr.row')].filter(tr=>
   tr.style.display!=='none').map(tr=>tr.querySelector('input.ck')).filter(c=>c&&!c.disabled)}
 function ckSel(){return ckList().filter(c=>c.checked)}
-function ckSync(){const n=ckSel().length;
+// Eligible for BULK MARKING, which is narrower than eligible for selection: only pending rows
+// that are not already inside an unmerged change request. Export has no such restriction.
+function ckMarkable(){return ckSel().filter(c=>c.dataset.bulkok==='1')}
+function ckSync(){const n=ckSel().length, m=ckMarkable().length;
  const bar=document.getElementById('bulkbar'); if(!bar) return;
  bar.style.display = n ? '' : 'none';
  document.getElementById('cknum').textContent=n;
+ // Say why the mark button is off rather than only greying it out - "0 of 3 can be marked"
+ // names the reason, where a dead button invites a second click.
+ const el=document.getElementById('ckelig');
+ if(el) el.textContent = m===n ? '' : m+' of '+n+' can be marked reviewed (pending rows only)';
+ const mk=document.getElementById('ckmark');
+ if(mk){mk.disabled = m===0;
+        mk.title = m===0 ? 'Nothing selected is pending' : '';}
  const w=document.getElementById('ckwho'); if(w) w.textContent = ckWho() || 'nobody — pick a name on a transcript first';
 }
 function clearCk(){ckList().forEach(c=>c.checked=false);
  const a=document.getElementById('ckall'); if(a)a.checked=false; ckSync()}
 async function bulkReview(){
- const paths=ckSel().map(c=>c.value);
- if(!paths.length) return;
+ // Only the markable subset is sent. The server would skip the rest and report each one, but a
+ // report of "12 skipped" for rows the UI let you select reads as a fault rather than a rule.
+ const paths=ckMarkable().map(c=>c.value);
+ if(!paths.length){toast('Nothing selected is pending',false);return}
  const who=ckWho();
  if(!who){toast('Open any transcript and pick a name first',false);return}
  if(!confirm(`Mark ${paths.length} transcript(s) reviewed with NO changes needed, as ${who}?`)) return;
@@ -2850,6 +3084,47 @@ async function bulkReview(){
  }
  toast(m); location.reload();
 }
+// ---- CSV round-trip for corrections ----------------------------------------------------
+// Four columns: transcript id, question, answer, correction. The first three are identity and
+// carry (DO NOT MODIFY) in their headers; only the correction is read back.
+async function csvExport(){
+ const paths=ckSel().map(c=>c.value);
+ if(!paths.length){toast('Select at least one transcript',false);return}
+ const r=await post('/csvexport',{paths});
+ if(!r.ok){toast(r.error||'export failed',false);return}
+ // Built client-side as a Blob rather than served as a download response: the selection lives
+ // in the browser, and a GET carrying dozens of paths in its query string would hit URL limits.
+ const b=new Blob([r.csv],{type:'text/csv;charset=utf-8'});
+ const u=URL.createObjectURL(b), a=document.createElement('a');
+ a.href=u; a.download=r.name; document.body.appendChild(a); a.click();
+ a.remove(); URL.revokeObjectURL(u);
+ let m=r.rows+' exchange(s) from '+paths.length+' transcript(s)';
+ if(r.skipped&&r.skipped.length) m+=' — '+r.skipped.length+' skipped';
+ toast(m);
+}
+async function csvImport(input){
+ const f=input.files&&input.files[0];
+ input.value='';                                  // so re-picking the same file fires again
+ if(!f) return;
+ const text=await f.text();
+ const r=await post('/csvimport',{csv:text});
+ if(!r.ok){toast(r.error||'import failed',false);return}
+ const n=(r.applied||[]).reduce((s,a)=>s+a[1].length,0);
+ // The IGNORED rows are the interesting part of an import, not the applied ones - an edited
+ // question column silently matches nothing, and a count with no detail would hide that.
+ const det=[];
+ if(r.applied&&r.applied.length) det.push('Applied:\n'+r.applied.map(
+   a=>'  • '+a[0]+' — exchange '+a[1].join(', ')).join('\n'));
+ if(r.unchanged) det.push(r.unchanged+' row(s) left alone (blank or identical correction)');
+ if(r.ignored&&r.ignored.length) det.push('Ignored rows:\n'+r.ignored.map(
+   x=>'  • line '+x[0]+': '+x[1]).join('\n'));
+ if(r.skipped&&r.skipped.length) det.push('Skipped transcripts:\n'+r.skipped.map(
+   x=>'  • '+x[0]+': '+x[1]).join('\n'));
+ if(det.length) alert(det.join('\n\n'));
+ toast(n?(n+' correction(s) imported'):'Nothing changed', n>0);
+ if(n) location.reload();
+}
+
 // Whole-row click-through. Guarded so the controls inside a row still behave: the
 // checkbox must toggle without navigating, links must keep their own behaviour (including
 // middle-click and cmd-click), and a text selection must not be treated as a click.
@@ -3563,12 +3838,18 @@ def list_page(show_all=False):
             f" data-mine=\"{'awaiting' if r['mine_awaiting'] else ('area' if r['mine_area'] else '')}\""
             f" data-openpr=\"{r['openpr']['number'] if r['openpr'] else ''}\""
             f" data-href=\"/t/{html.escape(r['rel'])}\">"
+            # SELECTABLE ALWAYS; what the selection may DO varies. The checkbox used to be
+            # disabled on anything not pending, which was right while bulk-marking was the only
+            # bulk action - but CSV export is a read, and refusing to export a reviewed
+            # transcript's exchanges would block the case the export exists for (sending an
+            # answer out to be corrected by somebody who is not going to open this tool).
+            #
+            # `data-bulkok` carries the old rule instead, and the mark button reads it. The
+            # server enforces it either way - see /bulk, where the comment "the disabled
+            # checkbox in the UI is advice; this is the rule" already anticipated this.
             f"<td class=nowrap><input type=checkbox class=ck value=\"{html.escape(r['rel'])}\""
-            # Disabled when it is inside an open request as well as when it is not pending.
-            # Bulk-marking is precisely the "acting on it automatically" this badge exists to
-            # prevent, so the badge alone would have been advice without a guard behind it.
-            f"{' disabled' if (r['status']!='pending' or r['openpr']) else ''}"
-            f"{' title=\'Inside an unmerged change request — open it instead\'' if r['openpr'] else ''}"
+            f" data-bulkok=\"{'1' if (r['status'] == 'pending' and not r['openpr']) else ''}\""
+            f"{' title=\'Inside an unmerged change request — open it instead of bulk-marking\'' if r['openpr'] else ''}"
             "></td>"
             f"<td class=fbcell>{fb_glyph(r['fb'])}</td>"
             f"<td class=qcell title=\"{html.escape(r['qfull'])}\">"
@@ -3731,7 +4012,15 @@ def list_page(show_all=False):
     head = ("<div style='display:flex;align-items:center;gap:12px;flex-wrap:wrap;"
             "margin-bottom:var(--forge-spacing-medium)'>"
             f"<h2 class=sec style='margin:0'>{title}</h2>"
-            "<button class=sec id=syncbtn onclick='syncNow()' style='margin-left:auto' "
+            # Import is not selection-driven - the file names its own rows - so it belongs here
+            # rather than in the selection bar next to Export.
+            "<input type=file id=csvfile accept='.csv,text/csv' hidden "
+            "onchange='csvImport(this)'>"
+            "<button class=sec style='margin-left:auto' "
+            "onclick='document.getElementById(\"csvfile\").click()' "
+            "title='Applies the Correction column to matching exchanges'>"
+            "Import CSV</button>"
+            "<button class=sec id=syncbtn onclick='syncNow()' "
             "title='Runs by itself when the data is more than 30 minutes old'>"
             f"{icon('refresh', 15)} Sync transcripts</button>"
             # The reassurance itself. Without this the page could be an hour stale or five
@@ -3759,10 +4048,11 @@ def list_page(show_all=False):
 
     bulkbar = ("<div class=bar id=bulkbar style='display:none'>"
                "<b><span id=cknum>0</span> selected</b> &nbsp;"
-               "<span class=hint>Pending rows only. Anything with a written correction is "
-               "skipped and reported.</span>"
+               "<span class=hint id=ckelig></span>"
                "<div style='margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap'>"
-               "<button onclick='bulkReview()'>Mark selected reviewed &mdash; no change needed</button>"
+               "<button id=ckmark onclick='bulkReview()'>Mark selected reviewed &mdash; no "
+               "change needed</button>"
+               "<button class=sec onclick='csvExport()'>Export CSV</button>"
                "<button class=sec onclick='clearCk()'>Clear selection</button>"
                "<span class=hint>as <b id=ckwho>?</b></span></div></div>")
     return page("Transcripts", bulkbar + bar + search
@@ -9028,6 +9318,26 @@ class H(BaseHTTPRequestHandler):
                                                    "age": last_sync_age()}),
                                   "application/json")
             except Exception as e:
+                return self._send(200, json.dumps({"ok": False, "error": str(e)}),
+                                  "application/json")
+        if self.path == "/csvexport":
+            try:
+                rels = data.get("paths") or []
+                if not rels:
+                    raise ValueError("nothing selected")
+                body, n, skipped = csv_export(rels)
+                stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+                return self._send(200, json.dumps(
+                    {"ok": True, "csv": body, "rows": n, "skipped": skipped,
+                     "name": f"corrections-{stamp}.csv"}), "application/json")
+            except Exception as e:                                    # noqa: BLE001
+                return self._send(200, json.dumps({"ok": False, "error": str(e)}),
+                                  "application/json")
+        if self.path == "/csvimport":
+            try:
+                return self._send(200, json.dumps(csv_import(data.get("csv") or "")),
+                                  "application/json")
+            except Exception as e:                                    # noqa: BLE001
                 return self._send(200, json.dumps({"ok": False, "error": str(e)}),
                                   "application/json")
         if self.path == "/bulk":
