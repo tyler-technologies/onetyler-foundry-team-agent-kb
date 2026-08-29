@@ -1022,6 +1022,12 @@ def csv_export(rels):
         if fm is None:
             skipped.append((rel, "no frontmatter"))
             continue
+        # PENDING ONLY, matching the import side exactly. Exporting a transcript that cannot be
+        # imported back would hand a collaborator work with nowhere to land.
+        st = (fm.get("review_status") or "pending").strip() or "pending"
+        if st != "pending":
+            skipped.append((rel, f"{st} — export covers pending transcripts only"))
+            continue
         exs = exchanges_of(body or "")
         if not exs:
             skipped.append((rel, "no exchanges"))
@@ -1104,11 +1110,13 @@ def csv_import(text):
             skipped.append((rel, "no frontmatter"))
             continue
         st = (fm.get("review_status") or "pending").strip() or "pending"
-        # A closed transcript is not a place to land new prose. `pushed` asserts the content is
-        # already live in Foundry and `excluded` asserts the conversation is out of scope; both
-        # are decisions, and quietly editing their body would leave the assertion false.
-        if st in ("pushed", "excluded"):
-            skipped.append((rel, f"{st} — reopen it before importing corrections"))
+        # PENDING ONLY. Anything else carries a decision, and an imported correction would edit a
+        # body whose frontmatter still asserts the old verdict - `reviewed` and `suggested` claim
+        # a human has judged this text, `pushed` claims it is already live in Foundry, `excluded`
+        # claims it is out of scope. Landing new prose under any of those makes the claim false
+        # while leaving it on the page.
+        if st != "pending":
+            skipped.append((rel, f"{st} — import covers pending transcripts only"))
             continue
         exs = exchanges_of(body or "")
         pool = [[num, _qkey(q), False] for num, _tools, q, _a, _rv in exs]
@@ -1147,19 +1155,10 @@ def csv_import(text):
                          txt, flags=re.S)
         f.write_text(txt, encoding="utf-8")
         applied.append((rel, sorted(writes, key=lambda x: int(x))))
-
-        # Same consistency repair the transcript form does: a reviewed file that gains written
-        # feedback would otherwise assert "nothing wrong" in its fields while its body says
-        # otherwise, and the field-driven queries would skip the work.
-        fm2, body2 = parse(f)
-        if (fm2 and fm2.get("review_status") in ("reviewed", "suggested")
-                and needs_triage(fm2, body2 or "")):
-            note = fm2.get("notes", "")
-            mark = "needs-triage: written feedback, fields not classified"
-            upd = {"action_status": "open"}
-            if mark not in note:
-                upd["notes"] = (note + " || " if note else "") + mark
-            set_fields(f, upd)
+        # NO frontmatter repair here, unlike the transcript form. That repair exists to reconcile
+        # a `reviewed` file whose fields say "nothing wrong" while its body says otherwise - and
+        # only pending transcripts reach this point, where the fields have not been asserted yet.
+        # The reviewer opens it, reads the imported correction and records the verdict themselves.
 
     if applied:
         refresh_index()
@@ -1907,6 +1906,12 @@ input.bigsearch:focus{outline:2px solid var(--forge-theme-primary);outline-offse
 .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
 gap:10px;margin-bottom:var(--forge-spacing-medium)}
 .kpi[title]{cursor:help}
+/* The action row, directly under the telemetry cards. `position:relative` is load-bearing:
+   confirmThen appends its confirm box to the button's PARENT, so an unpositioned row would let
+   that box escape the layout. */
+.actbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;position:relative;
+margin-bottom:var(--forge-spacing-medium)}
+.actbar .hint{margin-left:4px}
 td.fbcell,th.fbcell{width:1%;text-align:center;padding-left:6px;padding-right:6px}
 .fb{font-size:15px;line-height:1;cursor:help}
 .fb-none{color:var(--fb-none-fg);cursor:help}
@@ -3048,29 +3053,23 @@ function ckWho(){let w=null;try{w=localStorage.getItem('lastReviewer')}catch(e){
 function ckList(){return [...document.querySelectorAll('tr.row')].filter(tr=>
   tr.style.display!=='none').map(tr=>tr.querySelector('input.ck')).filter(c=>c&&!c.disabled)}
 function ckSel(){return ckList().filter(c=>c.checked)}
-// Eligible for BULK MARKING, which is narrower than eligible for selection: only pending rows
-// that are not already inside an unmerged change request. Export has no such restriction.
-function ckMarkable(){return ckSel().filter(c=>c.dataset.bulkok==='1')}
-function ckSync(){const n=ckSel().length, m=ckMarkable().length;
- const bar=document.getElementById('bulkbar'); if(!bar) return;
- bar.style.display = n ? '' : 'none';
- document.getElementById('cknum').textContent=n;
- // Say why the mark button is off rather than only greying it out - "0 of 3 can be marked"
- // names the reason, where a dead button invites a second click.
+// The action row is always on the page; only availability moves. Both selection actions need at
+// least one row, Import needs none - it names its own rows from the file.
+function ckSync(){const n=ckSel().length;
+ const set=(id,off,why)=>{const b=document.getElementById(id); if(!b) return;
+                          b.disabled=off; b.title=off?why:''};
+ set('ckmark',  !n, 'Select at least one pending transcript');
+ set('ckexport',!n, 'Select at least one pending transcript');
  const el=document.getElementById('ckelig');
- if(el) el.textContent = m===n ? '' : m+' of '+n+' can be marked reviewed (pending rows only)';
- const mk=document.getElementById('ckmark');
- if(mk){mk.disabled = m===0;
-        mk.title = m===0 ? 'Nothing selected is pending' : '';}
- const w=document.getElementById('ckwho'); if(w) w.textContent = ckWho() || 'nobody — pick a name on a transcript first';
+ if(el) el.textContent = n ? (n+' selected · as '+(ckWho()||'nobody — pick a name on a transcript'))
+                           : 'Pending rows only';
 }
-function clearCk(){ckList().forEach(c=>c.checked=false);
+// Every box, not just the visible ones - see the ckall handler for why.
+function clearCk(){document.querySelectorAll('input.ck').forEach(c=>c.checked=false);
  const a=document.getElementById('ckall'); if(a)a.checked=false; ckSync()}
 async function bulkReview(){
- // Only the markable subset is sent. The server would skip the rest and report each one, but a
- // report of "12 skipped" for rows the UI let you select reads as a fault rather than a rule.
- const paths=ckMarkable().map(c=>c.value);
- if(!paths.length){toast('Nothing selected is pending',false);return}
+ const paths=ckSel().map(c=>c.value);
+ if(!paths.length){toast('Nothing selected',false);return}
  const who=ckWho();
  if(!who){toast('Open any transcript and pick a name first',false);return}
  if(!confirm(`Mark ${paths.length} transcript(s) reviewed with NO changes needed, as ${who}?`)) return;
@@ -3101,6 +3100,15 @@ async function csvExport(){
  let m=r.rows+' exchange(s) from '+paths.length+' transcript(s)';
  if(r.skipped&&r.skipped.length) m+=' — '+r.skipped.length+' skipped';
  toast(m);
+}
+// Import OVERWRITES a correction that is already there, and the file was authored somewhere
+// else - so the warning comes BEFORE the file picker, not after the read. Cancelling here costs
+// nothing; cancelling after a write is not on offer.
+function csvImportPick(btn){
+ confirmThen(btn,'Import corrections from a CSV?',
+   'Replaces the existing Correction on every exchange the file matches. '
+   +'Pending transcripts only; blank cells and unmatched rows are left alone.',
+   ()=>document.getElementById('csvfile').click());
 }
 async function csvImport(input){
  const f=input.files&&input.files[0];
@@ -3142,7 +3150,13 @@ document.addEventListener('keydown',e=>{
  if(tr&&tr.dataset.href&&!e.target.closest('input,button,a,select,textarea')) location.href=tr.dataset.href;
 });
 document.addEventListener('change',e=>{
- if(e.target.id==='ckall'){const v=e.target.checked;ckList().forEach(c=>c.checked=v);ckSync()}
+ // The header checkbox IS the clear-all, now that the button is gone - so unchecking it clears
+ // every box, not only the visible ones. Otherwise a row selected before a filter was applied
+ // stays selected invisibly, and the next export silently includes it.
+ if(e.target.id==='ckall'){
+   if(e.target.checked){ckList().forEach(c=>c.checked=true); ckSync()}
+   else clearCk();
+ }
  else if(e.target.classList&&e.target.classList.contains('ck')) ckSync();
 });
 
@@ -3205,6 +3219,9 @@ document.querySelectorAll('tr.row').forEach(tr=>{let ok=true;
  if(f.dto && (!d || d>f.dto)) ok=false;
  tr.style.display = ok?'':'none'; if(ok) n++});
 const sh=document.getElementById('shown'); if(sh) sh.textContent=n;
+// Filtering changes what counts as selected, so the buttons have to be re-derived here too.
+// Without it, narrowing the list away from a selection leaves them enabled against nothing.
+ckSync();
 // Empty states, worded for the reason. "No results" alone leaves someone stuck wondering
 // whether the tool is broken, whether they filtered wrongly, or whether there is genuinely
 // nothing for them.
@@ -3838,18 +3855,17 @@ def list_page(show_all=False):
             f" data-mine=\"{'awaiting' if r['mine_awaiting'] else ('area' if r['mine_area'] else '')}\""
             f" data-openpr=\"{r['openpr']['number'] if r['openpr'] else ''}\""
             f" data-href=\"/t/{html.escape(r['rel'])}\">"
-            # SELECTABLE ALWAYS; what the selection may DO varies. The checkbox used to be
-            # disabled on anything not pending, which was right while bulk-marking was the only
-            # bulk action - but CSV export is a read, and refusing to export a reviewed
-            # transcript's exchanges would block the case the export exists for (sending an
-            # answer out to be corrected by somebody who is not going to open this tool).
+            # PENDING ROWS ONLY, for every bulk action - marking, export and import alike.
+            # A transcript that is already reviewed, pushed or excluded carries a decision, and
+            # none of these three actions is a safe thing to do to a decision: marking re-stamps
+            # it, and an imported correction would edit a body whose frontmatter still asserts
+            # the old verdict.
             #
-            # `data-bulkok` carries the old rule instead, and the mark button reads it. The
-            # server enforces it either way - see /bulk, where the comment "the disabled
-            # checkbox in the UI is advice; this is the rule" already anticipated this.
+            # Also disabled inside an unmerged change request: the verdict in that request is
+            # the real one, and a second stamp guarantees a conflict when it merges.
             f"<td class=nowrap><input type=checkbox class=ck value=\"{html.escape(r['rel'])}\""
-            f" data-bulkok=\"{'1' if (r['status'] == 'pending' and not r['openpr']) else ''}\""
-            f"{' title=\'Inside an unmerged change request — open it instead of bulk-marking\'' if r['openpr'] else ''}"
+            f"{' disabled' if (r['status'] != 'pending' or r['openpr']) else ''}"
+            f"{' title=\'Inside an unmerged change request — open it instead\'' if r['openpr'] else ''}"
             "></td>"
             f"<td class=fbcell>{fb_glyph(r['fb'])}</td>"
             f"<td class=qcell title=\"{html.escape(r['qfull'])}\">"
@@ -4012,15 +4028,7 @@ def list_page(show_all=False):
     head = ("<div style='display:flex;align-items:center;gap:12px;flex-wrap:wrap;"
             "margin-bottom:var(--forge-spacing-medium)'>"
             f"<h2 class=sec style='margin:0'>{title}</h2>"
-            # Import is not selection-driven - the file names its own rows - so it belongs here
-            # rather than in the selection bar next to Export.
-            "<input type=file id=csvfile accept='.csv,text/csv' hidden "
-            "onchange='csvImport(this)'>"
-            "<button class=sec style='margin-left:auto' "
-            "onclick='document.getElementById(\"csvfile\").click()' "
-            "title='Applies the Correction column to matching exchanges'>"
-            "Import CSV</button>"
-            "<button class=sec id=syncbtn onclick='syncNow()' "
+            "<button class=sec id=syncbtn onclick='syncNow()' style='margin-left:auto' "
             "title='Runs by itself when the data is more than 30 minutes old'>"
             f"{icon('refresh', 15)} Sync transcripts</button>"
             # The reassurance itself. Without this the page could be an hour stale or five
@@ -4028,7 +4036,24 @@ def list_page(show_all=False):
             # have to keep the tool open to trust what it is showing them.
             f"<span class=fresh id=freshness data-age='{age if age is not None else -1}'></span>"
             "<span class=hint id=syncmsg style='font-size:12px'></span></div>")
-    bar = head + youline + "<div class=kpis>" + "".join(tiles) + "</div>"
+    # ALWAYS VISIBLE, availability the only thing that moves. The row used to appear only once
+    # something was selected, which meant the two selection actions did not exist until after
+    # the gesture that needs them - nothing on the page said a selection would lead anywhere.
+    # A permanently-present disabled button states the affordance; a hidden one cannot.
+    #
+    # No Clear selection button: the header checkbox is already select-all / clear-all.
+    actbar = ("<div class=actbar>"
+              "<button id=ckmark onclick='bulkReview()' disabled>Mark selected reviewed</button>"
+              "<button class=sec id=ckexport onclick='csvExport()' disabled>Export CSV</button>"
+              "<input type=file id=csvfile accept='.csv,text/csv' hidden "
+              "onchange='csvImport(this)'>"
+              "<button class=sec id=ckimport onclick='csvImportPick(this)'>Import CSV</button>"
+              "<span class=hint id=ckelig></span></div>")
+
+    bar = (head + youline + "<div class=kpis>" + "".join(tiles) + "</div>"
+           # Directly under the telemetry cards: the actions belong with the numbers they
+           # act on, and above the filter row so narrowing the list does not move them.
+           + actbar)
 
     # Search and the narrowing controls on ONE row. Previously the search field, its helper
     # paragraph, the date/mine/clear bar and the count line were four stacked blocks before
@@ -4046,16 +4071,7 @@ def list_page(show_all=False):
               + "</p>")
 
 
-    bulkbar = ("<div class=bar id=bulkbar style='display:none'>"
-               "<b><span id=cknum>0</span> selected</b> &nbsp;"
-               "<span class=hint id=ckelig></span>"
-               "<div style='margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap'>"
-               "<button id=ckmark onclick='bulkReview()'>Mark selected reviewed &mdash; no "
-               "change needed</button>"
-               "<button class=sec onclick='csvExport()'>Export CSV</button>"
-               "<button class=sec onclick='clearCk()'>Clear selection</button>"
-               "<span class=hint>as <b id=ckwho>?</b></span></div></div>")
-    return page("Transcripts", bulkbar + bar + search
+    return page("Transcripts", bar + search
                 + "<div class=tblcard><table id=tbl><tr>"
                   "<th class=nowrap style='width:1%'>"
                   "<input type=checkbox id=ckall title='select all shown'></th>"
