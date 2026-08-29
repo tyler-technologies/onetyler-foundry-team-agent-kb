@@ -278,6 +278,10 @@ def main():
     ap.add_argument("--restore-only", metavar="DIR",
                     help="put Foundry back from a saved restore point and exit")
     ap.add_argument("--yes", action="store_true", help="skip the confirmation")
+    ap.add_argument("--reupload", metavar="DIR",
+                    help="push the CURRENT candidate files over the already-live eval content, "
+                         "keeping the existing restore point. For iterating: edit, re-upload, "
+                         "ask again.")
     ap.add_argument("--keep", action="store_true",
                     help="leave the candidate content LIVE in Foundry after the questions, so "
                          "adjacent phrasings can be tried. Writes a LIVE marker; remove with "
@@ -286,6 +290,9 @@ def main():
 
     if not KEY:
         die("FOUNDRY_API_KEY is not set.")
+
+    if a.reupload:
+        return reupload(pathlib.Path(a.reupload))
 
     if a.restore_only:
         d = pathlib.Path(a.restore_only)
@@ -433,6 +440,96 @@ def main():
     print(f"\nResults saved to {(rdir / 'RESULTS.json').relative_to(REPO)}")
     print("Read the answers above. If they are wrong, the change is not ready — reset those "
           "transcripts to pending and keep working. Nothing has been sent in.")
+    return 0
+
+
+def reupload(rdir):
+    """Push the CURRENT candidate files over the already-live eval content. 0 on success.
+
+    The loop this serves: run the eval, mark up the answer, hand the prompt to an assistant, it
+    edits the knowledge files - and then the live content is stale relative to the repo. Without
+    this the only way to test the new edits is a full eval re-run, which re-snapshots and re-asks
+    everything for a change the reviewer has already scoped.
+
+    THE RESTORE POINT IS NOT RE-TAKEN, and that is the whole safety property. It holds the
+    ORIGINAL PUBLISHED content; re-snapshotting here would capture the candidate content that is
+    live right now, and Remove would then "restore" Foundry to an unmerged draft while reporting
+    success. So the manifest is only ever EXTENDED.
+
+    Extended, though, it must be: if this round of edits touches a file that was not in the
+    original candidate set, that file has no restore entry, and Remove would leave it live
+    forever. So any newly-appearing file gets its current live state snapshotted first - or
+    recorded as absent, meaning "delete this on restore".
+    """
+    mf = rdir / "MANIFEST.json"
+    if not mf.is_file():
+        die(f"no MANIFEST.json in {rdir}")
+    manifest = json.loads(mf.read_text())
+    files = candidate_files()
+    if not files:
+        print("No knowledge file differs from origin/main, so there is nothing to re-upload.")
+        return 0
+    cols = collections_for(files)
+    known = {(e["collection"], e["fileName"]) for e in manifest["files"]}
+
+    print(f"Re-uploading {len(files)} candidate file(s) over the live eval content")
+    added = 0
+    for col, fs in cols.items():
+        recs = None
+        for f in fs:
+            name = pathlib.Path(f).name
+            if (col, name) in known:
+                continue
+            # New to the candidate set since the run started - it needs a restore entry, or
+            # Remove will not know to undo it.
+            if recs is None:
+                recs = remote_records(col)
+            rec = recs.get(name)
+            if not rec:
+                manifest["files"].append({"collection": col, "fileName": name, "absent": True})
+                print(f"      + {col}/{name}: new, not in the collection — will be DELETED on remove")
+            else:
+                body = download(col, rec["id"])
+                out = rdir / col
+                out.mkdir(exist_ok=True)
+                (out / name).write_bytes(body)
+                manifest["files"].append({"collection": col, "fileName": name, "absent": False,
+                                          "bytes": len(body),
+                                          "sha256": hashlib.sha256(body).hexdigest()})
+                print(f"      + {col}/{name}: new to this batch, {len(body)} B saved first")
+            added += 1
+    if added:
+        mf.write_text(json.dumps(manifest, indent=2))
+
+    for col, fs in cols.items():
+        upload(col, [REPO / f for f in fs])
+        print(f"      {col}: {len(fs)} file(s)")
+    print("      one consolidated sync")
+    sync_once()
+
+    print("\n  Waiting for the collections to serve the new content")
+    stale = []
+    for col, fs in cols.items():
+        for f in fs:
+            want = hashlib.sha256((REPO / f).read_bytes()).hexdigest()
+            waited = wait_for_content(col, pathlib.Path(f).name, want)
+            if waited is None:
+                stale.append(f"{col}/{pathlib.Path(f).name}")
+            print(f"      {col}/{pathlib.Path(f).name}: "
+                  + (f"live after {waited}s" if waited is not None else "TIMED OUT"))
+    (rdir / "LIVE").write_text(json.dumps({
+        "since": json.loads((rdir / "LIVE").read_text()).get("since")
+                 if (rdir / "LIVE").is_file()
+                 else dt.datetime.now(dt.timezone.utc).isoformat(),
+        "reuploaded": dt.datetime.now(dt.timezone.utc).isoformat(),
+        "collections": sorted(cols),
+        "files": files,
+    }, indent=2))
+    if stale:
+        print(f"\n  ⚠ {len(stale)} file(s) did not go live: " + ", ".join(stale)
+              + "\n    Asking again now would answer from the previous content.")
+        return 1
+    print("\n  The new edits are live. Ask again to see what changed.")
     return 0
 
 
