@@ -7599,8 +7599,13 @@ def eval_estimate():
         files = eval_batch.candidate_files()
         n_q = 0
         for rel in eval_batch.batch_transcripts():
-            _, qs, fm = eval_batch.parse_transcript(rel)
-            if qs and (fm.get("review_status") or "") in ("reviewed", "suggested", "pending"):
+            # SAME PREDICATE AS THE RUN. This used to carry its own copy of the status list,
+            # which then diverged: the script stopped replaying `pending` and transcripts with
+            # nothing to change, while this kept counting them - so the screen quoted a question
+            # count and a cost the run would not incur.
+            _, qs, fm, body = eval_batch.parse_transcript(rel)
+            if (qs and (fm.get("review_status") or "") in ("reviewed", "suggested")
+                    and eval_batch.wants_change(fm, body)):
                 n_q += len(qs)
         mins = max(1, (2 * eval_batch.SECS_PER_SYNC + n_q * eval_batch.SECS_PER_QUESTION) // 60)
         return files, n_q, mins

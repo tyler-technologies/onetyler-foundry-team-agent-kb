@@ -157,8 +157,41 @@ def parse_transcript(rel):
         if q:
             qs.append(q)
     slug = (fm.get("answered_by") or "").strip()
-    return slug, qs, fm
+    return slug, qs, fm, body
 
+
+def wants_change(fm, body):
+    """Did this review actually ask for something to change? Bool.
+
+    AN EVAL ONLY MEANS SOMETHING WHERE A CHANGE WAS ASKED FOR. Replaying a transcript the
+    reviewer was happy with proves nothing, costs a question, and - worse - adds a card that has
+    to be approved before the batch can be sent, so it blocks the work that WAS asked for.
+
+    Keyed on the prose as well as the fields, deliberately. The review form opens pre-filled as
+    "nothing wrong", and CLAUDE.md is explicit that reviewers frequently write the correction and
+    never touch the dropdowns - so `kb_action: none` beside a paragraph of "it should have said
+    X" is a common and legitimate state. Reading only the field would drop exactly the reviews
+    that matter most.
+    """
+    if (fm.get("kb_action") or "").strip() in ("add", "update", "split"):
+        return True
+    # "applied" only, NOT "open". `action_status: open` is what the FETCH template writes into
+    # every new transcript, so treating it as a signal made this function true for everything
+    # ever downloaded - which would have re-admitted exactly the transcripts it exists to
+    # exclude. "applied" is different: it is a claim that work was done.
+    if (fm.get("action_status") or "").strip() == "applied":
+        return True
+    if (fm.get("fix_target") or "").strip() not in ("", "none"):
+        return True
+    # Written feedback: a non-empty correction under any exchange, or a proposed fix.
+    for m in re.finditer(r"<!-- review:\d+ -->\n(.*?)<!-- /review:\d+ -->", body or "", re.S):
+        t = re.sub(r"\*\*Review\s*[—-]\*\*.*?(?:\n|$)", "", m.group(1), count=1)
+        if t.strip():
+            return True
+    m = re.search(r"<!-- proposed-fix -->\n(.*?)<!-- /proposed-fix -->", body or "", re.S)
+    if m and m.group(1).strip():
+        return True
+    return False
 
 def collections_for(files):
     out = {}
@@ -373,8 +406,17 @@ def main():
     transcripts = batch_transcripts()
     pairs = []
     for rel in transcripts:
-        slug, qs, fm = parse_transcript(rel)
-        if qs and (fm.get("review_status") or "") in ("reviewed", "suggested", "pending"):
+        slug, qs, fm, body = parse_transcript(rel)
+        # TWO CONDITIONS, both necessary.
+        #
+        # NOT "pending": an eval tests the change a REVIEW asked for, and a pending transcript
+        # has not been looked at. Replaying one adds a card that must be approved before the
+        # batch can be sent - work nobody requested, blocking work that was.
+        #
+        # AND a change must actually have been asked for. A transcript the reviewer was happy
+        # with proves nothing when replayed, and blocks the send just the same.
+        if (qs and (fm.get("review_status") or "") in ("reviewed", "suggested")
+                and wants_change(fm, body)):
             pairs.append((rel, slug, qs))
     n_q = sum(len(q) for _, _, q in pairs)
 
