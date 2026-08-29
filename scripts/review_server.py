@@ -1479,7 +1479,8 @@ flex:0 0 auto}
 .evq{background:var(--forge-theme-surface-container);border-radius:5px;padding:9px 11px;
 margin:0 0 10px;font-size:13.5px}
 .evq b{color:var(--forge-theme-text-medium);margin-right:6px}
-.evcols{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.evcols{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:stretch;--evbox-h:360px}
+@media(max-width:900px){.evcols{--evbox-h:280px}}
 @media(max-width:900px){.evcols{grid-template-columns:1fr}}
 .evlab{font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;
 margin:0 0 5px;color:var(--forge-theme-text-medium)}
@@ -1487,8 +1488,13 @@ margin:0 0 5px;color:var(--forge-theme-text-medium)}
 line-height:1.5;white-space:pre-wrap;word-break:break-word;max-height:320px;overflow:auto;
 border:1px solid var(--forge-theme-outline-low)}
 .evbefore pre{background:var(--d-del-bg,var(--forge-theme-surface-container))}
+/* SAME BOX, BOTH SIDES. The target is a <pre> and the answer is a <textarea>, and left to
+   their own devices they size to their content - so the two things a reviewer is comparing
+   side by side started and ended at different heights. A fixed, shared height is the only way
+   two different elements line up; --evbox-h keeps them defined in one place. */
 .evtarget pre{margin:0;padding:10px;border-radius:5px;font-size:12px;line-height:1.5;
-white-space:pre-wrap;word-break:break-word;max-height:320px;overflow:auto;
+white-space:pre-wrap;word-break:break-word;height:var(--evbox-h);overflow:auto;
+box-sizing:border-box;
 border:1px solid var(--forge-theme-outline-low);
 background:var(--bnr-sug-bg);color:var(--bnr-sug-fg)}
 .evafter pre{background:var(--d-add-bg,var(--forge-theme-surface-container))}
@@ -1507,7 +1513,7 @@ letter-spacing:0;text-transform:none;cursor:help}
 @keyframes evflash{from{background:var(--forge-theme-primary-container-minimum)}to{background:transparent}}
 .evafter.isnew pre,.evvar.isnew pre{animation:evflash 1.8s ease-out}
 .evnowbox{width:100%;box-sizing:border-box;font:inherit;font-size:12px;line-height:1.5;
-padding:10px;border-radius:5px;resize:vertical;
+padding:10px;border-radius:5px;resize:vertical;height:var(--evbox-h);
 border:1px solid var(--forge-theme-outline-low);
 background:var(--d-add-bg,var(--forge-theme-surface-container));
 color:var(--forge-theme-text-high)}
@@ -7854,14 +7860,7 @@ def eval_review_page():
             f"<div class=evlab>Now{(' (' + html.escape(latest['at']) + ')') if latest.get('at') else ''}"
             f"{match_html(match_pct(corr, latest.get('answer') or ''))}"
             "<span class=evedited hidden> · edited</span></div>"
-            "<div class=stepacts style='margin:0 0 6px'>"
-            f"<button class=evcopy disabled title='Edit the answer below first — add {{{{...}}}} "
-            f"where it is wrong' onclick=\"evCopyPrompt(this,'{html.escape(key)}')\">"
-            "Copy prompt</button>"
-            "<button class='sec evresetnow' disabled title='Nothing to reset yet' "
-            "onclick='evResetNow(this)'>Reset</button>"
-            "<span class=evmarks></span></div>"
-            f"<textarea class=evnowbox rows=14 oninput='evNowEdited(this)' "
+            f"<textarea class=evnowbox oninput='evNowEdited(this)' "
             f"data-orig=\"{html.escape(latest.get('answer') or '')}\">"
             f"{html.escape(latest.get('answer') or '(no answer returned)')}</textarea>"
             "<div class=hint style='margin:5px 0 0'>To improve response type comments in "
@@ -7873,6 +7872,17 @@ def eval_review_page():
             # Variants accumulate rather than replacing the scripted answer: the consistency
             # across phrasings IS the evidence, so losing the earlier ones would lose the point.
             + f"<div class=evvars>{variants_html(earlier)}</div>"
+            # THE ACTION ROW LIVES AT THE BOTTOM. It sat above the Now box, which put controls
+            # between the two panes being compared and made the left and right columns start at
+            # different heights - the asymmetry a reviewer flagged as uncomfortable. Actions
+            # after the thing they act on also matches every other card in this app.
+            + "<div class=stepacts style='margin:12px 0 0'>"
+            + f"<button class=evcopy disabled title='Edit the answer above first — add "
+            f"{{{{...}}}} where it is wrong' "
+            f"onclick=\"evCopyPrompt(this,'{html.escape(key)}')\">Copy prompt</button>"
+            + "<button class='sec evresetnow' disabled title='Nothing to reset yet' "
+            "onclick='evResetNow(this)'>Reset</button>"
+            + "<span class=evmarks></span></div>"
             + "</div>")
 
     foot = (
