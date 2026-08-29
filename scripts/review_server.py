@@ -1522,6 +1522,14 @@ color:var(--forge-theme-text-high)}
 .evedited{font-size:10.5px;font-weight:600;color:var(--forge-theme-warning);margin-left:8px}
 /* Group headers inside the review form. Deliberately quiet - they orient, they are not a
    warning, and the form has enough going on. */
+/* On the two prose inputs, which are the strongest change signals and cannot be grouped with
+   the dropdowns because each appears once, in a different place. Quiet on purpose - it is a
+   reminder, not a warning. */
+.trigtag{margin-left:8px;padding:1px 6px;border-radius:8px;font-size:10px;font-weight:600;
+letter-spacing:.03em;text-transform:uppercase;
+/* text-high, not text-medium: medium-on-surface-container measures 4.47:1 in dark mode, just
+   under the 4.5 floor. Same pair caught by check_contrast on the eval card's disclosure. */
+background:var(--forge-theme-surface-container);color:var(--forge-theme-text-high)}
 .fldgrp{grid-column:1/-1;margin:14px 0 2px;padding-top:10px;
 border-top:1px solid var(--forge-theme-outline-low)}
 .fldgrp:first-child{margin-top:0;padding-top:0;border-top:0}
@@ -1981,16 +1989,82 @@ function formAsksForChange(){
  }
  // The prose counts too, and counts MORE: the form opens on "nothing wrong", and a reviewer who
  // writes "it should have said X" without touching a dropdown has still asked for a change.
- for (const e of document.querySelectorAll('[data-ex]')) if ((e.value||'').trim()) return true;
+ //
+ // BUT THE SCAFFOLDING IS NOT PROSE. Each correction box opens pre-filled with the block's own
+ // header - "**Review —** _verdict:_ · _should have said:_" - which the form wrote, not the
+ // reviewer. A raw .trim() therefore saw 45 characters of template on every untouched transcript
+ // and reported "Changes suggested" before anyone had typed a word. The server's wants_change()
+ // strips the same line; this is the client half of one rule, and letting the two differ is
+ // exactly what the shared NEUTRAL table exists to prevent.
+ for (const e of document.querySelectorAll('[data-ex]')) if (proseTyped(e.value)) return true;
  const pf = document.getElementById('proposed');
- if (pf && (pf.value||'').trim()) return true;
+ if (pf && proseTyped(pf.value)) return true;
  return false;
+}
+// Strip the review block's own header before deciding whether anything was written.
+function proseTyped(v){
+ return (v || '').replace(/^\s*\*\*Review\s*[\u2014-]\*\*.*$/m, '').trim().length > 0;
+}
+// Put every "Triggers changes" field back to its neutral value and empty the prose, so the form
+// reads as a deliberate no-change review again.
+//
+// CONFIRMS FIRST. This is the only control on the page that can discard a paragraph somebody
+// typed - a correction is often the most considered thing in the whole review - and an
+// unconfirmed button next to the one you press to finish is a bad place to be one click out.
+//
+// Neutral values come from the same NEUTRAL table the label and the eval read, so "cleared"
+// means exactly "the eval will not replay this" and not merely "looks empty".
+function clearChanges(btn){
+ confirmThen(btn, 'Clear the changes you have suggested?',
+   'Puts every verdict field back to its default and empties the corrections and the summary, '
+   + 'so this records as <b>no changes needed</b>. Your typed text is discarded &mdash; there is '
+   + 'no undo.',
+   ()=>{
+     for (const e of document.querySelectorAll('[data-fm]')) {
+       const k = e.dataset.fm, neutral = NEUTRAL[k];
+       if (!neutral) continue;                       // absent, or pure bookkeeping
+       if (e.dataset.bool) { e.checked = false; continue; }
+       if (e.dataset.multi) { [...e.options].forEach(o=>o.selected=false); continue; }
+       if (e.tagName === 'SELECT') {
+         // Pick a neutral value this select actually offers - "" is not always an option.
+         const opt = [...e.options].map(o=>o.value)
+                        .find(v => neutral.includes((v||'').trim().toLowerCase()));
+         if (opt !== undefined) e.value = opt;
+       } else {
+         e.value = '';
+       }
+     }
+     // kb_files is three controls, not one: the hidden value the form submits, the checkboxes
+     // in the dialog, and the button that shows the count. Missing any leaves the picker
+     // claiming a selection that is no longer in the field.
+     const kv = document.getElementById('kbvalue');
+     if (kv) kv.value = '';
+     kbBoxes().forEach(b => b.checked = false);
+     const kbb = document.getElementById('kbbtn');
+     if (kbb) kbb.innerHTML = 'Select\u2026';
+     // Back to the scaffolding the form supplies, not to empty: a blank correction box looks
+     // broken next to the others, and the header is what tells you where to type.
+     document.querySelectorAll('[data-ex]').forEach(e => {
+       const m = (e.value||'').match(/^\s*\*\*Review\s*[\u2014-]\*\*.*$/m);
+       e.value = m ? m[0] : '';
+     });
+     const pf = document.getElementById('proposed');
+     if (pf) pf.value = '';
+     refreshMarkLabel();
+     toast('Cleared \u2014 this now records as no changes needed');
+   });
 }
 function refreshMarkLabel(){
  const b = document.getElementById('markbtn');
  if (!b) return;
  const asks = formAsksForChange();
  b.textContent = (asks ? 'Changes suggested' : 'No changes') + ' & next \u2192';
+ const c = document.getElementById('clearbtn');
+ if (c) {
+   c.disabled = !asks;
+   c.title = asks ? 'Put every verdict field back to its default and empty the prose'
+                  : 'Nothing suggested yet';
+ }
  b.title = asks
    ? 'Records your verdict and the changes you asked for. This transcript WILL appear under '
      + 'Eval Review so you can check the fix.'
@@ -4080,7 +4154,8 @@ def detail_page(rel):
             f"<div class=q>{html.escape(q)}</div>"
             f"<div style='margin:8px 0 4px;font-size:12px;color:var(--forge-theme-text-medium)'><b>Answer given</b></div>"
             f"<div class=a>{html.escape(a)}</div>"
-            f"<div class=fld><label style='margin-top:10px'>Correction{ci}</label>{cp}"
+            f"<div class=fld><label style='margin-top:10px'>Correction{ci}"
+              f"<span class=trigtag>triggers changes</span></label>{cp}"
             f"<textarea data-ex={n}>{html.escape(rv)}</textarea></div></div>")
 
     # ---- Summary: the free-text conclusion, then the fields that classify it ---------------
@@ -4091,7 +4166,8 @@ def detail_page(rel):
         "The prose is the valuable part &mdash; the fields underneath just classify it so the "
         "right person picks it up.</p>"
         f"<div class=card><div class=fld>"
-        f"<label>Overall suggestions and comments{pi}</label>{pp}"
+        f"<label>Overall suggestions and comments{pi}"
+          f"<span class=trigtag>triggers changes</span></label>{pp}"
         f"<textarea id=proposed style='min-height:150px'>"
         f"{html.escape(proposed_of(body))}</textarea></div>"
         "<div class=grid style='margin-top:var(--forge-spacing-medium)'>"
@@ -4115,6 +4191,10 @@ def detail_page(rel):
         # only one of them puts the transcript in an eval. The label is recomputed as the form is
         # edited, from the SAME neutral-value pools eval_batch uses to decide what to replay, so
         # a transcript labelled "No changes" is guaranteed not to appear under Eval Review.
+        # Before the verdict button, so it reads as "undo what I typed, then finish". Disabled
+        # until there is something to clear - see refreshMarkLabel().
+        f"<button class=sec id=clearbtn disabled onclick='clearChanges(this)' "
+        f"title='Nothing suggested yet'>Clear changes</button>"
         f"<button onclick=\"markAndNext('{html.escape(rel)}','{next_}')\" id=markbtn>"
         "No changes &amp; next &rarr;</button>"
         f"</div></div>"
