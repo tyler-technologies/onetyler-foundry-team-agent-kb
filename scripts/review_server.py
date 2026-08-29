@@ -4648,7 +4648,15 @@ def bp_batch():
         fm, _ = parse(f)
         if (fm or {}).get("bp_updates", "").strip().lower() in ("yes", "true", "1"):
             out.append(rel)
-    return out
+    # A STAGED PATCH IS ITSELF A PENDING REQUEST, whether or not the transcript is still in the
+    # diff against main. Once a transcript's verdict merges it drops out of the diff - and the
+    # Blueprint patch attributed to it was then orphaned: staged, listed by --list, and never
+    # opened, because nothing asked for it any more. Silently dropping Blueprint work is the
+    # failure the whole per-transcript attribution exists to prevent.
+    for rel in bp_staged():
+        if rel not in out:
+            out.append(rel)
+    return sorted(out)
 
 
 def bp_available():
@@ -7390,9 +7398,33 @@ def eval_records():
     except Exception:                                                     # noqa: BLE001
         return []
     appr = eval_approvals()
+    # FILTER THE DISPLAY BY THE CURRENT RULE, not by what the run happened to ask. A run made
+    # before `pending` transcripts were excluded still has their answers in RESULTS.json, and
+    # showing those cards keeps demanding approval for a review nobody made - which blocks the
+    # send on work that was never requested. The stale card outlives the fix otherwise.
+    try:
+        sys.path.insert(0, str(REPO / "scripts"))
+        import eval_batch as _eb
+    except Exception:                                                     # noqa: BLE001
+        _eb = None
+
+    def _still_qualifies(rel):
+        if _eb is None:
+            return True
+        f = REPO / rel
+        if not f.is_file():
+            return False
+        fm, body = parse(f)
+        fm = fm or {}
+        if (fm.get("review_status") or "") not in ("reviewed", "suggested"):
+            return False
+        return _eb.wants_change(fm, body or "")
+
     out = []
     for r in results:
         rel = r.get("transcript") or ""
+        if not _still_qualifies(rel):
+            continue
         n = str(r.get("n") or "")
         # eval_batch writes `question`/`answer`; accept the short names too so an older run
         # directory still renders instead of showing two empty panes.
@@ -7532,7 +7564,20 @@ def eval_remove():
     if r.returncode != 0:
         return False, ("The removal FAILED and the candidate content may still be live:\n\n"
                        + tail)
-    return True, "Foundry is back to what it was.\n\n" + tail
+    # AND UNDO THE STEP, not just the upload. Clearing only the LIVE marker left the send gate
+    # still satisfied - eval_ran_fingerprint() matched, so Part 2 kept showing Eval Review as
+    # done-and-waiting and the opt-in checkbox stayed read-only. A reviewer who removed the
+    # content saw nothing backtrack, which is the same complaint as the silent reset-to-pending:
+    # the state changed and the page did not say so.
+    #
+    # The run directory is kept - its answers and approvals are the record of what happened. Only
+    # the claim "an eval covers the current content" is withdrawn, because it no longer does.
+    d = latest_eval_dir()
+    if d is not None:
+        (d / "FINGERPRINT").unlink(missing_ok=True)
+        (d / "APPROVALS.json").unlink(missing_ok=True)
+    return True, ("Foundry is back to what it was, and the Eval Review step is reset — run it "
+                  "again when you are ready.\n\n" + tail)
 
 
 def _var_path():
