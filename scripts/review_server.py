@@ -2264,12 +2264,21 @@ function sendReviews(btn){
      +'instructions been completed?'
    : 'No transcript in this batch is waiting on a knowledge update, so there is nothing for '
      +'the assistant to have done.<br><br>Send it in?';
- const wantEval = (document.getElementById('doeval')||{}).checked;
+ // A DISABLED checkbox still reports checked:true, so reading .checked alone would re-run the
+ // eval every time Process Part 2 was pressed after the first. Disabled means "already run for
+ // this content" - so the press should go on to the change request instead.
+ const _cb = document.getElementById('doeval');
+ const wantEval = !!(_cb && _cb.checked && !_cb.disabled);
+ // Two different presses, so two different notes. The old text said "then puts Foundry back",
+ // which stopped being true when the content started staying live for adjacent phrasings.
  const evalNote = wantEval
    ? '<br><br><b>The check runs first.</b> It saves your work, uploads the changed knowledge '
-     +'files, asks the agents this batch\u2019s questions, then puts Foundry back. Nothing is '
-     +'sent in until you have read the answers.'
-   : '';
+     +'files and asks the agents this batch\u2019s questions. The content STAYS live afterwards '
+     +'so you can try other phrasings. Nothing is sent in until you have read the answers.'
+   : (_cb && _cb.disabled
+      ? '<br><br>The check has already run for this version, so this goes straight on to the '
+        +'change request \u2014 and takes the eval content back out of Foundry.'
+      : '');
  confirmThen(btn, n ? 'Has the assistant finished the knowledge updates?' : 'Send these in?',
    detail + evalNote, ()=>{ wantEval ? runEval(btn) : gitDo('pr'); });
 }
@@ -7569,15 +7578,29 @@ def eval_estimate():
         return [], 0, 0
 
 
-def _eval_optin():
+def _eval_optin(spent=False):
     """The eval checkbox, with the real cost stated rather than implied.
 
     ON by default: the whole point of an eval is that it runs when nobody remembered to ask for
     one. Off by default would mean it ran on the days somebody was already being careful.
+
+    READ-ONLY ONCE THE EVAL HAS RUN FOR THIS CONTENT (`spent`). The checkbox only governs what
+    the FIRST press of Process Part 2 does; after the eval has run, pressing it again goes on to
+    the push and the change request, and the tickbox governs nothing. Leaving it live implied a
+    choice that no longer existed - untick it at that point and nothing changes, which is worse
+    than a disabled control because it looks like it did something.
     """
     files, n_q, mins = eval_estimate()
     if not files or not n_q:
         return ""
+    if spent:
+        return (
+            "<div class=evalbox>"
+            "<label class=evalrow><input type=checkbox id=doeval checked disabled>"
+            "<span><b>Include Eval Review</b></span></label>"
+            "<div class=hint style='margin:6px 0 0 26px'>Already run for this version &mdash; "
+            "the next <b>Process Part 2</b> goes on to the change request. Change a knowledge "
+            "file and this becomes live again.</div></div>")
     # The cost and the live-agent side effect stay; the mechanics do not. A reviewer needs to
     # know how long it takes and that it touches production - not how Bedrock schedules jobs.
     return (
@@ -8208,7 +8231,9 @@ def git_page():
              f"<li data-stage=pr class='{st['pr']}'><b>Create the change request</b>"
              "<span>a pull request, for review</span></li>"
              + "</ol>"
-             + _eval_optin()
+             # `spent` when an eval already covers this exact content - the tickbox then
+             # governs nothing, so it must not look like it does.
+             + _eval_optin(spent=st["eval"] in ("you", "done"))
              + _router_warning()
              + "<div class=stepacts>"
              f"<button onclick='sendReviews(this)' data-ai-pending='{n_ai}'>"
