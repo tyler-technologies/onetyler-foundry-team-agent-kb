@@ -7106,7 +7106,40 @@ ROUTER_PATHS = ("team-config/", "README.md")
 # Process-lifetime only, deliberately. It is a "did you look at the answers" gate, not an audit
 # trail, and persisting it would mean an approval surviving a restart the reviewer did not connect
 # to it.
-_EVAL_OK = {"fingerprint": None, "at": 0.0}
+def eval_ran_fingerprint():
+    """The candidate fingerprint the newest eval run actually evaluated, or None.
+
+    ON DISK, NOT IN MEMORY. This used to be a module-level dict, which meant the send gate
+    forgot every eval the moment the server restarted - and then refused the send with "the
+    check has not been run on this version yet", which is a lie the reviewer cannot argue with.
+    Reported as "it reset the Part 2 memory so it doesn't know where things are currently at",
+    and that is exactly what it was: the approvals survived a restart because they were written
+    to APPROVALS.json, while the fact that an eval had run did not.
+
+    The run directory is the natural home - it is already the record of that run, it is already
+    what APPROVALS.json is keyed against, and it outlives the process.
+    """
+    d = latest_eval_dir()
+    if d is None:
+        return None
+    f = d / "FINGERPRINT"
+    if not f.is_file():
+        # Runs made before this was recorded. Fall back to the approvals file, which has carried
+        # the fingerprint since it existed - better than declaring an eval never happened.
+        ap = d / "APPROVALS.json"
+        if ap.is_file():
+            try:
+                return (json.loads(ap.read_text()) or {}).get("fingerprint")
+            except Exception:                                             # noqa: BLE001
+                return None
+        return None
+    return (f.read_text().strip() or None)
+
+
+def set_eval_ran(fingerprint):
+    d = latest_eval_dir()
+    if d is not None and fingerprint:
+        (d / "FINGERPRINT").write_text(fingerprint + "\n")
 
 
 def candidate_fingerprint():
@@ -8694,8 +8727,7 @@ class H(BaseHTTPRequestHandler):
                             # Tied to the content that was actually evaluated. Change a knowledge
                             # file after this and the fingerprint stops matching, so the gate
                             # closes again rather than trusting a stale run.
-                            _EVAL_OK.update(fingerprint=candidate_fingerprint(),
-                                            at=time.time())
+                            set_eval_ran(candidate_fingerprint())
                 elif act == "reset-pending":
                     # Status only. Corrections, summaries and field values stay - the verdict was
                     # premature, not wrong to have been written, and throwing the prose away
@@ -8760,9 +8792,10 @@ class H(BaseHTTPRequestHandler):
                     # a gate with no question behind it.
                     fp = candidate_fingerprint()
                     _, n_q, _ = eval_estimate()
-                    if fp and n_q and _EVAL_OK["fingerprint"] != fp:
+                    ran = eval_ran_fingerprint()
+                    if fp and n_q and ran != fp:
                         why = ("the check has not been run on this version yet"
-                               if _EVAL_OK["fingerprint"] is None else
+                               if ran is None else
                                "a knowledge file changed after the last check, so its answers "
                                "were about different content")
                         return self._send(200, json.dumps({"ok": False, "output": (
