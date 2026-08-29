@@ -1768,6 +1768,14 @@ font-size:13px;font-weight:500;cursor:pointer;letter-spacing:.02em}
 a.btn{display:inline-flex;align-items:center;line-height:1;text-decoration:none;
 font-family:inherit}
 button:hover,a.btn:hover{filter:brightness(.92)}
+/* NO DISABLED STYLE EXISTED ANYWHERE IN THIS APP until now, so every disabled button rendered in
+   full primary colour with a pointer cursor and looked completely live. A reviewer asked why
+   "Copy prompt" was enabled before they had typed anything - it was not; it just looked it.
+   That affected every gated control: Ask again and Foundry re-upload when nothing is live, and
+   the send button on Eval Review before approval.
+   Opacity rather than new colours on purpose: the contrast checker skips translucent values, so
+   this cannot introduce a contrast failure, and the disabled state stays legible. */
+button:disabled,button:disabled:hover{opacity:.45;cursor:not-allowed;filter:none}
 button.sec,a.btn.sec{background:var(--forge-theme-surface);color:var(--forge-theme-primary);
 border:1px solid var(--forge-theme-outline-medium)}
 button.sec:hover,a.btn.sec:hover{background:var(--forge-theme-primary-container-minimum);filter:none}
@@ -2400,9 +2408,18 @@ function evAsk(btn,key,agent){
 }
 // Back to what the transcript actually asked. Cheap to provide and the alternative is asking
 // someone to remember an exact wording they have since typed over three times.
+// Same rule as Reset under Now: nothing typed, nothing to reset. Gated for consistency - a
+// live Reset beside a dead one invites the reader to wonder which of them is broken.
+function evQEdited(box){
+ const rst=box.closest('.evcard').querySelector('.evresetq');
+ if(!rst)return;
+ const changed=(box.value||'')!==(box.dataset.orig||'');
+ rst.disabled=!changed;
+ if(changed) rst.removeAttribute('title');
+}
 function evResetQ(btn){
  const box=btn.closest('.evcard').querySelector('.evqbox');
- box.value=box.dataset.orig||''; box.focus();
+ box.value=box.dataset.orig||''; evQEdited(box); box.focus();
 }
 // Take the candidate content out of production. Minutes long - it is a second upload plus a
 // Bedrock sync - so the button says what it is doing rather than looking hung.
@@ -2428,9 +2445,13 @@ function evRemove(btn){
 function evNowEdited(box){
  const card=box.closest('.evcard');
  const changed=(box.value||'')!==(box.dataset.orig||'');
- const btn=card.querySelector('.evcopy');
+ // Both buttons are gated on the same fact: has anything been typed. Copy prompt because a
+ // prompt built from an untouched answer is only the transcript again, and Reset because there
+ // is nothing to reset to.
+ const btn=card.querySelector('.evcopy'), rst=card.querySelector('.evresetnow');
  btn.disabled=!changed;
- if(changed) btn.removeAttribute('title');
+ if(rst) rst.disabled=!changed;
+ if(changed){btn.removeAttribute('title'); if(rst) rst.removeAttribute('title');}
  const marks=(box.value.match(/\{\{[\s\S]*?\}\}/g)||[]).length;
  card.querySelector('.evmarks').textContent = marks ? marks+' marked' : (changed?'edited':'');
  const tag=card.querySelector('.evedited');
@@ -7791,13 +7812,15 @@ def eval_review_page():
             # the transcript actually asked.
             "<div class=evask>"
             "<div class=evlab>Question &mdash; edit it and ask again</div>"
-            f"<textarea class=evqbox data-orig=\"{html.escape(q)}\" rows=2>{html.escape(q)}</textarea>"
+            f"<textarea class=evqbox data-orig=\"{html.escape(q)}\" rows=2 "
+            f"oninput='evQEdited(this)'>{html.escape(q)}</textarea>"
             "<div class=stepacts style='margin:6px 0 0'>"
             + (f"<button onclick=\"evAsk(this,'{html.escape(key)}','{html.escape(agent)}')\">"
                "Ask again</button>"
                if live else
                "<button disabled title='The candidate content is not live'>Ask again</button>")
-            + "<button class=sec onclick='evResetQ(this)'>Reset question</button>"
+            + "<button class='sec evresetq' disabled title='The question is unchanged' "
+            "onclick='evResetQ(this)'>Reset question</button>"
             # Sits with the other two because this is where the loop happens - mark up, copy the
             # prompt, the assistant edits, re-upload, ask again - but it is BATCH-scoped, not
             # per-card: it pushes every changed knowledge file. The label says "Foundry" so it
@@ -7835,7 +7858,8 @@ def eval_review_page():
             f"<button class=evcopy disabled title='Edit the answer below first — add {{{{...}}}} "
             f"where it is wrong' onclick=\"evCopyPrompt(this,'{html.escape(key)}')\">"
             "Copy prompt</button>"
-            "<button class=sec onclick='evResetNow(this)'>Reset</button>"
+            "<button class='sec evresetnow' disabled title='Nothing to reset yet' "
+            "onclick='evResetNow(this)'>Reset</button>"
             "<span class=evmarks></span></div>"
             f"<textarea class=evnowbox rows=14 oninput='evNowEdited(this)' "
             f"data-orig=\"{html.escape(latest.get('answer') or '')}\">"
