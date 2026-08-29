@@ -2444,6 +2444,30 @@ function evResetNow(btn){
  evNowEdited(box);
  box.focus();
 }
+// Minutes long - an upload plus a Bedrock sync - so it counts, and it says plainly when the new
+// content is live, because "Ask again" before then silently answers from the PREVIOUS round and
+// looks like the fix not working.
+function evReupload(btn){
+ confirmThen(btn,'Re-upload the knowledge files to Foundry?',
+   'Pushes every changed knowledge file over the live eval content, so Ask again tests your '
+   +'latest edits. A few minutes. The restore point is kept, so Remove evals still puts the '
+   +'published content back.',
+   ()=>{
+     const was=btn.textContent; btn.disabled=true;
+     let n=0; btn.textContent='Uploading… 0s';
+     const tick=setInterval(()=>{btn.textContent='Uploading… '+(++n)+'s'},1000);
+     const out=document.getElementById('gitout');
+     if(out){out.style.display='block';
+       out.textContent='Uploading the current knowledge files and waiting for the sync.\nA few minutes.\n\nWorking…';}
+     return post('/evalreupload',{}).then(r=>{
+       clearInterval(tick); btn.disabled=false; btn.textContent=was;
+       if(out){out.textContent=r.output||'(no output)';}
+       toast(r.ok ? 'Live — Ask again to test the new edits'
+                  : 'Re-upload did not fully land — read the output');
+     }).catch(e=>{clearInterval(tick); btn.disabled=false; btn.textContent=was;
+       toast('Re-upload failed: '+e)});
+   });
+}
 function evCopyPrompt(btn,key){
  const box=btn.closest('.evcard').querySelector('.evnowbox');
  const was=btn.textContent; btn.disabled=true; btn.textContent='Building…';
@@ -7087,6 +7111,33 @@ def eval_live():
     return m
 
 
+def eval_reupload():
+    """Push the current candidate files over the live eval content. (ok, message).
+
+    Only meaningful while something IS live: with nothing live this would upload unmerged
+    content to production outside the eval's restore-point protection, which is precisely the
+    thing the whole flow exists to avoid. So it refuses.
+    """
+    live = eval_live()
+    if not live:
+        return False, ("Nothing is live, so there is no eval content to replace. Run the check "
+                       "from Save & Share first — re-uploading now would put unmerged content "
+                       "into production with no restore point behind it.")
+    d = latest_eval_dir()
+    if not os.environ.get("FOUNDRY_API_KEY"):
+        return False, ("FOUNDRY_API_KEY is not set in the environment this server was started "
+                       "from, so nothing was uploaded.")
+    res = subprocess.run([sys.executable, str(REPO / "scripts" / "eval_batch.py"),
+                          "--reupload", str(d)],
+                         cwd=REPO, capture_output=True, text=True, timeout=1800)
+    out = ((res.stdout or "") + (res.stderr or "")).strip()
+    tail = "\n".join(out.splitlines()[-24:])
+    if res.returncode != 0:
+        return False, ("The re-upload did not fully land — asking again now may answer from the "
+                       "previous content:\n\n" + tail)
+    return True, tail
+
+
 def eval_remove():
     """Put Foundry back and clear the LIVE marker. (ok, message)."""
     d = latest_eval_dir()
@@ -7177,13 +7228,22 @@ def eval_improve_prompt(key, edited):
                 break
     marks = re.findall(r"\{\{(.*?)\}\}", edited or "", re.S)
     files, _nq, _m = eval_estimate()
+    # TARGET FIRST, THEN THE GAP. The assistant's job is to close the distance between what the
+    # agent says and what the reviewer said it should say, so the target has to be stated before
+    # the current answer - otherwise the current answer reads as the subject and the correction
+    # as an aside. This is also an ITERATIVE loop: re-upload, ask again, mark up again. Saying so
+    # stops the assistant treating one pass as final and rewriting more than the evidence
+    # supports.
     L = [
-        f"The `{agent}` agent still answers this badly after the knowledge edits in this repo. "
+        f"The `{agent}` agent is still not answering this the way I asked. This is one round of "
+        "an iterative loop: you edit the knowledge files, I re-upload them to Foundry, ask the "
+        "question again, and mark up whatever is still wrong. Your job this round is to close "
+        "the gap between the two texts below.",
+        "",
         "Sync this repo to the latest main first (`git fetch origin` and bring main up to date; "
         "do not disturb my in-progress branch). Read everything below as one body before "
-        "changing anything, then update the knowledge files so the agent stops giving these "
-        "answers. Do not change my verdicts, and ask me rather than guessing if anything here "
-        "is ambiguous.",
+        "changing anything. Do not change my verdicts, and ask me rather than guessing if "
+        "anything here is ambiguous.",
         "",
         f"Transcript: {rel} (exchange {xnum})",
         "",
@@ -7191,32 +7251,39 @@ def eval_improve_prompt(key, edited):
         "--------------",
         (q or "").strip(),
         "",
-        "THE ANSWER IT GAVE, with my corrections inline in {{...}}",
-        "--------------------------------------------------------",
-        (edited or "").strip(),
-        "",
     ]
-    if marks:
-        L += [f"Each of the {len(marks)} `{{{{...}}}}` above is a defect in the sentence it "
-              "follows. Fix the knowledge files so those statements stop being produced — do "
-              "not simply append a correction elsewhere in the file, because retrieval returns "
-              "the chunk that matches the question and the wrong statement is in that chunk.",
-              ""]
-    else:
-        L += ["I have not marked specific defects with {{...}}; the whole answer above is the "
-              "problem. Work out from my original correction what is still missing.", ""]
     if corr:
-        L += ["MY ORIGINAL CORRECTION FOR THIS EXCHANGE",
-              "----------------------------------------", corr, ""]
+        L += ["1. WHAT THE ANSWER SHOULD LOOK LIKE  (my correction — the target)",
+              "----------------------------------------------------------------",
+              corr, ""]
+    L += ["2. WHAT IT ACTUALLY SAYS NOW" + (", with my corrections inline in {{...}}" if marks
+                                            else ""),
+          "----------------------------" + ("-" * (38 if marks else 0)),
+          (edited or "").strip(), ""]
+    L += ["WHAT TO DO",
+          "----------"]
+    if marks:
+        L += [f"Each of the {len(marks)} `{{{{...}}}}` in (2) is a defect in the sentence it "
+              "follows — start there."]
+    else:
+        L += ["I have not marked individual defects, so treat the whole of (2) as the problem."]
+    L += ["Change the knowledge files so a fresh answer to that question reads like (1). Do not "
+          "simply append a correction elsewhere in the file: retrieval returns the chunk that "
+          "matches the question, and the wrong statement is IN that chunk — fix it where it is, "
+          "and fix any nearby example that contradicts the rule you are adding.",
+          "",
+          "Match (1) on substance, not wording. I do not need the answer to quote me; I need it "
+          "to stop saying the things (1) contradicts.",
+          ""]
     if files:
         L += ["KNOWLEDGE FILES ALREADY CHANGED IN THIS BATCH",
               "---------------------------------------------"]
         L += [f"  {x}" for x in files]
         L += ["",
-              "Those are the files whose current state produced the answer above, so start "
-              "there — but identify more or fewer as the evidence requires.", ""]
-    L += ["When you are done, tell me what you changed and why, per file. I will re-run the "
-          "check and ask this question again, plus adjacent phrasings, to confirm it holds."]
+              "Those are the files whose current state produced (2), so start there — but "
+              "identify more or fewer as the evidence requires.", ""]
+    L += ["When you are done, tell me what you changed and why, per file. I will re-upload to "
+          "Foundry and ask again, plus adjacent phrasings, to confirm it holds."]
     return True, "\n".join(L)
 
 
@@ -7731,7 +7798,17 @@ def eval_review_page():
                if live else
                "<button disabled title='The candidate content is not live'>Ask again</button>")
             + "<button class=sec onclick='evResetQ(this)'>Reset question</button>"
-            "</div></div>"
+            # Sits with the other two because this is where the loop happens - mark up, copy the
+            # prompt, the assistant edits, re-upload, ask again - but it is BATCH-scoped, not
+            # per-card: it pushes every changed knowledge file. The label says "Foundry" so it
+            # does not read as a per-question action.
+            + ("<button class=sec onclick='evReupload(this)' title='Push the current knowledge "
+               "files over the live eval content, so Ask again tests your latest edits. Affects "
+               "the whole batch.'>Foundry re-upload</button>"
+               if live else
+               "<button class=sec disabled title='Nothing is live to replace'>"
+               "Foundry re-upload</button>")
+            + "</div></div>"
             # CORRECTION vs NOW, side by side - not Before vs Now. Before is known-bad; that is
             # why the transcript was reviewed. The judgement being made is whether the answer has
             # become what the reviewer asked for, and putting the target beside the response is
@@ -8267,6 +8344,9 @@ class H(BaseHTTPRequestHandler):
             return self._send(200, json.dumps(
                 {"ok": ok, "prompt": text if ok else "", "output": "" if ok else text}),
                 "application/json")
+        if self.path == "/evalreupload":
+            ok, msg = eval_reupload()
+            return self._send(200, json.dumps({"ok": ok, "output": msg}), "application/json")
         if self.path == "/evalremove":
             ok, msg = eval_remove()
             return self._send(200, json.dumps(
