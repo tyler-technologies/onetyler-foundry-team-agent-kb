@@ -1479,7 +1479,7 @@ flex:0 0 auto}
 .evq{background:var(--forge-theme-surface-container);border-radius:5px;padding:9px 11px;
 margin:0 0 10px;font-size:13.5px}
 .evq b{color:var(--forge-theme-text-medium);margin-right:6px}
-.evcols{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:stretch;--evbox-h:360px}
+.evcols{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:start;--evbox-h:360px}
 @media(max-width:900px){.evcols{--evbox-h:280px}}
 @media(max-width:900px){.evcols{grid-template-columns:1fr}}
 .evlab{font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;
@@ -7865,24 +7865,26 @@ def eval_review_page():
             f"{html.escape(latest.get('answer') or '(no answer returned)')}</textarea>"
             "<div class=hint style='margin:5px 0 0'>To improve response type comments in "
             "<code>{{ }}</code> inside Now and click <b>Copy prompt</b> to provide your AI to "
-            "further refine content.</div></div>"
+            "further refine content.</div>"
+            # DIRECTLY UNDER THE INSTRUCTION THAT NAMES THEM, inside the Now column. They began
+            # ABOVE the box, which pushed this column down and left the two compared panes
+            # starting at different heights; moving them to the card's bottom fixed that but
+            # divorced them from the sentence telling you to press them. Here the boxes still
+            # align - they have a fixed shared height - and the buttons sit with their own
+            # instruction.
+            "<div class=stepacts style='margin:8px 0 0'>"
+            f"<button class=evcopy disabled title='Edit the answer above first — add "
+            f"{{{{...}}}} where it is wrong' "
+            f"onclick=\"evCopyPrompt(this,'{html.escape(key)}')\">Copy prompt</button>"
+            "<button class='sec evresetnow' disabled title='Nothing to reset yet' "
+            "onclick='evResetNow(this)'>Reset</button>"
+            "<span class=evmarks></span></div></div>"
             "</div>"
             + (f"<details class=evcorr><summary>The original (bad) answer &mdash; reference only</summary>"
                f"<pre>{html.escape(before)}</pre></details>" if before else "")
             # Variants accumulate rather than replacing the scripted answer: the consistency
             # across phrasings IS the evidence, so losing the earlier ones would lose the point.
             + f"<div class=evvars>{variants_html(earlier)}</div>"
-            # THE ACTION ROW LIVES AT THE BOTTOM. It sat above the Now box, which put controls
-            # between the two panes being compared and made the left and right columns start at
-            # different heights - the asymmetry a reviewer flagged as uncomfortable. Actions
-            # after the thing they act on also matches every other card in this app.
-            + "<div class=stepacts style='margin:12px 0 0'>"
-            + f"<button class=evcopy disabled title='Edit the answer above first — add "
-            f"{{{{...}}}} where it is wrong' "
-            f"onclick=\"evCopyPrompt(this,'{html.escape(key)}')\">Copy prompt</button>"
-            + "<button class='sec evresetnow' disabled title='Nothing to reset yet' "
-            "onclick='evResetNow(this)'>Reset</button>"
-            + "<span class=evmarks></span></div>"
             + "</div>")
 
     foot = (
