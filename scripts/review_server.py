@@ -4043,7 +4043,7 @@ def list_page(show_all=False):
     #
     # No Clear selection button: the header checkbox is already select-all / clear-all.
     actbar = ("<div class=actbar>"
-              "<button id=ckmark onclick='bulkReview()' disabled>Mark selected reviewed</button>"
+              "<button id=ckmark onclick='bulkReview()' disabled>Mark reviewed</button>"
               "<button class=sec id=ckexport onclick='csvExport()' disabled>Export CSV</button>"
               "<input type=file id=csvfile accept='.csv,text/csv' hidden "
               "onchange='csvImport(this)'>"
