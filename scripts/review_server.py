@@ -987,6 +987,27 @@ def _is_placeholder(s):
     return not t or t in PLACEHOLDERS
 
 
+def _oneline(s):
+    """Collapse a cell onto ONE line, keeping paragraph boundaries visible.
+
+    A markdown answer carries 20-30 newlines. A CSV cell may legally contain them - the file
+    parses correctly either way - but Excel wraps such a cell and grows the ROW to fit, so a
+    two-row export renders as two screen-height blocks with the text in a column a few
+    characters wide. Reported from Excel on 2026-08-29 and unreadable.
+
+    There is no fix available inside the format: a .csv carries no column widths and no row
+    heights, so the only lever is the content. Paragraph breaks become a pilcrow rather than
+    vanishing, because the reader has to judge an answer from this cell and losing every
+    structural boundary would make a 1,400-character wall of it.
+
+    Applied ONLY to the two reference columns. The Correction column stays verbatim: it is the
+    one a reviewer authors, and re-flowing their line breaks on every export would edit their
+    prose a little more each round trip. Matching is unaffected - `_qkey` collapses whitespace
+    on both sides, so a question re-flowed here still matches the transcript it came from.
+    """
+    return re.sub(r"\s+", " ", re.sub(r"\n\s*\n+", " ¶ ", (s or ""))).strip()
+
+
 def _neutralise_markers(s):
     """Make imported text incapable of closing the block it is being written into.
 
@@ -1035,7 +1056,8 @@ def csv_export(rels):
         for num, _tools, q, a, rv in exs:
             # The placeholder goes out EMPTY. Shipping template text to a collaborator invites
             # them to edit around it, and it would then import as a correction saying nothing.
-            w.writerow([rel, q, a, "" if _is_placeholder(rv) else rv])
+            w.writerow([rel, _oneline(q), _oneline(a),
+                        "" if _is_placeholder(rv) else rv])
             n += 1
     return CSV_BOM + buf.getvalue(), n, skipped
 
