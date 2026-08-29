@@ -7486,7 +7486,7 @@ def _eval_optin():
     return (
         "<div class=evalbox>"
         "<label class=evalrow><input type=checkbox id=doeval checked>"
-        "<span><b>Check the change against these transcripts first</b></span></label>"
+        "<span><b>Include Eval Review</b></span></label>"
         f"<div class=hint style='margin:6px 0 0 26px'>"
         f"Asks the agents this batch's {n_q} question(s) against your {len(files)} changed "
         f"file(s). <b>~{mins} min.</b><br>"
@@ -7779,10 +7779,9 @@ def eval_review_page():
                 + "".join(f"<br>&nbsp;&nbsp;<code>{html.escape(c)}/{html.escape(f)}</code>"
                           for c, f, _l, _s in stale)
                 + "<br><br>Do not approve &mdash; run the check again.</div>")
-    elif not prop:
-        warn = ("<div class='bar bnr-note'><b>Not known whether the content was live for this run.</b> "
-                "Look for your new wording in the answers; if it is absent, re-run rather than "
-                "approve.</div>")
+    # NO banner for "propagation not recorded". It only ever applied to runs predating that
+    # check, said nothing actionable, and cost a full-width bar on every load. The RED banner
+    # above stays: a run whose content demonstrably never went live must not be approved.
 
     live = eval_live()
     if live:
@@ -7807,37 +7806,47 @@ def eval_review_page():
             + "<div class=stepacts style='margin-top:10px'>"
             + "<button class=sec onclick='evRemove(this)'>Remove evals</button></div></div>")
     else:
-        livebar = ("<div class='bar bnr-note'>The candidate content is <b>not</b> live &mdash; "
-                   "Foundry holds the published content. Answers below are from the run; asking "
-                   "again now would tell you nothing about your change.</div>")
+        # NO BANNER WHEN NOTHING IS LIVE. It was a full-width bar restating what the card below
+        # already implies, shown on every load for the normal resting state. The Remove evals
+        # button it used to hold now lives in the card's action row, where it is findable in
+        # both states instead of appearing and vanishing - which is what made it unfindable.
+        livebar = ""
 
     head = (
         f"<h2 class=sec>Eval Review</h2>"
         + warn
         + livebar
-        + f"<div class=bar id=evstate>"
-        + (f"<b>All {n_tot} approved.</b> The batch can be sent in."
+        # ONE CARD, not a bar plus a card. The approval count sat in its own full-width bar
+        # directly above a card that explained the same screen, so the two were read together
+        # anyway while taking twice the vertical space and pushing the actual exchanges below
+        # the fold. Heading dropped too: "What you are deciding" named the page, which the h2
+        # already does.
+        + "<div class=card>"
+        + "<p class=sub style='margin:0' id=evstate>"
+        + (f"<b>All {n_tot} approved.</b> Ready to send in."
            if all_ok else
-           f"<b>{n_ok} of {n_tot} approved.</b> Tick the ones whose answer is right; the send needs "
-           "all of them.")
-        + "</div>"
-        "<div class=card>"
-        "<h3>What you are deciding</h3>"
-        "<p class=sub>One card per replayed exchange. Approve only where <b>Now</b> actually fixes "
-        "what you objected to. <b>Match %</b> is word overlap with your correction &mdash; a hint, "
-        "not a verdict.</p>"
-        f"<p class=sub><code>{html.escape(when)}</code> &middot; {len(files)} file(s) &middot; "
-        f"{n_q} question(s). Foundry is already back to normal.</p>"
-        "<div class=stepacts>"
-        "<button class=sec onclick=\"evAll(1)\">Approve all</button>"
-        "<button class=sec onclick=\"evAll(0)\">Clear all</button>"
+           f"<b>{n_ok} of {n_tot} approved.</b> Tick the ones whose answer is right &mdash; the "
+           "send needs all of them.")
+        + "</p>"
+        + f"<p class=sub style='margin:4px 0 0'><code>{html.escape(when)}</code> &middot; "
+        f"{len(files)} file(s) &middot; {n_q} question(s) &middot; <b>Match %</b> is word overlap "
+        "with your correction, a hint not a verdict.</p>"
+        + "<div class=stepacts style='margin-top:10px'>"
+        + "<button class=sec onclick=\"evAll(1)\">Approve all</button>"
+        + "<button class=sec onclick=\"evAll(0)\">Clear all</button>"
         # A plain link, not a fetch-and-blob: the browser's own download handling gets the
-        # filename and the save dialog right, and there is nothing here worth reimplementing.
-        "<a class='btn sec' href='/evalreview.txt' download>Download as .txt</a>"
-        "</div>"
-        "<p class=sub style='margin:8px 0 0'>The .txt has every exchange, demarcated &mdash; paste "
-        "it back to your assistant.</p>"
-        "</div>")
+        # filename and the save dialog right. The title carries what a whole caption line used
+        # to say underneath.
+        + "<a class='btn sec' href='/evalreview.txt' download "
+          "title='Every exchange, demarcated — paste it back to your assistant'>"
+          "Download as .txt</a>"
+        # Lives here rather than in a banner that only existed while something was live, which
+        # is why it could not be found.
+        + ("<button class=sec onclick='evRemove(this)' title='Put the published content back'>"
+           "Remove evals</button>"
+           if live else
+           "<button class=sec disabled title='Nothing is live to remove'>Remove evals</button>")
+        + "</div></div>")
 
     allvars = eval_variants()
     cards = []
@@ -8010,13 +8019,13 @@ def git_page():
     ev_files, ev_q, ev_mins = eval_estimate()
     if ev_files and ev_q:
         eval_stage = (
-            "<li data-stage=eval class=wait><b>Review eval</b>"
+            "<li data-stage=eval class=wait><b>Eval Review</b>"
             f"<span>{ev_q} question(s) against {len(ev_files)} changed file(s), ~{ev_mins} min.<br>"
             "Read/test the updated responses on the <b>Eval Review</b> tab, select "
             "agreeable outputs and return to this part to publish changes.</span></li>")
     else:
         eval_stage = (
-            "<li data-stage=eval class=none><b>Review eval</b>"
+            "<li data-stage=eval class=none><b>Eval Review</b>"
             "<span>nothing to check</span></li>")
 
     prompt_json = json.dumps(analysis_prompt(n_ai))
@@ -8729,7 +8738,7 @@ class H(BaseHTTPRequestHandler):
                                "were about different content")
                         return self._send(200, json.dumps({"ok": False, "output": (
                             "No change request was created — " + why + ".\n\n"
-                            "Tick \"Check the change against these transcripts first\" and press "
+                            "Tick \"Include Eval Review\" and press "
                             "Send my reviews in. It uploads the candidate files, asks the agents "
                             "this batch's questions, puts Foundry back, and shows you the "
                             "answers. Read them, then send it in.\n\n"
