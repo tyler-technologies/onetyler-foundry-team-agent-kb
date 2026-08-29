@@ -920,6 +920,24 @@ page it was derived from does not — which the next reconciliation then reverts
 If enabling auto-merge fails for want of permissions, the output says so plainly and an **admin
 turns it on**. The request itself is correct either way; do not re-open it.
 
+### Every request this flow opens is marked twice
+
+Both markers are applied at creation, and the **History** section on the PRs page accepts either:
+
+| Marker | Knowledge repo | Blueprint |
+|---|---|---|
+| Branch prefix | `review/` | `kb-review/` |
+| Label | `onetyler-review` | `onetyler-review` |
+
+The label makes the set identifiable **on GitHub itself**, which is what Blueprint needs — it is a
+shared docs repo with plenty of unrelated traffic, and "every open request" is not the answer
+there. The branch prefix covers the back-catalogue, since the label only exists from 2026-08-29;
+`headRefName` survives the branch being deleted at merge, so it stays readable indefinitely.
+
+Labelling may need more rights than a contributor's token has, particularly in Blueprint. That is
+**reported and not fatal** — the prefix keeps the request in the history regardless, so do not
+re-open a request that merely failed to get its label.
+
 ## Acting on transcript reviews
 
 `transcripts/` holds preserved conversation history, one markdown file per conversation,

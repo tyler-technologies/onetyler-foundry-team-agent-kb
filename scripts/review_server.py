@@ -1592,6 +1592,18 @@ font-size:11px;transition:transform .12s}
 margin-top:10px;letter-spacing:.02em}
 .fgrp:first-child{margin-top:6px}
 
+/* Merged-request history. Collapsed, and styled like the other disclosures rather than as a
+   card, so it reads as an archive under the open requests instead of competing with them. */
+.histbox{margin-top:26px}
+.histbox>summary{cursor:pointer;list-style:none;padding:6px 0}
+.histbox>summary::-webkit-details-marker{display:none}
+.histbox>summary>b{font-weight:500;font-size:13px;color:var(--forge-theme-text-high)}
+.histbox>summary>b::before{content:"\25B8";display:inline-block;margin-right:6px;
+font-size:11px;transition:transform .12s}
+.histbox[open]>summary>b::before{transform:rotate(90deg)}
+.histbox .tblcard{margin-top:8px}
+.histbox td{vertical-align:top}
+
 /* Reference material, collapsed. It was a permanently-open card competing with the controls
    on every visit; behind a summary it is still one click away and no longer part of the
    page's visual weight. */
@@ -4973,8 +4985,13 @@ def bp_open_pr_for(rel, hint):
     if r.returncode != 0 and "already exists" not in made.lower():
         return False, f"could not open the Blueprint request for {rel}: {made[:300]}"
     tail = made.splitlines()[-1] if made.splitlines() else ""
+    # Tag it so the set is identifiable on GitHub itself, not only from this tool. Not fatal:
+    # labelling Blueprint may exceed a contributor's rights, and the `kb-review/` branch prefix
+    # keeps the request in the history either way.
+    ok_tag, tagmsg = tag_pr(br, BP_REMOTE)
     ok_auto, auto = bp_set_automerge(br)
-    return True, f"{Path(rel).name}: {tail}\n    {auto}"
+    return True, (f"{Path(rel).name}: {tail}\n    {auto}"
+                  + ("" if ok_tag else f"\n    not tagged: {tagmsg}"))
 
 
 def bp_set_automerge(branch):
@@ -5041,8 +5058,10 @@ def bp_open_pr(branch_hint, title, body):
     made = ((r.stdout or "") + (r.stderr or "")).strip()
     if r.returncode != 0 and "already exists" not in made.lower():
         return False, f"could not open the Blueprint request: {made[:300]}"
+    ok_tag, tagmsg = tag_pr(br, BP_REMOTE)
     return True, (f"Blueprint change request, {len(changes)} file(s):\n"
-                  + "\n".join("  " + c for c in changes) + "\n" + made.splitlines()[-1])
+                  + "\n".join("  " + c for c in changes) + "\n" + made.splitlines()[-1]
+                  + ("" if ok_tag else f"\n  not tagged: {tagmsg}"))
 
 
 def analysis_prompt(n):
@@ -5725,6 +5744,126 @@ MERGE_STATE = {
 }
 
 
+# ---------------------------------------------------------------------------------------------
+# Provenance: which change requests came from THIS flow
+#
+# Needed because the two repos have opposite problems. The knowledge repo carries its own
+# machinery work alongside review batches, and Blueprint is a shared docs repo with a lot of
+# unrelated traffic - so "every request in the repo" is the wrong answer in both directions.
+#
+# TWO INDEPENDENT MARKERS, and both are load-bearing:
+#
+#   * The LABEL is authoritative and visible on GitHub itself, so the set is identifiable
+#     without this tool. It only exists from 2026-08-29, so it is absent from everything
+#     merged before then.
+#   * The BRANCH PREFIX covers that history. `headRefName` survives the branch being deleted
+#     at merge - verified on #84, whose branch 404s on the branches API while the PR record
+#     still reports its name - so it stays readable indefinitely.
+#
+# Either marker qualifies a request. Requiring both would hide the back-catalogue; requiring
+# only the label would make the history start empty on the day it shipped.
+REVIEW_LABEL = "onetyler-review"
+REVIEW_LABEL_DESC = "Opened by the OneTyler transcript-review flow"
+REVIEW_LABEL_COLOR = "5B4B8A"
+KB_BRANCH_PREFIX = "review/"
+BP_BRANCH_PREFIX = "kb-review/"
+
+
+def _repo_args(remote):
+    return ["--repo", remote] if remote else []
+
+
+def ensure_label(remote=""):
+    """Create the tracking label if it is not there yet. (ok, message).
+
+    Lazy on purpose: called when a request is opened, never on page load. Creating a label in
+    Blueprint is a write to somebody else's repo, and it should happen as part of an action the
+    user took there rather than as a side effect of viewing a dashboard.
+    """
+    rc, out = gh("label", "create", REVIEW_LABEL, "--description", REVIEW_LABEL_DESC,
+                 "--color", REVIEW_LABEL_COLOR, *_repo_args(remote), timeout=60)
+    if rc == 0:
+        return True, "label created"
+    if "already exists" in (out or "").lower():
+        return True, "label present"
+    return False, (out or "").strip()[:200]
+
+
+def tag_pr(ref, remote=""):
+    """Mark a change request as belonging to this flow. (ok, message). NEVER fatal.
+
+    A request that could not be tagged is still a correct request, and the branch prefix means
+    it will appear in the history regardless - so a failure here is reported and nothing more.
+    Labelling Blueprint may need more rights than a contributor has, which is the expected
+    failure and not worth blocking a send over.
+    """
+    ok, why = ensure_label(remote)
+    if not ok:
+        return False, f"could not create the {REVIEW_LABEL} label: {why}"
+    rc, out = gh("pr", "edit", str(ref), "--add-label", REVIEW_LABEL,
+                 *_repo_args(remote), timeout=90)
+    return (True, f"tagged {REVIEW_LABEL}") if rc == 0 else (False, (out or "").strip()[:200])
+
+
+def _from_this_flow(pr, prefix):
+    labels = {str(x.get("name", "")).lower() for x in (pr.get("labels") or [])}
+    return (REVIEW_LABEL in labels
+            or str(pr.get("headRefName", "")).startswith(prefix))
+
+
+MERGED_FIELDS = ("number,title,author,mergedAt,mergedBy,headRefName,additions,deletions,"
+                 "changedFiles,url,labels")
+
+_MPR_CACHE = {"at": 0.0, "rows": None, "err": ""}
+_MPR_TTL = 5 * 60.0
+
+
+def merged_prs(force=False, limit=100):
+    """Merged change requests this flow opened, both repos, newest first. (rows, err).
+
+    Each row is the `gh` record plus `repo` ("" for knowledge, "bp" for Blueprint), so the
+    caller can link into the diff viewer for the right repo.
+
+    Cached for five minutes. A merged request never changes, so the only thing a refetch can
+    discover is a NEW merge - and this is the page where merging happens, so the merge actions
+    drop the cache themselves rather than making the page poll for their own effects.
+    """
+    now = time.monotonic()
+    if not force and _MPR_CACHE["rows"] is not None and (now - _MPR_CACHE["at"]) < _MPR_TTL:
+        return _MPR_CACHE["rows"], _MPR_CACHE["err"]
+    if not shutil.which("gh"):
+        return [], "The GitHub CLI (gh) is not installed, so history cannot be listed."
+    rows, errs = [], []
+    targets = [("", "", KB_BRANCH_PREFIX)]
+    if bp_available()[0]:
+        targets.append(("bp", BP_REMOTE, BP_BRANCH_PREFIX))
+    for tag, remote, prefix in targets:
+        rc, out = gh("pr", "list", "--state", "merged", "--limit", str(limit),
+                     "--json", MERGED_FIELDS, *_repo_args(remote), timeout=120)
+        if rc != 0:
+            errs.append((out or "").strip()[:200])
+            continue
+        try:
+            got = json.loads(out or "[]")
+        except json.JSONDecodeError:
+            errs.append(f"{remote or 'the knowledge repo'} returned something that is not JSON")
+            continue
+        for pr in got:
+            if _from_this_flow(pr, prefix):
+                pr["repo"] = tag
+                rows.append(pr)
+    # mergedAt is ISO-8601 UTC, so a plain string sort is a correct chronological sort and
+    # needs no parsing. Blank sorts last, which is where an unmergeable oddity belongs.
+    rows.sort(key=lambda x: x.get("mergedAt") or "", reverse=True)
+    err = " / ".join(errs)
+    _MPR_CACHE.update(at=now, rows=rows, err=err)
+    return rows, err
+
+
+def drop_merged_cache():
+    _MPR_CACHE.update(at=0.0, rows=None, err="")
+
+
 def bp_open_prs():
     """Open change requests in the Blueprint repo. (list, err).
 
@@ -5880,10 +6019,14 @@ def pr_checks(pr):
 _PRF_CACHE = {}
 _PRF_TTL = 120.0
 
-# A single file's diff is truncated past this many lines. GitHub does the same thing and for the
-# same reason: a 4000-line patch rendered inline is not a review aid, it is a wall. The count of
-# what was hidden is always shown, with a link to the file on GitHub - a silent truncation would
-# be the worst outcome, since a reviewer would believe they had seen everything.
+# A single file's diff is truncated past this many lines, and a request past this many files.
+# GitHub does the same thing and for the same reason: a 4000-line patch rendered inline is not a
+# review aid, it is a wall. The count of what was hidden is always shown - a silent truncation
+# would be the worst outcome, since a reviewer would believe they had seen everything.
+#
+# `?full=1` lifts BOTH caps for one page load. The default stays capped because most visits want
+# the first screen of a change, but the uncapped view has to exist here rather than only on
+# GitHub, or the cap turns into a dead end on the requests most worth reading.
 PR_DIFF_MAX_LINES = 600
 PR_DIFF_MAX_FILES = 40
 
@@ -5916,7 +6059,7 @@ def pr_files(number, force=False, repo=""):
     return files, None
 
 
-def render_patch(patch, anchor):
+def render_patch(patch, anchor, full=False, more_url=""):
     """A unified diff as a two-gutter table, the way GitHub shows it.
 
     Real line numbers on both sides, because "line 91" in a review comment has to mean something.
@@ -5931,8 +6074,9 @@ def render_patch(patch, anchor):
     old = new = 0
     shown = 0
     total = patch.count("\n") + 1
+    cap = float("inf") if full else PR_DIFF_MAX_LINES
     for line in patch.split("\n"):
-        if shown >= PR_DIFF_MAX_LINES:
+        if shown >= cap:
             break
         if line.startswith("@@"):
             m = re.match(r"@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@(.*)", line)
@@ -5966,14 +6110,23 @@ def render_patch(patch, anchor):
 
     out = ["<div class=difftable><table>", "".join(rows), "</table></div>"]
     if shown < total:
+        # The whole diff is one click away IN HERE, not only on GitHub. Leaving GitHub as the
+        # sole way to read a long patch made the cap a dead end on exactly the requests worth
+        # reading - a large one.
         out.append(f"<p class=sub>Showing the first {shown:,} of {total:,} diff lines. "
-                   f"<a href='{html.escape(anchor)}' target=_blank rel=noopener>"
-                   "Open the full file on GitHub &rarr;</a></p>")
+                   + (f"<a href='{html.escape(more_url)}'>Show all {total:,} lines</a> &middot; "
+                      if more_url else "")
+                   + f"<a href='{html.escape(anchor)}' target=_blank rel=noopener>"
+                     "open the file on GitHub &rarr;</a></p>")
     return "".join(out)
 
 
-def pr_diff_page(number, force=False, repo=""):
-    """GitHub-style 'Files changed' for one change request. Read-only."""
+def pr_diff_page(number, force=False, repo="", full=False):
+    """GitHub-style 'Files changed' for one change request. Read-only.
+
+    Serves MERGED requests as readily as open ones - the files endpoint does not care - which is
+    what makes the history list on /prs a real archive rather than a set of links off to GitHub.
+    """
     if not is_admin():
         return page("Change Requests",
                     "<div class=lg><h2 class=sec>Change Requests</h2>"
@@ -5981,27 +6134,41 @@ def pr_diff_page(number, force=False, repo=""):
     tgt = BP_REMOTE if repo == "bp" else ":owner/:repo"
     rc, meta_raw = gh("api", f"repos/{tgt}/pulls/{number}",
                       "-q", '[.title, .user.login, .base.ref, .head.ref, .state, '
-                            '.additions, .deletions, .changed_files, .html_url] | @tsv',
+                            '.additions, .deletions, .changed_files, .html_url, '
+                            '(.merged_at // ""), (.merged_by.login // "")] | @tsv',
                       timeout=60)
     if rc != 0:
         return page("Change Requests",
                     "<div class=lg><h2 class=sec>Change Requests</h2>"
                     f"<div class='bar bnr-done'>{html.escape(meta_raw.strip()[:300])}</div>"
                     "<p><a href='/prs'>Back to change requests</a></p></div>", active="prs")
-    parts = (meta_raw.strip().split("\t") + [""] * 9)[:9]
-    title, who, base, head, state, adds, dels, nfiles, url = parts
+    parts = (meta_raw.strip().split("\t") + [""] * 11)[:11]
+    (title, who, base, head, state, adds, dels, nfiles, url,
+     merged_at, merged_by) = parts
+
+    # `state` is only ever "open" or "closed", so a merged request reports "closed" - which reads
+    # as abandoned. Say merged, and by whom, since that is the whole point of the history view.
+    qs = f"diff={html.escape(str(number))}" + ("&repo=bp" if repo == "bp" else "")
+    if merged_at:
+        stateline = (f"<span class='pill reviewed'>merged</span> {html.escape(merged_at[:10])}"
+                     + (f" by {html.escape(merged_by)}" if merged_by else ""))
+    else:
+        stateline = f"<span class='pill pending'>{html.escape(state or 'open')}</span>"
 
     files, err = pr_files(number, force=force, repo=repo)
     body = [
         "<div style='display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:6px'>"
         f"<h2 class=sec style='margin:0'>#{html.escape(str(number))} "
         f"{html.escape(title[:110])}</h2>"
-        f"<a href='/prs?diff={html.escape(str(number))}&refresh=1' "
+        # Both flags carried through, or Refresh silently switches repo (fetching the KB request
+        # with the same number) and drops back to the capped view.
+        f"<a href='/prs?{qs}{'&full=1' if full else ''}&refresh=1' "
         "style='margin-left:auto;text-decoration:none'>"
         f"<button class=sec>{icon('refresh', 15)} Refresh</button></a></div>",
         f"<p class=sub><a href='/prs'>Change requests</a> / <b>#{html.escape(str(number))}</b> "
-        f"&middot; {html.escape(who)} wants to merge <code>{html.escape(head)}</code> into "
-        f"<code>{html.escape(base)}</code> &middot; {html.escape(state)} &middot; "
+        + ("<span class='pill suggested'>Blueprint</span> " if repo == "bp" else "")
+        + f"&middot; {html.escape(who)} &middot; <code>{html.escape(head)}</code> &rarr; "
+        f"<code>{html.escape(base)}</code> &middot; {stateline} &middot; "
         f"<span class=dplus>+{html.escape(adds)}</span> "
         f"<span class=dminus>&minus;{html.escape(dels)}</span> across "
         f"{html.escape(nfiles)} file(s) &middot; "
@@ -6011,11 +6178,15 @@ def pr_diff_page(number, force=False, repo=""):
         body.append(f"<div class='bar bnr-done'>{html.escape(err)}</div>")
         return page("Change Requests", "<div class=lg>" + "".join(body) + "</div>", active="prs")
 
+    full_url = f"/prs?{qs}&full=1"
+    fcap = len(files) if full else PR_DIFF_MAX_FILES
+    shown_files = files[:fcap]
+
     # A contents list first. On a 20-file request, scrolling to find the one file you care about
     # is the actual friction, and it is the thing GitHub's sidebar solves.
     body.append("<div class=tblcard><table><tr><th>File</th><th>Change</th>"
                 "<th style='text-align:right'>Diff</th></tr>")
-    for f in files[:PR_DIFF_MAX_FILES]:
+    for f in shown_files:
         name = f.get("filename", "?")
         st = f.get("status", "")
         body.append(
@@ -6024,12 +6195,16 @@ def pr_diff_page(number, force=False, repo=""):
             f"<td style='text-align:right'><span class=dplus>+{f.get('additions', 0)}</span> "
             f"<span class=dminus>&minus;{f.get('deletions', 0)}</span></td></tr>")
     body.append("</table></div>")
-    if len(files) > PR_DIFF_MAX_FILES:
-        body.append(f"<p class=sub>{len(files) - PR_DIFF_MAX_FILES} further file(s) not shown "
-                    f"&mdash; <a href='{html.escape(url)}/files' target=_blank rel=noopener>"
-                    "see them on GitHub</a>.</p>")
+    if len(files) > len(shown_files):
+        body.append(f"<p class=sub>{len(files) - len(shown_files)} further file(s) not shown "
+                    f"&mdash; <a href='{html.escape(full_url)}'>show all {len(files)} "
+                    f"file(s)</a> &middot; <a href='{html.escape(url)}/files' target=_blank "
+                    "rel=noopener>on GitHub &rarr;</a></p>")
+    elif full:
+        body.append(f"<p class=sub>Complete diff &mdash; {len(files)} file(s), nothing "
+                    f"truncated. <a href='/prs?{qs}'>Back to the short view</a></p>")
 
-    for f in files[:PR_DIFF_MAX_FILES]:
+    for f in shown_files:
         name = f.get("filename", "?")
         body.append(
             f"<h3 class=angroup id='f-{html.escape(_slug(name))}'>{html.escape(name)}</h3>"
@@ -6039,7 +6214,8 @@ def pr_diff_page(number, force=False, repo=""):
             f"{html.escape(f.get('status', ''))} &middot; "
             f"<a href='{html.escape(f.get('blob_url') or url)}' target=_blank rel=noopener>"
             "view whole file &rarr;</a></p>")
-        body.append(render_patch(f.get("patch"), (f.get("blob_url") or url)))
+        body.append(render_patch(f.get("patch"), (f.get("blob_url") or url),
+                                 full=full, more_url=full_url))
 
     return page("Change Requests", "<div class=lg>" + "".join(body) + "</div>", active="prs")
 
@@ -6051,6 +6227,73 @@ def _slug(s):
 def _status_pill(st):
     return {"added": "reviewed", "removed": "bad", "renamed": "suggested",
             "modified": "pending"}.get(st, "excluded")
+
+
+def _ago(iso):
+    """'3d' / '2h' / 'today' from an ISO-8601 UTC stamp. Empty string if unparseable."""
+    if not iso:
+        return ""
+    from datetime import timezone as _tz
+    try:
+        then = datetime.strptime(iso[:19], "%Y-%m-%dT%H:%M:%S").replace(tzinfo=_tz.utc)
+    except ValueError:
+        return ""
+    # Aware both sides. `utcnow()` is deprecated in 3.12 and, worse, returns a NAIVE value that
+    # subtracts cleanly against a naive parse while being wrong the moment either side gains a
+    # timezone - a bug that only shows up as a few hours' drift.
+    secs = (datetime.now(_tz.utc) - then).total_seconds()
+    if secs < 3600:
+        return f"{int(secs // 60)}m"
+    if secs < 86400:
+        return f"{int(secs // 3600)}h"
+    return f"{int(secs // 86400)}d"
+
+
+def history_html(force=False):
+    """Merged change requests from this flow, both repos. Collapsed by default.
+
+    Collapsed because it answers a question nobody asks while merging - "what went in, and can I
+    read the diff again?" - and the open requests above it are the working surface. Expanded, it
+    pushes them off the screen within a week.
+
+    Every row links into the diff viewer rather than out to GitHub: the diffs are readable here,
+    and a merged request's files endpoint serves them exactly as it does for an open one.
+    """
+    rows, err = merged_prs(force=force)
+    n = len(rows)
+    out = ["<details class=histbox><summary><b>History</b> "
+           f"<span class=sub>{n} merged</span></summary>"]
+    if err:
+        out.append(f"<div class=hint>Partly unavailable: {html.escape(err)}</div>")
+    if not rows:
+        out.append("<p class=sub>No merged requests from this flow yet.</p></details>")
+        return "".join(out)
+    out.append("<div class=tblcard><table><tr><th>Request</th><th>Repo</th>"
+               "<th>Merged</th><th>By</th><th style='text-align:right'>Change</th>"
+               "<th></th></tr>")
+    for pr in rows:
+        rep = pr.get("repo") or ""
+        pill = ("<span class='pill suggested'>Blueprint</span>" if rep == "bp"
+                else "<span class='pill reviewed'>Knowledge</span>")
+        by = ((pr.get("mergedBy") or {}).get("login")
+              or (pr.get("author") or {}).get("login") or "")
+        when = (pr.get("mergedAt") or "")[:10]
+        ago = _ago(pr.get("mergedAt"))
+        qrep = "&repo=bp" if rep == "bp" else ""
+        out.append(
+            f"<tr><td><a href='{html.escape(pr.get('url', ''))}' target=_blank rel=noopener>"
+            f"#{pr.get('number', '?')}</a> {html.escape(str(pr.get('title', ''))[:78])}</td>"
+            f"<td>{pill}</td>"
+            f"<td>{html.escape(when)}"
+            + (f" <span class=sub>{html.escape(ago)}</span>" if ago else "")
+            + "</td>"
+            f"<td>{html.escape(by)}</td>"
+            f"<td style='text-align:right'><span class=dplus>+{pr.get('additions', 0)}</span> "
+            f"<span class=dminus>&minus;{pr.get('deletions', 0)}</span></td>"
+            f"<td style='text-align:right'><a href='/prs?diff={pr.get('number')}{qrep}'>"
+            f"Diff ({pr.get('changedFiles', 0)})</a></td></tr>")
+    out.append("</table></div></details>")
+    return "".join(out)
 
 
 def pr_page(force=False):
@@ -6271,6 +6514,7 @@ def pr_page(force=False):
             f"<a href=\"{html.escape(pr['url'])}\" target=_blank rel=noopener>"
             "<button class=sec>Open on GitHub</button></a></div>"
             "</div>")
+    body.append(history_html(force=force))
     return page("Change Requests", "<div class=lg>" + "".join(body) + "</div>", active="prs")
 
 
@@ -8627,7 +8871,8 @@ class H(BaseHTTPRequestHandler):
                     "<div class='bar bnr-done'>Not a change-request number.</div>"
                     "<p><a href='/prs'>Back</a></p></div>", active="prs"))
             rep = "bp" if "repo=bp" in self.path else ""
-            return self._send(200, pr_diff_page(num, force="refresh=1" in self.path, repo=rep))
+            return self._send(200, pr_diff_page(num, force="refresh=1" in self.path, repo=rep,
+                                                full="full=1" in self.path))
         if self.path == "/prs" or self.path.startswith("/prs?"):
             # Same gate as All Transcripts, and for the same reason: a contributor cannot
             # merge, so every button here would refuse. Not a security boundary - the page
@@ -9014,6 +9259,11 @@ class H(BaseHTTPRequestHandler):
                                 "a moment and try again.")
                 else:
                     rc, out = 1, "unknown action"
+                # A merge from here is the only thing that ADDS to the history, so it drops that
+                # cache itself. Otherwise the request just merged is missing from the list for up
+                # to five minutes on the very page where it was merged.
+                if rc == 0 and act in ("merge", "merge-override", "bp-merge"):
+                    drop_merged_cache()
             except Exception as e:                                    # noqa: BLE001
                 rc, out = 1, str(e)
             return self._send(200, json.dumps(
@@ -9258,6 +9508,14 @@ class H(BaseHTTPRequestHandler):
                         # Reported, not fatal - the request is correct either way, and an admin
                         # can switch it on.
                         if rc == 0:
+                            # Tag BEFORE arming auto-merge. Auto-merge can land the request
+                            # immediately when it is already approved and green, and `gh pr edit`
+                            # resolves the branch name - which is deleted on merge. Ordering it
+                            # first removes that race entirely.
+                            ok_tag, tagmsg = tag_pr(cur.strip())
+                            if not ok_tag:
+                                out += f"\n\nNot tagged {REVIEW_LABEL}: {tagmsg}"
+                            drop_merged_cache()
                             a = subprocess.run(
                                 ["gh", "pr", "merge", cur.strip(), "--rebase", "--auto",
                                  "--delete-branch"],
