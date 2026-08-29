@@ -232,7 +232,6 @@ def keep_exchange(e):
 # Review fields a human fills in. Kept in the file so the schema is self-documenting.
 REVIEW_TEMPLATE = """review_status: pending
 reviewer:
-reviewer:
 suggested_to:
 routing_verdict:
 reassign_to:
@@ -253,7 +252,6 @@ notes:"""
 # exclude by hand. 34 of the first 41 transcripts were excluded that way. Worse, a reviewer
 # who opens one has no signal that it is out of scope until they read the date.
 EXCLUDED_TEMPLATE = f"""review_status: excluded
-reviewer:
 reviewer:
 suggested_to:
 routing_verdict:
