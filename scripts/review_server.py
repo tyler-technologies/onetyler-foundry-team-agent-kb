@@ -1562,7 +1562,13 @@ ol.prog li.ai span{color:var(--bnr-sug-fg);opacity:.9}
 .whatsent{background:var(--forge-theme-surface-container-minimum);border-radius:4px;
 padding:12px 16px;margin-top:16px;font-size:13.5px}
 .whatsent>b{font-weight:500;font-size:13px;color:var(--forge-theme-text-medium)}
-.whatsent ul{margin:6px 0 0 18px;padding:0}
+.whatsent ul{margin:4px 0 10px 18px;padding:0}
+.whatsent ul:last-child{margin-bottom:0}
+/* Same treatment as the panel's own heading, one level in - so the groups read as part
+   of it rather than as separate panels. */
+.fgrp{font-weight:500;font-size:12px;color:var(--forge-theme-text-medium);
+margin-top:10px;letter-spacing:.02em}
+.fgrp:first-child{margin-top:6px}
 
 /* Reference material, collapsed. It was a permanently-open card competing with the controls
    on every visit; behind a summary it is still one click away and no longer part of the
@@ -5097,12 +5103,45 @@ def git_fragments():
         state = ("<span class='pill pushed'>all sent</span> Nothing waiting. "
                  "Everything you have reviewed has been sent in.")
 
-    files = ("<ul style='margin:6px 0 0 18px;padding:0'>"
-             + "".join(f"<li>{html.escape(porcelain_path(l))}</li>" for l in changed[:12])
-             + (f"<li>… and {n - 12} more</li>" if n > 12 else "")
-             + "</ul>") if changed else \
-            "<div class=hint style='margin-top:6px'>Nothing edited yet — review something on " \
-            "<b>My Transcripts</b> first.</div>"
+    # GROUPED, and the Blueprint group folded in from what used to be its own panel below. A
+    # reviewer asked for this: two panels listing what is about to go out, one per repo, with the
+    # second one carrying a paragraph explaining itself. Labels only now - the grouping IS the
+    # explanation, and the two repos are visibly separate without a sentence saying so.
+    paths = [porcelain_path(l) for l in changed]
+    groups = [
+        ("Reviews", [x for x in paths if x.startswith("transcripts/")]),
+        ("Agent files", [x for x in paths if x.startswith("Knowledge-")]),
+    ]
+    other = [x for x in paths
+             if not x.startswith("transcripts/") and not x.startswith("Knowledge-")]
+    if other:
+        groups.append(("Other", other))
+
+    # Blueprint lives in a different checkout, so it can never appear in `changed`. It comes from
+    # the per-transcript staged patches instead.
+    bp_rows = []
+    staged = bp_staged()
+    for rel in bp_batch():
+        got = staged.get(rel) or []
+        if got:
+            bp_rows += [html.escape(f) for f in got]
+        else:
+            # Kept as a row rather than a paragraph: a transcript marked BP updates with nothing
+            # attributed is refused at send time, and that has to be visible before then.
+            bp_rows.append(f"<span class=warn>{html.escape(Path(rel).name)} — nothing staged"
+                           "</span>")
+    if bp_rows:
+        groups.append(("Blueprint docs", bp_rows))
+
+    def grp(label, rows):
+        shown = rows[:12]
+        extra = f"<li>… and {len(rows) - 12} more</li>" if len(rows) > 12 else ""
+        return (f"<div class=fgrp>{label}</div><ul>"
+                + "".join(f"<li>{r}</li>" for r in shown) + extra + "</ul>")
+
+    files = ("".join(grp(l, r) for l, r in groups if r)
+             or "<div class=hint style='margin-top:6px'>Nothing edited yet — review something on "
+                "<b>My Transcripts</b> first.</div>")
 
     saves = unsent_saves()
     if saves:
@@ -7495,41 +7534,6 @@ def _eval_optin():
         "Remove evals or send the batch in. Required before a change request.</div></div>")
 
 
-def _bp_panel():
-    """What Blueprint will receive, per transcript. "" when no transcript asks for it.
-
-    Shown because the pairing is otherwise invisible until the send: a transcript ticked BP
-    updates with no edits attributed to it looks identical to one that is ready, and the
-    difference only surfaces as a refusal at the worst moment.
-    """
-    marked = bp_batch()
-    if not marked:
-        return ""
-    staged = bp_staged()
-    rows, missing = [], []
-    for rel in marked:
-        files = staged.get(rel) or []
-        if files:
-            rows.append(f"<li><b>{html.escape(Path(rel).name)}</b> &rarr; "
-                        + ", ".join(f"<code>{html.escape(f)}</code>" for f in files) + "</li>")
-        else:
-            missing.append(rel)
-            rows.append(f"<li><b>{html.escape(Path(rel).name)}</b> &rarr; "
-                        "<span class=warn>nothing attributed yet</span></li>")
-    cls = "bnr-router" if missing else "bnr-note"
-    return (f"<div class='bar {cls}'><b>Blueprint: one change request per transcript.</b>"
-            "<ul style='margin:6px 0 0 18px;padding:0'>" + "".join(rows) + "</ul>"
-            + ("<br>Each request is built on its own branch off Blueprint's master, so they "
-               "merge independently. Putting a transcript back to pending withdraws its "
-               "Blueprint changes too."
-               if not missing else
-               f"<br>{len(missing)} transcript(s) ask for Blueprint work with no edits "
-               "attributed. The send will be refused for those. The assistant needs to make "
-               "the edits and run <code>scripts/bp_stage.py --transcript &lt;path&gt;</code> "
-               "for each one.")
-            + "</div>")
-
-
 def _router_warning():
     """Light-red warning when the batch touches routing. The paths are admin-only, so in practice
     only an admin sees it - but it renders on what the batch contains, not on who is looking."""
@@ -8073,7 +8077,6 @@ def git_page():
              "<span>a pull request, for review</span></li>"
              + "</ol>"
              + _eval_optin()
-             + _bp_panel()
              + _router_warning()
              + "<div class=stepacts>"
              f"<button onclick='sendReviews(this)' data-ai-pending='{n_ai}'>"
