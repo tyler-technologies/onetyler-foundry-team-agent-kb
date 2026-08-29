@@ -1494,12 +1494,14 @@ background:var(--bnr-sug-bg);color:var(--bnr-sug-fg)}
 .evafter pre{background:var(--d-add-bg,var(--forge-theme-surface-container))}
 .evmatch{margin-left:8px;padding:1px 7px;border-radius:9px;font-size:10.5px;font-weight:600;
 letter-spacing:0;text-transform:none;cursor:help}
-.evmatch.ok{background:var(--forge-theme-success-container-low,var(--forge-theme-surface-container));
-color:var(--forge-theme-success)}
-.evmatch.warn{background:var(--forge-theme-warning-container-low,var(--forge-theme-surface-container));
-color:var(--forge-theme-warning)}
-.evmatch.bad{background:var(--forge-theme-error-container-low,var(--forge-theme-surface-container));
-color:var(--forge-theme-error)}
+/* The SAME token pairs the status pills use, not invented ones. My first attempt reached for
+   `--forge-theme-*-container-low` with the raw accent as the text colour; the light-mode
+   fallback resolved to #e0e0e0 and check_contrast.py caught .ok at 3.88:1 and .warn at 3.81:1
+   against a 4.5:1 floor. --pill-ok-fg / --pill-warn-fg exist precisely because the raw accents
+   are too light on a tinted chip, and they are already verified in both modes. */
+.evmatch.ok{background:var(--tint-success);color:var(--pill-ok-fg)}
+.evmatch.warn{background:var(--forge-theme-warning-container-low);color:var(--pill-warn-fg)}
+.evmatch.bad{background:var(--tint-error);color:var(--forge-theme-error)}
 /* A refreshed answer has to be visibly refreshed - the whole complaint was not being able to
    tell whether Ask again had done anything. */
 @keyframes evflash{from{background:var(--forge-theme-primary-container-minimum)}to{background:transparent}}
