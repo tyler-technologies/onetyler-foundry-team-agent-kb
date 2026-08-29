@@ -1392,7 +1392,7 @@ color:var(--forge-theme-text-high)}
 .handoff{margin-top:14px;padding:10px 14px;border-radius:4px;
 background:var(--forge-theme-surface-container-minimum);
 color:var(--forge-theme-text-medium);font-size:13.5px}
-/* The list of saves. A recessed panel, like "About to be sent" - it is a record of what has
+/* The list of saves. A recessed panel, like the change list - it is a record of what has
    happened, not a control, and giving it a card border would make it compete with the steps. */
 .saves{margin-top:14px;background:var(--forge-theme-surface-container-minimum);
 border-radius:4px;padding:12px 16px}
@@ -1559,9 +1559,17 @@ ol.prog li.ai b{color:var(--bnr-sug-fg)}
 ol.prog li.ai span{color:var(--bnr-sug-fg);opacity:.9}
 /* The file list is context for the steps, not a step - a recessed panel says that without
    needing another bordered card. */
-.whatsent{background:var(--forge-theme-surface-container-minimum);border-radius:4px;
-padding:12px 16px;margin-top:16px;font-size:13.5px}
-.whatsent>b{font-weight:500;font-size:13px;color:var(--forge-theme-text-medium)}
+/* Now a disclosure inside the state bar rather than a standalone panel, so it drops the tinted
+   background it used to need to separate itself - the bar already provides that - and keeps only
+   the spacing and the summary's own styling. */
+.whatsent{margin-top:10px;font-size:13.5px}
+.whatsent summary{cursor:pointer;list-style:none}
+.whatsent summary::-webkit-details-marker{display:none}
+.whatsent summary>b{font-weight:500;font-size:13px;color:var(--forge-theme-text-medium)}
+/* A caret, so a collapsed panel reads as openable rather than as a dead label. */
+.whatsent summary>b::before{content:"\25B8";display:inline-block;margin-right:6px;
+font-size:11px;transition:transform .12s}
+.whatsent[open] summary>b::before{transform:rotate(90deg)}
 .whatsent ul{margin:4px 0 10px 18px;padding:0}
 .whatsent ul:last-child{margin-bottom:0}
 /* Same treatment as the panel's own heading, one level in - so the groups read as part
@@ -5103,9 +5111,20 @@ def git_fragments():
     # remote can reach.
     unpushed = str(len(unsent_saves()))
 
-    if n:
-        state = (f"<span class='pill pending'>{n} unsent</span> "
-                 f"You have <b>{n}</b> edited file(s) not yet saved.")
+    # COUNTED ACROSS BOTH REPOS, because that is what the Change list below now shows. `n` is
+    # this repo's working tree only, so while the list gained a "Blueprint docs" group the
+    # sentence above it kept quoting a smaller number - two figures for one thing, on one line.
+    n_bp = sum(len(v) for v in bp_staged().values())
+    n_all = n + n_bp
+
+    if n_all:
+        where = ""
+        if n and n_bp:
+            where = f" ({n} here, {n_bp} in Blueprint)"
+        elif n_bp and not n:
+            where = " (in Blueprint)"
+        state = (f"<span class='pill pending'>{n_all} unsent</span> "
+                 f"You have <b>{n_all}</b> edited file(s) not yet saved{where}.")
     elif unpushed != "0":
         state = (f"<span class='pill reviewed'>saved</span> Saved, but "
                  f"<b>{unpushed}</b> change(s) have not been sent in yet — do Part 2.")
@@ -5182,7 +5201,16 @@ def git_fragments():
         saves_html = ("<div class=saves><span class=hint>Nothing saved and unsent — either "
                       "you have not saved yet this sitting, or everything is already sent "
                       "in.</span></div>")
-    return {"state": state, "files": files, "saves": saves_html, "unsent": n}
+    # The change list now lives INSIDE the state bar, collapsed. It was a permanently-open
+    # panel between the "Publish your reviews" heading and Part 1, so the first actual step
+    # started well down the page - and the list is reference material, not something you act on.
+    #
+    # Built into `state` deliberately: the JS refresh replaces #gitstate's entire innerHTML after
+    # every action, so a panel composed separately in git_page would disappear on first use.
+    state = (state
+             + "<details class=whatsent><summary><b>Change list</b></summary>"
+             + "<div id=gitfiles>" + files + "</div></details>")
+    return {"state": state, "files": files, "saves": saves_html, "unsent": n_all}
 
 
 def gh(*args, timeout=180):
@@ -8202,14 +8230,13 @@ def git_page():
       f"<div class=bar id=gitstate>{state}</div>"
 
       "<div class=card>"
-      "<h3>Publish your reviews</h3>"
+      "<h3>Back up your progress</h3>"
       # The honest division of labour, stated at the top because it is the thing people get
       # wrong about this repo: a verdict is not the deliverable. The knowledge file that stops
       # the agent repeating that answer is, and writing it is the ONE job here that needs an
       # assistant. Everything else on this page is a button.
       "<p class=sub>Part 2 needs an assistant for the knowledge files; the rest is buttons.</p>"
-      "<div class=whatsent><b>About to be sent</b><div id=gitfiles>" + files + "</div></div>"
-      + step("1", "Part 1 — Save progress (recommended)",
+      + step("1", "",
              "A local checkpoint you can go back to. Nothing is shared yet.",
              # Empty by DEFAULT, not prefilled. A prefilled box asks to be read, edited and
              # worried about; an empty one labelled "optional" asks for nothing. Blank is
@@ -8221,7 +8248,14 @@ def git_page():
              "<button class=sec onclick=\"gitDo('commit')\">Save progress</button>"
              "<button class=sec onclick=\"gitDo('diff')\">Show me exactly what changed</button>"
              "</div>" + "<div id=githist>" + saves_html + "</div>")
-      + step("2", "Part 2 — Publish",
+      + "</div>"
+      # The honest division of labour, stated where it is acted on: a verdict is not the
+      # deliverable. The knowledge file that stops the agent repeating that answer is, and
+      # writing it is the ONE job here that needs an assistant.
+      + "<div class=card>"
+      + "<h3>Publish your reviews</h3>"
+      + "<p class=sub>Part 2 needs an assistant for the knowledge files; the rest is buttons.</p>"
+      + step("2", "Publish",
              "The knowledge files are the deliverable, not the verdicts.",
              "<ol class=prog id=prog>"
              + ai_stage
