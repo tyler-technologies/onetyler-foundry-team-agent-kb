@@ -1526,8 +1526,16 @@ white-space:pre-wrap;word-break:break-word;max-height:260px;overflow:auto;
 background:var(--forge-theme-surface-container);border:1px solid var(--forge-theme-outline-low)}
 .evcorr{margin-top:10px}
 .evcorr summary{cursor:pointer;font-size:13px;color:var(--forge-theme-primary)}
-.evcorr pre{margin:8px 0 0;padding:10px;border-radius:5px;font-size:12.5px;white-space:pre-wrap;
-background:var(--bnr-sug-bg);color:var(--bnr-sug-fg)}
+/* NEUTRAL GREY, not the purple this rule used to carry. `.evcorr` was the correction's own
+   styling; the disclosure was then repurposed to hold the ORIGINAL (bad) answer and kept the
+   tint, so the known-bad answer and the target answer looked identical. Purple means "this is
+   the suggestion" everywhere else in the app, which made it actively misleading here.
+   Scoped with `>` so it cannot reach the .evvar pre blocks inside the Earlier disclosure -
+   those two selectors have equal specificity and were resolving on source order. */
+.evcorr > pre{margin:8px 0 0;padding:10px;border-radius:5px;font-size:12.5px;
+white-space:pre-wrap;word-break:break-word;max-height:320px;overflow:auto;
+background:var(--forge-theme-surface-container);color:var(--forge-theme-text-high);
+border:1px solid var(--forge-theme-outline-low)}
 /* "It ran; now YOU decide." Deliberately not `done`: a green tick on the eval would say the
    step is complete when the only thing that completes it is a human reading the answers. It
    was the absence of any such state that made the eval invisible in this list. */
