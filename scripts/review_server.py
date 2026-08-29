@@ -3238,10 +3238,6 @@ def page(title, inner, active="", all_view=False, rel="", agent=""):
         # because with no `me` there is no "mine" to fall back to and an empty app is worse.
         + (item("/?all=1", icon("clipboard_list", 19, "ic-all"), "All Transcripts", open_n or None, "all")
            if (is_admin() or not ME) else "")
-        # MONITOR sits above SAVE & PUBLISH and is visible to everyone. Foundry's own sidebar
-        # groups Analytics under MONITOR, so the vocabulary matches the tool it mirrors.
-        + "<div class=grp>Monitor</div>"
-        + item("/analytics", icon("chart_bar", 19, "ic-an"), "OT Analytics", None, "analytics")
         + "<div class=grp>Save &amp; Publish</div>"
         + item("/git", icon("publish", 19, "ic-git"), "Save &amp; Share", uncommitted or None, "git")
         # Visible to everyone who can run Part 2, which is everyone. The badge is the number
@@ -3253,6 +3249,11 @@ def page(title, inner, active="", all_view=False, rel="", agent=""):
         # would be a link to a page of buttons that all refuse.
         + (item("/prs", icon("source_pull", 19, "ic-prs"), "PRs", open_pr_count or None, "prs")
            if is_admin() else "")
+        # MONITOR AFTER SAVE & PUBLISH. It used to sit above, matching where Foundry's own
+        # sidebar puts Analytics - but this app is not Foundry: the daily path here is review,
+        # then publish, and a section nobody needs mid-task was interrupting it.
+        + "<div class=grp>Monitor</div>"
+        + item("/analytics", icon("chart_bar", 19, "ic-an"), "OT Analytics", None, "analytics")
         # Its own section rather than under Monitor: Monitor is visible to everyone, and this
         # is not. Admin-only for the same reason the backup repo is - snapshots carry agent
         # instructions, tenant storage paths, and per-file IDs that are direct DELETE handles.
