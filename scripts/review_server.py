@@ -1506,6 +1506,14 @@ letter-spacing:0;text-transform:none;cursor:help}
    tell whether Ask again had done anything. */
 @keyframes evflash{from{background:var(--forge-theme-primary-container-minimum)}to{background:transparent}}
 .evafter.isnew pre,.evvar.isnew pre{animation:evflash 1.8s ease-out}
+.evnowbox{width:100%;box-sizing:border-box;font:inherit;font-size:12px;line-height:1.5;
+padding:10px;border-radius:5px;resize:vertical;
+border:1px solid var(--forge-theme-outline-low);
+background:var(--d-add-bg,var(--forge-theme-surface-container));
+color:var(--forge-theme-text-high)}
+.evnowbox:focus{outline:2px solid var(--forge-theme-primary);outline-offset:-1px}
+.evmarks{font-size:11.5px;color:var(--forge-theme-text-medium);align-self:center}
+.evedited{font-size:10.5px;font-weight:600;color:var(--forge-theme-warning);margin-left:8px}
 .evask{margin:0 0 10px}
 .evqbox{width:100%;box-sizing:border-box;font:inherit;font-size:13.5px;padding:8px 10px;
 border:1px solid var(--forge-theme-outline-medium);border-radius:5px;resize:vertical;
@@ -2406,6 +2414,55 @@ function evRemove(btn){
        if(r.ok && !r.live){ location.reload(); }
      });
    });
+}
+// Editing NOW is how defects get marked, so the Copy button stays shut until something has
+// actually been typed - a prompt built from an untouched answer is just the transcript again.
+function evNowEdited(box){
+ const card=box.closest('.evcard');
+ const changed=(box.value||'')!==(box.dataset.orig||'');
+ const btn=card.querySelector('.evcopy');
+ btn.disabled=!changed;
+ if(changed) btn.removeAttribute('title');
+ const marks=(box.value.match(/\{\{[\s\S]*?\}\}/g)||[]).length;
+ card.querySelector('.evmarks').textContent = marks ? marks+' marked' : (changed?'edited':'');
+ const tag=card.querySelector('.evedited');
+ if(tag) tag.hidden=!changed;
+}
+// Back to the agent's own words. The stored answer was never touched, so this is just putting
+// the scratch copy back - nothing is recovered or lost.
+function evResetNow(btn){
+ const card=btn.closest('.evcard'), box=card.querySelector('.evnowbox');
+ box.value=box.dataset.orig||'';
+ evNowEdited(box);
+ box.focus();
+}
+function evCopyPrompt(btn,key){
+ const box=btn.closest('.evcard').querySelector('.evnowbox');
+ const was=btn.textContent; btn.disabled=true; btn.textContent='Building…';
+ post('/evalprompt',{key:key,edited:box.value||''}).then(r=>{
+   btn.disabled=false;
+   if(r.ok===false){btn.textContent=was; toast(r.output||'Could not build the prompt'); return}
+   copyText(r.prompt, btn, was);
+ }).catch(e=>{btn.disabled=false; btn.textContent=was; toast('Could not build it: '+e)});
+}
+// Shared clipboard path with the Part 2 prompt button: navigator.clipboard needs a secure
+// context, and 127.0.0.1 counts - but a browser with the permission denied still has to work,
+// so the textarea fallback stays.
+function copyText(text, btn, was){
+ const done=ok=>{btn.textContent = ok ? '\u2713 Copied — paste it to your assistant'
+                                      : 'Could not copy — select the text below instead';
+   if(!ok){const ta=document.createElement('textarea'); ta.value=text;
+     ta.style.cssText='width:100%;margin-top:8px;font:inherit'; ta.rows=8;
+     btn.parentNode.appendChild(ta); ta.select();}
+   else setTimeout(()=>{btn.textContent=was},4000);};
+ if(navigator.clipboard&&window.isSecureContext){
+   navigator.clipboard.writeText(text).then(()=>done(true),()=>done(false));
+ } else {
+   const ta=document.createElement('textarea'); ta.value=text;
+   ta.style.position='fixed'; ta.style.opacity='0'; document.body.appendChild(ta); ta.select();
+   let ok=false; try{ok=document.execCommand('copy')}catch(e){ok=false}
+   document.body.removeChild(ta); done(ok);
+ }
 }
 function evSend(btn){
  confirmThen(btn,'Send the batch in?',
@@ -7085,6 +7142,76 @@ def eval_add_variant(key, question, answer):
     return rec
 
 
+def eval_improve_prompt(key, edited):
+    """The prompt to hand an assistant after marking up an answer. (ok, text).
+
+    Composed HERE rather than in the page for the same reason analysis_prompt is: the standing
+    instructions - read the feedback as one body, do not change my verdicts, ask rather than
+    guess, sync first - already exist in one place and must not acquire a second copy that
+    drifts. This adds the exchange-specific context around them.
+
+    The edited answer is the payload. Every `{{...}}` in it is a defect marked against the
+    sentence it follows, which is what makes this more useful than the transcript alone: the
+    transcript says what the answer should have been, while this says which parts of the answer
+    the agent is STILL getting wrong after a round of knowledge edits.
+    """
+    rec = next((r for r in eval_records() if f"{r[0]}#{r[2]}" == key), None)
+    if rec is None:
+        return False, "That exchange is not in the current eval run."
+    rel, agent, _n, q, _before, _after, _ok, xnum = rec
+    corr = ""
+    f = REPO / rel
+    if f.is_file():
+        _, b = parse(f)
+        for xn, _t, _qq, _a, rv in exchanges_of(b or ""):
+            if xn == xnum and rv:
+                corr = correction_text(rv)
+                break
+    marks = re.findall(r"\{\{(.*?)\}\}", edited or "", re.S)
+    files, _nq, _m = eval_estimate()
+    L = [
+        f"The `{agent}` agent still answers this badly after the knowledge edits in this repo. "
+        "Sync this repo to the latest main first (`git fetch origin` and bring main up to date; "
+        "do not disturb my in-progress branch). Read everything below as one body before "
+        "changing anything, then update the knowledge files so the agent stops giving these "
+        "answers. Do not change my verdicts, and ask me rather than guessing if anything here "
+        "is ambiguous.",
+        "",
+        f"Transcript: {rel} (exchange {xnum})",
+        "",
+        "QUESTION ASKED",
+        "--------------",
+        (q or "").strip(),
+        "",
+        "THE ANSWER IT GAVE, with my corrections inline in {{...}}",
+        "--------------------------------------------------------",
+        (edited or "").strip(),
+        "",
+    ]
+    if marks:
+        L += [f"Each of the {len(marks)} `{{{{...}}}}` above is a defect in the sentence it "
+              "follows. Fix the knowledge files so those statements stop being produced — do "
+              "not simply append a correction elsewhere in the file, because retrieval returns "
+              "the chunk that matches the question and the wrong statement is in that chunk.",
+              ""]
+    else:
+        L += ["I have not marked specific defects with {{...}}; the whole answer above is the "
+              "problem. Work out from my original correction what is still missing.", ""]
+    if corr:
+        L += ["MY ORIGINAL CORRECTION FOR THIS EXCHANGE",
+              "----------------------------------------", corr, ""]
+    if files:
+        L += ["KNOWLEDGE FILES ALREADY CHANGED IN THIS BATCH",
+              "---------------------------------------------"]
+        L += [f"  {x}" for x in files]
+        L += ["",
+              "Those are the files whose current state produced the answer above, so start "
+              "there — but identify more or fewer as the evidence requires.", ""]
+    L += ["When you are done, tell me what you changed and why, per file. I will re-run the "
+          "check and ask this question again, plus adjacent phrasings, to confirm it holds."]
+    return True, "\n".join(L)
+
+
 def eval_ask_live(slug, question):
     """Ask a live agent one question, right now. (ok, answer).
 
@@ -7608,10 +7735,29 @@ def eval_review_page():
                if corr else
                "<div class=evtarget><div class=evlab>Your correction</div>"
                "<pre>(none written for this exchange)</pre></div>")
+            # NOW IS EDITABLE, and editing it is how a reviewer marks what is still wrong:
+            # `{{...}}` inline against the sentence it is about. The marker carries its own
+            # location, which a separate notes box cannot - and a fix aimed at the wrong
+            # sentence is the failure that box would produce.
+            #
+            # The stored answer is NOT touched. This is a scratch copy; the agent's actual words
+            # stay in the run and in Earlier, so the record of what it said survives the markup.
             + "<div class=evafter>"
             f"<div class=evlab>Now{(' (' + html.escape(latest['at']) + ')') if latest.get('at') else ''}"
-            f"{match_html(match_pct(corr, latest.get('answer') or ''))}</div>"
-            f"<pre>{html.escape(latest.get('answer') or '(no answer returned)')}</pre></div>"
+            f"{match_html(match_pct(corr, latest.get('answer') or ''))}"
+            "<span class=evedited hidden> · edited</span></div>"
+            "<div class=stepacts style='margin:0 0 6px'>"
+            f"<button class=evcopy disabled title='Edit the answer below first — add {{{{...}}}} "
+            f"where it is wrong' onclick=\"evCopyPrompt(this,'{html.escape(key)}')\">"
+            "Copy prompt</button>"
+            "<button class=sec onclick='evResetNow(this)'>Reset</button>"
+            "<span class=evmarks></span></div>"
+            f"<textarea class=evnowbox rows=14 oninput='evNowEdited(this)' "
+            f"data-orig=\"{html.escape(latest.get('answer') or '')}\">"
+            f"{html.escape(latest.get('answer') or '(no answer returned)')}</textarea>"
+            "<div class=hint style='margin:5px 0 0'>To improve response type comments in "
+            "<code>{{ }}</code> inside Now and click <b>Copy prompt</b> to provide your AI to "
+            "further refine content.</div></div>"
             "</div>"
             + (f"<details class=evcorr><summary>The original (bad) answer &mdash; reference only</summary>"
                f"<pre>{html.escape(before)}</pre></details>" if before else "")
@@ -8107,6 +8253,12 @@ class H(BaseHTTPRequestHandler):
             return self._send(200, json.dumps(
                 {"ok": ok, "answer": ans, "question": q, "at": at, "pct": pct,
                  "output": "" if ok else ans}), "application/json")
+        if self.path == "/evalprompt":
+            ok, text = eval_improve_prompt((data.get("key") or "").strip(),
+                                           data.get("edited") or "")
+            return self._send(200, json.dumps(
+                {"ok": ok, "prompt": text if ok else "", "output": "" if ok else text}),
+                "application/json")
         if self.path == "/evalremove":
             ok, msg = eval_remove()
             return self._send(200, json.dumps(
