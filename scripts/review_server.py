@@ -1648,7 +1648,7 @@ font-variant-numeric:tabular-nums;padding-right:12px;width:1%}
 .saves>.hint{margin-top:8px}
 
 /* ------------------------------------------------------------------------------------------
-   Save & Share only: everything one step larger. SCOPED, not global - the transcript list is
+   Save and Publish only: everything one step larger. SCOPED, not global - the transcript list is
    a dense 12-column table where the smaller scale is what makes it fit at 720p, while this
    page is prose and form controls and reads as cramped at the same sizes.
    The page title is deliberately NOT bumped: at 24px it is already the largest thing here,
@@ -2231,31 +2231,19 @@ if(e.target.closest('.tip')||e.target.closest('button.info')) return;
 document.querySelectorAll('.tip').forEach(o=>o.hidden=true)});
 function toast(m,ok=true){const t=document.getElementById('toast');t.textContent=m;
 t.style.background=ok?'#0f6b34':'#a11';t.classList.add('on');setTimeout(()=>t.classList.remove('on'),2600)}
-// WHICH FIELDS MEAN "SOMETHING SHOULD CHANGE" - the same two pools eval_batch.py uses, injected
-// rather than restated, because a second copy of this rule would drift and the label would then
-// promise something the eval did not honour. null = the field is pure bookkeeping and never
-// signals; a list = the field signals EXCEPT at these values.
-const NEUTRAL = {"review_status": null, "reviewer": null, "review_round": null, "notes": null, "delegated_to": null, "orchestration": null, "routing_verdict": ["", "correct"], "answer_verdict": ["", "good"], "diagnosis": ["", "n-a"], "fix_target": ["", "none"], "kb_action": ["", "none"], "action_status": ["", "none-needed", "open", "wontfix"], "bp_updates": ["", "0", "false", "no"], "suggested_to": [""], "reassign_to": [""], "kb_files": [""]};
+// WHAT ACTIVATES THE ASSISTANT: PROSE, AND ONLY PROSE.
+//
+// This used to also read the verdict dropdowns against a NEUTRAL table, which made a field value
+// into a request for work. It is not one. Answer verdict = stale records what already happened;
+// it cannot ask for a knowledge file to be rewritten, and treating it as if it could put
+// transcripts into Eval Review with nothing to test.
+//
+// So the rule is now the same one a reader would guess from the form: an Ideal response under an
+// exchange, or a Summary. Those two carry the "triggers changes" tag; the fields are attributes
+// and may route the transcript, but they never queue an assistant. The server half of this is
+// eval_batch.wants_change(), which was changed in step with it - two copies of this rule that
+// disagree is how a transcript ends up in a batch nobody can act on.
 function formAsksForChange(){
- for (const e of document.querySelectorAll('[data-fm]')) {
-   const k = e.dataset.fm;
-   if (!(k in NEUTRAL)) continue;
-   const neutral = NEUTRAL[k];
-   if (neutral === null) continue;
-   const v = e.dataset.multi ? [...e.selectedOptions].map(o=>o.value).join(', ')
-           : e.dataset.bool  ? (e.checked ? 'yes' : '')
-           : (e.value || '');
-   if (!neutral.includes(v.trim().toLowerCase())) return true;
- }
- // The prose counts too, and counts MORE: the form opens on "nothing wrong", and a reviewer who
- // writes "it should have said X" without touching a dropdown has still asked for a change.
- //
- // BUT THE SCAFFOLDING IS NOT PROSE. Each ideal response box opens pre-filled with the block's own
- // header - "**Review —** _verdict:_ · _should have said:_" - which the form wrote, not the
- // reviewer. A raw .trim() therefore saw 45 characters of template on every untouched transcript
- // and reported "Changes suggested" before anyone had typed a word. The server's wants_change()
- // strips the same line; this is the client half of one rule, and letting the two differ is
- // exactly what the shared NEUTRAL table exists to prevent.
  for (const e of document.querySelectorAll('[data-ex]')) if (askedForChangeIn(e)) return true;
  const pf = document.getElementById('proposed');
  if (pf && proseTyped(pf.value)) return true;
@@ -2276,49 +2264,24 @@ function askedForChangeIn(ta){
  if(src && src.textContent.trim() === ta.value.trim()) return false;
  return true;
 }
-// Put every "Triggers changes" field back to its neutral value and empty the prose, so the form
-// reads as a deliberate no-change review again.
+// Empty the two things that activate the assistant - the Ideal responses and the Summary - so
+// the form records as a deliberate no-change review again.
+//
+// IT NO LONGER TOUCHES THE FIELDS. It used to reset every "Triggers changes" dropdown to a
+// neutral value, on the old theory that a verdict could ask for work. Since the fields are
+// attributes, resetting them here destroyed a reviewer's observations - Answer verdict = stale,
+// the diagnosis, the kb_files they picked - to clear something those fields never caused.
 //
 // CONFIRMS FIRST. This is the only control on the page that can discard a paragraph somebody
 // typed - an ideal response is often the most considered thing in the whole review - and an
 // unconfirmed button next to the one you press to finish is a bad place to be one click out.
-//
-// Neutral values come from the same NEUTRAL table the label and the eval read, so "cleared"
-// means exactly "the eval will not replay this" and not merely "looks empty".
 function clearChanges(btn){
- confirmThen(btn, 'Clear the suggested changes?',
-   'Puts every verdict field back to its default and empties the ideal responses and the summary, '
-   + 'so this records as <b>no changes needed</b>. Typed text is discarded &mdash; there is '
-   + 'no undo.',
+ confirmThen(btn, 'Clear the ideal responses and summary?',
+   'Empties every <b>Ideal response</b> and the <b>Summary</b>, so this records as '
+   + '<b>no changes needed</b>. The verdict fields are left as they are. Typed text is '
+   + 'discarded &mdash; there is no undo.',
    ()=>{
-     for (const e of document.querySelectorAll('[data-fm]')) {
-       const k = e.dataset.fm, neutral = NEUTRAL[k];
-       if (!neutral) continue;                       // absent, or pure bookkeeping
-       if (e.dataset.bool) { e.checked = false; continue; }
-       if (e.dataset.multi) { [...e.options].forEach(o=>o.selected=false); continue; }
-       if (e.tagName === 'SELECT') {
-         // Pick a neutral value this select actually offers - "" is not always an option.
-         const opt = [...e.options].map(o=>o.value)
-                        .find(v => neutral.includes((v||'').trim().toLowerCase()));
-         if (opt !== undefined) e.value = opt;
-       } else {
-         e.value = '';
-       }
-     }
-     // kb_files is three controls, not one: the hidden value the form submits, the checkboxes
-     // in the dialog, and the button that shows the count. Missing any leaves the picker
-     // claiming a selection that is no longer in the field.
-     const kv = document.getElementById('kbvalue');
-     if (kv) kv.value = '';
-     kbBoxes().forEach(b => b.checked = false);
-     const kbb = document.getElementById('kbbtn');
-     if (kbb) kbb.innerHTML = 'Select\u2026';
-     // Back to the scaffolding the form supplies, not to empty: a blank ideal response box looks
-     // broken next to the others, and the header is what tells you where to type.
-     document.querySelectorAll('[data-ex]').forEach(e => {
-       const m = (e.value||'').match(/^\s*\*\*Review\s*[\u2014-]\*\*.*$/m);
-       e.value = m ? m[0] : '';
-     });
+     document.querySelectorAll('[data-ex]').forEach(e => { e.value = ''; });
      const pf = document.getElementById('proposed');
      if (pf) pf.value = '';
      refreshMarkLabel();
@@ -2984,7 +2947,7 @@ function evReset(btn){
    ()=>post('/git',{action:'reset-pending'}).then(r=>{
      const o=document.getElementById('gitout');
      if(o){o.style.display='block'; o.textContent=r.output||'(no output)';}
-     setTimeout(()=>{location.href='/git'},900);
+     setTimeout(()=>{location.href='/save'},900);
    }));
 }
 
@@ -3071,7 +3034,7 @@ if(r.refresh){
    if(d&&wasOpen)d.open=true;
  }
  // The nav badge counts the same thing as the status line, so it has to move with it.
- const badge=document.querySelector('nav.side a[href="/git"] .ct');
+ const badge=document.querySelector('nav.side a[href="/save"] .ct');
  if(badge){const n=r.refresh.unsent;
    if(n){badge.textContent=n;badge.style.display=''}else{badge.style.display='none'}}
 }
@@ -3724,6 +3687,12 @@ def page(title, inner, active="", all_view=False, rel="", agent=""):
     with an icon, a label and a live count per item makes each one visibly a destination.
     """
     open_n, mine_n, uncommitted = nav_counts()
+    # Saved locally but not yet sent in - the Publish badge. Distinct from `uncommitted`,
+    # which is unsaved edits and belongs to Save.
+    try:
+        unsent = len(unsent_saves())
+    except Exception:                                                  # noqa: BLE001
+        unsent = 0
     open_pr_count = pr_count() if is_admin() else 0
 
     def item(href, icon, label, count=None, key=""):
@@ -3744,7 +3713,11 @@ def page(title, inner, active="", all_view=False, rel="", agent=""):
         + (item("/?all=1", icon("clipboard_list", 19, "ic-all"), "All Transcripts", open_n or None, "all")
            if (is_admin() or not ME) else "")
         + "<div class=grp>Save &amp; Publish</div>"
-        + item("/git", icon("publish", 19, "ic-git"), "Save &amp; Share", uncommitted or None, "git")
+        # TWO ITEMS, NOT ONE. "Save & Share" named two jobs with nothing in common: a local
+        # checkpoint that shares nothing, and the publish sequence. The badges differ too -
+        # unsaved edits are a Save concern, saved-but-unsent work is a Publish one.
+        + item("/save", icon("folder", 19, "ic-git"), "Save", uncommitted or None, "save")
+        + item("/publish", icon("publish", 19, "ic-git"), "Publish", unsent or None, "publish")
         # Visible to everyone who can run Part 2, which is everyone. The badge is the number
         # still needing a decision, so an unread eval is visible from any page rather than only
         # from the panel it happened to print into.
@@ -4217,32 +4190,22 @@ def _render_fields(rel, prefill):
     global _round_for_this_doc
     _round_for_this_doc = derived_round(rel)
     try:
-        # TWO GROUPS, NOT THIRTEEN TAGGED LABELS. Which fields put a transcript into an eval is
-        # the single most consequential thing about this form, and tagging each label
-        # "(triggers changes)" would have added the same six words to nine rows - noise that
-        # stops being read by the third one. Grouped, the answer is the layout.
+        # ONE LIST. NO FIELD TRIGGERS THE AI.
         #
-        # Membership comes from eval_batch.NEUTRAL_VALUES, the same table the eval reads, so a
-        # field cannot appear under one heading here and behave as the other there.
-        try:
-            sys.path.insert(0, str(REPO / "scripts"))
-            import eval_batch as _eb
-            acts = {k for k in REVIEW_KEYS if _eb.NEUTRAL_VALUES.get(k, None) is not None}
-        except Exception:                                                 # noqa: BLE001
-            acts = set()
-        triggering = [k for k in REVIEW_KEYS if k in acts]
-        neutral = [k for k in REVIEW_KEYS if k not in acts]
-        out = []
-        if triggering:
-            out.append("<div class=fldgrp><span class=fldgrp-h>Triggers changes</span>"
-                       "<span class=hint> &mdash; anything here puts this transcript into "
-                       "<b>Eval Review</b></span></div>")
-            out += [field(k, prefill.get(k, "")) for k in triggering]
-        if neutral:
-            out.append("<div class=fldgrp><span class=fldgrp-h>No action</span>"
-                       "<span class=hint> &mdash; recorded, but never puts it into Eval Review"
-                       "</span></div>")
-            out += [field(k, prefill.get(k, "")) for k in neutral]
+        # These were split into "Triggers changes" and "No action" on the theory that a verdict
+        # value could ask for work. It cannot, and the split asserted otherwise: Answer verdict
+        # sat under "Triggers changes", so recording `stale` - an observation about what already
+        # happened - claimed to queue an assistant. Every field here is an ATTRIBUTE. Some route
+        # the transcript (whose queue it appears in, who is asked to decide); none of them is a
+        # request for content to change.
+        #
+        # What activates the assistant step under Publish is prose: an Ideal response under an
+        # exchange, or a Summary. Those two carry the "triggers changes" tag, and they are the
+        # only things in the form that do.
+        out = ["<div class=fldgrp><span class=fldgrp-h>No action</span>"
+               "<span class=hint> &mdash; recorded, but does not trigger AI updates to "
+               "knowledge files.</span></div>"]
+        out += [field(k, prefill.get(k, "")) for k in REVIEW_KEYS]
         return "".join(out)
     finally:
         _round_for_this_doc = None
@@ -4396,7 +4359,7 @@ def button_legend():
         mutually exclusive: recording your verdict on work you just gave away would also pull it
         back out of the recipient's queue.
       * `review_round` is derived from what is on origin/main, not set by any of these.
-      * Only the two "& next" buttons navigate.
+      * The "& next" buttons navigate; Save and Re-review stay put.
 
     And the one people get wrong: none of these four touch git. They write the transcript FILE.
     Sharing happens on Save & Publish.
@@ -4405,43 +4368,60 @@ def button_legend():
     # paragraphs of explanation above the buttons they describe reads as documentation printed
     # onto the screen. The reasoning that used to be here lives in this docstring, where a
     # maintainer will find it and a reviewer is not made to scroll past it.
+    # FIVE ROWS, and "Mark reviewed & next" is not one of them. That button no longer exists: it
+    # renders as "No changes & next" or "Changes suggested & next" depending on whether an Ideal
+    # response or Summary was written, and those two do materially different things downstream -
+    # one skips the publishing steps, the other joins them. A legend naming a button nobody can
+    # see is worse than no legend.
+    #
+    # "Moves on?" is gone as a column. Every row said "yes" or "stays" about navigation, which is
+    # the least consequential thing any of these buttons does and read as though it were a
+    # property of the verdict.
     rows = [
         ("Save",
          "reviewed", False,
-         "Saves entered text. No verdict recorded.",
-         "For incomplete reviews."),
+         "Saves entered text locally. No verdict recorded.",
+         "Not a durable save &mdash; use the <b>Save</b> tab to back up work in progress."),
         ("Suggest &amp; next &rarr;",
          "suggested", True,
          "Transfers the decision to another owner.",
-         "Needs <b>Suggested to</b> (a person) or <b>Reassign to</b> (an agent)."),
+         "For a transcript belonging to another person or agent, including suggestions and the "
+         "field settings under Summary. Does <b>not</b> mark it reviewed &mdash; the other person "
+         "sees it as pending. Needs <b>Suggested to</b> (a person) or <b>Reassign to</b> "
+         "(an agent)."),
         ("Re-review",
          "pending", False,
-         "Re-opens a decided transcript.",
-         "Verdict fields clear. Round 2 means someone decided before &mdash; read theirs first."),
-        ("Mark reviewed &amp; next &rarr;",
+         "Re-opens an already reviewed transcript.",
+         "Puts it back to pending and clears the verdict fields. Round 2 means someone decided "
+         "before &mdash; read theirs first."),
+        ("No changes &amp; next &rarr;",
          "reviewed", True,
-         "Records the verdict.",
-         "Unavailable while a hand-off is set."),
+         "Marks reviewed and SKIPS the transcript in the publishing steps.",
+         "Shown when no Ideal response or Summary has been written. Nothing for an assistant to "
+         "act on, so it stays out of Eval Review."),
+        ("Changes suggested &amp; next &rarr;",
+         "reviewed", True,
+         "Marks reviewed and INCLUDES the transcript in the publishing steps.",
+         "Shown once an Ideal response or a Summary is written. Unavailable while a hand-off "
+         "is set."),
     ]
     out = ["<details class=card><summary>"
            "<span class=info aria-hidden=true>i</span>"
            "<h3>What do these buttons do?</h3>"
            "<span class=chev aria-hidden=true></span></summary>"
            "<div class=tblcard style='margin-top:10px'><table>"
-           "<tr><th>Button</th><th>Sets status to</th><th>Moves on?</th>"
-           "<th>What it is for</th></tr>"]
-    for label, status, moves, gist, detail in rows:
+           "<tr><th>Button</th><th>Sets status to</th><th>What it is for</th></tr>"]
+    for label, status, _moves, gist, detail in rows:
         out.append(
             f"<tr><td class=nowrap><b>{label}</b></td>"
             + ("<td class=nowrap><span class='pill excluded'>unchanged</span></td>"
                if label == "Save" else
                f"<td class=nowrap><span class='pill {status}'>{status}</span></td>")
-            + f"<td class=nowrap>{'yes' if moves else 'stays'}</td>"
-            f"<td>{gist}<div class=sub style='margin-top:4px'>{detail}</div></td></tr>")
+            + f"<td>{gist}<div class=sub style='margin-top:4px'>{detail}</div></td></tr>")
     out.append("</table></div>"
                "<div class='bar bnr-note' style='margin:12px 0 0'>"
                "None of these share anything. Sharing happens on "
-               "<b>Save &amp; Share</b>.</div></details>")
+               "<b>Publish</b>.</div></details>")
     return "".join(out)
 
 
@@ -4493,7 +4473,7 @@ def detail_page(rel):
         # and all of it above the transcript the reviewer had come to read. The defaults do not
         # need explaining if they are correct, and the rest is on the buttons' own legend.
         banner = ("<div class='bar bnr-ok'>"
-                  "Add an ideal response under each <b>Exchange</b> to indicate the response "
+                  "Add an <b>ideal response</b> under each <b>Exchange</b> to indicate the response "
                   "Foundry was expected to provide. This can then be used to compare the "
                   "performance of Foundry once knowledge files have been updated and "
                   "iteratively improved upon. The <b>Summary</b> section can be used to give "
@@ -4541,7 +4521,7 @@ def detail_page(rel):
             f"<div class=a>{html.escape(a)}</div>"
             "<div class=fld><div class=fldhead>"
             f"<label style='margin:0'>Ideal response{ci}"
-            f"<span class=trigtag>triggers changes</span></label>"
+            f"<span class=trigtag title='Content here activates the assistant step under Publish. The verdict fields do not.'>triggers changes</span></label>"
             # Editing the real answer is how an ideal response actually gets written - most of it
             # is usually right, and retyping the correct parts to fix one paragraph is what made
             # this box feel like a place for notes rather than for the answer.
@@ -4568,7 +4548,7 @@ def detail_page(rel):
         "Prose carries the substance; the fields route it.</p>"
         f"<div class=card><div class=fld>"
         f"<label>Overall suggestions and comments{pi}"
-          f"<span class=trigtag>triggers changes</span></label>{pp}"
+          f"<span class=trigtag title='Content here activates the assistant step under Publish. The verdict fields do not.'>triggers changes</span></label>{pp}"
         f"<textarea id=proposed style='min-height:150px'>"
         f"{html.escape(proposed_of(body))}</textarea></div>"
         "<div class=grid style='margin-top:var(--forge-spacing-medium)'>"
@@ -5674,7 +5654,7 @@ def ot_analytics(force=False):
 
 
 def git_fragments():
-    """The parts of Save & Share that go stale the moment you click something.
+    """The parts of Save and Publish that go stale the moment you click something.
 
     Returned to the browser after every action so it can patch them in place. The alternative -
     reloading the page - would throw away the output panel the reviewer just asked for, which
@@ -8159,7 +8139,7 @@ def eval_reupload():
     live = eval_live()
     if not live:
         return False, ("Nothing is live, so there is no eval content to replace. Run the check "
-                       "from Save & Share first — re-uploading now would put unmerged content "
+                       "from Publish first — re-uploading now would put unmerged content "
                        "into production with no restore point behind it.")
     d = latest_eval_dir()
     if not os.environ.get("FOUNDRY_API_KEY"):
@@ -8708,12 +8688,12 @@ def eval_review_page():
         # mistaken for one, because its answers describe content that no longer exists.
         if d is None:
             body = ("<div class='bar bnr-note'><b>No check has run yet.</b> Run it from "
-                    "<a href='/git'><b>Save &amp; Share</b></a> &mdash; Part 2. Answers land "
+                    "<a href='/publish'><b>Publish</b></a>. Answers land "
                     "here to approve.</div>")
         else:
             body = ("<div class='bar bnr-router'><b>The last check is out of date</b> &mdash; a knowledge "
                     "file changed since it ran. Run it again from "
-                    "<a href='/git'><b>Save &amp; Share</b></a>.</div>")
+                    "<a href='/publish'><b>Publish</b></a>.</div>")
         return page("Eval Review", "<h2 class=sec>Eval Review</h2>" + body, active="evalrev")
 
     all_ok, n_ok, n_tot = eval_all_approved()
@@ -9000,8 +8980,13 @@ def part2_state():
             out["pr"] = "done"
     return out
 
-def git_page():
-    """Send a finished batch of reviews in.
+def git_page(which="save"):
+    """Save (local checkpoint) and Publish (share it), as two tabs.
+
+    One function because both pages are built from the same derived state - the pending file
+    list, the saves history, part2_state() - and computing that twice would let the two tabs
+    disagree about what is pending. `which` only picks which body is returned.
+
 
     Rewritten as a numbered sequence after a reviewer said plainly they did not understand it.
     The old version was four same-looking buttons with git vocabulary on them - "Create
@@ -9086,33 +9071,67 @@ def git_page():
         sub = f"<p class=sub>{desc}</p>" if desc else ""
         return f"<div class=step><div class=stepbody>{sub}{inner}</div></div>"
 
-    body = (
-      f"<h2 class=sec>Save &amp; Share Reviews</h2>"
+    # SPLIT INTO TWO PAGES. One tab held two unrelated jobs: a local checkpoint that shares
+    # nothing, and a publish sequence that shares everything. Different audiences, different
+    # risk, and no ordering between them - so a reviewer looking for one had to read past the
+    # other to find it.
+    #
+    # The state bar and the Processing output panel appear on BOTH, because they are status
+    # rather than functionality: the bar answers "what is pending" and the panel is where every
+    # button on either page prints. Omitting either would leave a page unable to report on
+    # itself. The JS that patches them after an action tests for each element, so a page that
+    # does not have one is fine.
+    state_bar = f"<div class=bar id=gitstate>{state}</div>"
+    out_panel = (
+      # ONE HEADING FOR BOTH STATES, and not "Your changes". This panel shows the pending diff
+      # on load and a step's console output after one runs, and it used to rename itself between
+      # the two. "Your changes" was actively misleading: on a page about reviewing transcripts
+      # that reads as the reviewer's own suggestions, which live in the transcript, not here.
+      "<div class=card>"
+      "<h3 id=outhead>Processing output</h3>"
+      "<p class=sub id=outsub>Pending edits are reflected in color: Green indicates addition, "
+      "Red indicates removal.</p>"
+      "<pre class=out id=gitout>" + diff_html(review_diff()) + "</pre></div>")
+
+    save_body = (
+      "<h2 class=sec>Save</h2>"
       # NO BRANCH NAME HERE, deliberately. This line used to read "You are working on
       # feature/owner-highlighting", which is git vocabulary a reviewer has no use for and
       # cannot act on. The branch is handled entirely server-side now - see ensure_lane().
-      f"<div class=bar id=gitstate>{state}</div>"
-
-      "<div class=card>"
-      "<h3>Back up review progress</h3>"
-      # DIRECTLY UNDER THE HEADING, matching the publish card. It was the step's description,
-      # which put it below a rule and read as a caption for the label field rather than as what
-      # this card is for. (The line that used to sit here described publishing and had been
-      # duplicated from the other card - see #75.)
-      "<p class=sub>Local checkpoint. Not shared.</p>"
-      + step(
-             "",
+      + state_bar
+      + "<div class=card>"
+        "<h3>Back up review progress</h3>"
+        "<p class=sub>Local checkpoint. Not shared.</p>"
+      + step("",
              # Empty by DEFAULT, not prefilled. A prefilled box asks to be read, edited and
              # worried about; an empty one labelled "optional" asks for nothing. Blank is
              # handled server-side by auto_commit_message().
-             "<label>Optional label for these changes<span class=hint> — leave blank and the reviewer "
-             "name and the time are used</span></label>"
+             "<label>Optional label for these changes<span class=hint> &mdash; leave blank and "
+             "the reviewer name and the time are used</span></label>"
              "<input id=cmsg value='' placeholder='e.g. identity transcripts, first pass'>"
              "<div class=stepacts>"
              "<button class=sec onclick=\"gitDo('commit')\">Save progress</button>"
              "<button class=sec onclick=\"gitDo('diff')\">View pending changes</button>"
              "</div>" + "<div id=githist>" + saves_html + "</div>")
       + "</div>"
+      + out_panel
+      # Recovery belongs with Save: it undoes unsaved edits, which is the same subject as
+      # checkpointing them. Last on the page - it is an EXCEPTION to the workflow, not a stage
+      # of it, and leading with a way to throw work away is the wrong first thing to see.
+      + "<div class='card dangerzone'>"
+        "<h3>Recovery</h3>"
+        "<p class=sub>Not part of the normal flow &mdash; only for undoing.</p>"
+        "<div class=dzrow><div>"
+        "<b>Reset unsaved edits</b>"
+        "<div class=sub>Reverts unsaved transcript edits. Saved work and newly synced "
+        "conversations are untouched. Recoverable &mdash; edits are set aside, not deleted.</div>"
+        "</div><div class=dzact>"
+        "<button class=sec onclick='resetUnsaved(this)'>Reset unsaved edits</button>"
+        "</div></div></div>")
+
+    publish_body = (
+      "<h2 class=sec>Publish</h2>"
+      + state_bar
       # The honest division of labour, stated where it is acted on: a verdict is not the
       # deliverable. The knowledge file that stops the agent repeating that answer is, and
       # writing it is the ONE job here that needs an assistant.
@@ -9135,61 +9154,33 @@ def git_page():
              + "<div class=stepacts>"
              f"<button onclick='sendReviews(this)' data-ai-pending='{n_ai}' "
              f"data-label=\"{html.escape(btn_label)}\">{html.escape(btn_label)}</button></div>"
-             # Part 2 ENDS here. Merging and the Foundry upload are decisions ABOUT a request
-             # that already exists, not steps in submitting one, and they live on the PRs tab
-             # where the request can be seen next to its checks. Listing them here as
-             # greyed-out stages implied this button was somehow responsible for them.
-             + ("<div class=handoff>Merging and the Foundry upload are on <a href='/prs'><b>PRs</b></a>."
+             # Publishing ENDS here. Merging and the Foundry upload are decisions ABOUT a
+             # request that already exists, not steps in submitting one, and they live on the
+             # PRs tab where the request can be seen next to its checks.
+             + ("<div class=handoff>Merging and the Foundry upload are on "
+                "<a href='/prs'><b>PRs</b></a>."
                 if is_admin() else
                 "<div class=handoff>An admin merges it from there. Nothing further is needed.")
              + "</div>")
       + "</div>"
       f"<script>window.AI_PROMPT={prompt_json};</script>"
+      + out_panel
+      + "<details class=card><summary>"
+        "<span class=info aria-hidden=true>i</span>"
+        "<h3>Reference</h3>"
+        "<span class=chev aria-hidden=true></span></summary>"
+        "<ul class=sub style='margin:10px 0 0 20px;padding:0'>"
+        "<li>Reviews with no changes should still be submitted.</li>"
+        "<li>Writing what <i>should</i> have been said is the valuable part &mdash; a "
+        "knowledge-file change is not required.</li>"
+        "<li>Suggestions handed to someone else need sending in too; that is how they reach "
+        "them.</li>"
+        "<li>Saving shares nothing. Only this page does.</li>"
+        "</ul></details>")
 
-      # ONE HEADING FOR BOTH STATES, and not "Your changes".
-      #
-      # This panel shows the pending git diff on load and a step's console output after one runs,
-      # and it used to rename itself between "Your changes" and "Output". The first was actively
-      # misleading: on a page about reviewing transcripts, "your changes" reads as the reviewer's
-      # own suggestions and comments - which live in the transcript, not here. What this panel
-      # actually shows is the machinery reporting on itself: which files the process is about to
-      # move, and what each step said when it ran.
-      #
-      # So the heading stays fixed and describes that, while the sub-line says which of the two
-      # you are currently looking at.
-      "<div class=card>"
-      "<h3 id=outhead>Processing output</h3>"
-      "<p class=sub id=outsub>Pending edits are reflected in color: Green indicates addition, "
-      "Red indicates removal.</p>"
-      "<pre class=out id=gitout>" + diff_html(review_diff()) + "</pre></div>"
-
-      "<details class=card><summary>"
-      "<span class=info aria-hidden=true>i</span>"
-      "<h3>Reference</h3>"
-      "<span class=chev aria-hidden=true></span></summary>"
-      "<ul class=sub style='margin:10px 0 0 20px;padding:0'>"
-      "<li>Reviews with no changes should still be submitted.</li>"
-      "<li>Writing what <i>should</i> have been said is the valuable part — a knowledge-file "
-      "change is not required.</li>"
-      "<li>Suggestions handed to someone else need sending in too; that is how they reach "
-      "them.</li>"
-      "<li>Only Part 2 shares anything.</li>"
-      "</ul></details>"
-
-      # NOT a numbered Part, and last on the page. It is an EXCEPTION to the workflow, not a
-      # stage of it - numbering it first implied you were meant to pass through it every time,
-      # and made the first thing on the publish page a way to throw work away.
-      "<div class='card dangerzone'>"
-      "<h3>Recovery</h3>"
-      "<p class=sub>Not part of the normal flow — only for undoing.</p>"
-      "<div class=dzrow><div>"
-      "<b>Reset unsaved edits</b>"
-      "<div class=sub>Reverts unsaved transcript edits. Saved work and newly synced "
-      "conversations are untouched. Recoverable — edits are set aside, not deleted.</div>"
-      "</div><div class=dzact>"
-      "<button class=sec onclick='resetUnsaved(this)'>Reset unsaved edits</button>"
-      "</div></div></div>")
-    return page("Save & Share", "<div class=lg>" + body + "</div>", active="git")
+    if which == "publish":
+        return page("Publish", "<div class=lg>" + publish_body + "</div>", active="publish")
+    return page("Save", "<div class=lg>" + save_body + "</div>", active="save")
 
 
 # ---------------------------------------------------------------- server
@@ -9268,11 +9259,14 @@ class H(BaseHTTPRequestHandler):
             if not is_admin():
                 return self._send(200, page("Change Requests",
                     "<div class=card><h3>Admins only</h3><p class=sub>Merging is an admin "
-                    "action. Send the reviews in from <b>Save &amp; Share</b> and an admin "
+                    "action. Send the reviews in from <b>Publish</b> and an admin "
                     "will merge them.</p></div>", active="git"))
             return self._send(200, pr_page(force="refresh=1" in self.path))
-        if self.path == "/git":
-            return self._send(200, git_page())
+        if self.path in ("/git", "/save"):
+            # /git kept as an alias: it is linked from other pages and may be bookmarked.
+            return self._send(200, git_page("save"))
+        if self.path == "/publish":
+            return self._send(200, git_page("publish"))
         if self.path == "/evalreview.txt":
             name, body = eval_txt()
             b = body.encode()
