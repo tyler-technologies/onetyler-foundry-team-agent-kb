@@ -385,6 +385,18 @@ REVIEW_KEYS = ["review_status", "reviewer", "suggested_to", "review_round",
                "routing_verdict", "reassign_to", "answer_verdict", "diagnosis", "fix_target",
                "kb_action", "kb_files", "action_status", "bp_updates"]
 
+# The four fields that DESCRIBE a change, and are therefore meaningless without one. They sit
+# directly under the Summary box and stay disabled until an Ideal response or a Summary exists.
+#
+# They are not triggers - prose is still the only trigger (see wants_change). What they do is
+# DIRECT the work prose asks for: which files, what kind of edit, where the fix belongs, and
+# whether Blueprint needs the same change. Set on their own they described a change nobody had
+# described, and `bp_updates` was the sharp end of that: ticked without prose it opens a Blueprint
+# change request carrying no statement of what should be different.
+#
+# Order matters - bp_updates first, because it is the one that acts.
+DEPENDENT_FIELDS = ["bp_updates", "fix_target", "kb_action", "kb_files"]
+
 # `notes` IS DELIBERATELY ABSENT from the form. It was a one-line free-text box, which is the
 # wrong shape for the only thing anyone wanted to put in it: prose. A reviewer with something to
 # say now writes it against the exchange it is about (Ideal response) or against the transcript as a
@@ -2112,6 +2124,12 @@ tr.row.mine-awaiting td:first-child{box-shadow:inset 3px 0 0 var(--forge-theme-w
 tr.row.mine-area .pill.mineflag{background:var(--forge-theme-primary);color:var(--on-accent)}
 span.owner{color:var(--forge-theme-text-medium);font-size:12px}
 .fld{position:relative}
+/* The dependent group, dimmed while it is closed. Dimmed rather than hidden: a control that
+   vanishes takes its own explanation with it, and the reason it is unavailable is the whole
+   point. `pointer-events` off stops a click landing on a disabled label. */
+.depwrap{margin-top:var(--forge-spacing-medium)}
+.fld.depoff{opacity:.45;pointer-events:none}
+.fld.depoff *{cursor:not-allowed}
 /* Label on the left, Copy Foundry response on the right. The button sits OUTSIDE the label
    deliberately - inside one, a click would also focus the textarea and the two actions would
    fight. Baseline alignment so the label and the button text sit on the same line. */
@@ -2288,11 +2306,68 @@ function clearChanges(btn){
      toast('Cleared \u2014 this now records as no changes needed');
    });
 }
+// ---- the four fields that DIRECT a change, gated on there being one ----------------------
+// BP updates, Fix target, KB action and KB files describe work that prose has asked for. Set on
+// their own they described a change nobody had described - and a ticked BP updates with no prose
+// opens a Blueprint change request that says nothing about what should be different.
+//
+// THE GATE IS NOT PURELY "IS THERE PROSE". It also opens when these fields ALREADY hold values,
+// because otherwise simply opening a transcript that recorded them without prose would clear a
+// reviewer's work on page load - silent data loss triggered by reading. So the gate closes only
+// while everything is empty, which is the fresh-transcript case the rule is for, and the
+// "No changes & next" path clears them explicitly.
+function depFieldEls(){
+ const w = document.getElementById('depfields');
+ return w ? [...w.querySelectorAll('.fld')] : [];
+}
+function depHasValues(){
+ const bp = document.querySelector('[data-fm=bp_updates]');
+ if (bp && bp.checked) return true;
+ const kv = document.getElementById('kbvalue');
+ if (kv && kv.value.trim()) return true;
+ for (const k of ['fix_target','kb_action']) {
+   const e = document.querySelector('[data-fm='+k+']');
+   if (e && !['','none'].includes((e.value||'').trim().toLowerCase())) return true;
+ }
+ return false;
+}
+function clearDepFields(){
+ const bp = document.querySelector('[data-fm=bp_updates]');
+ if (bp) bp.checked = false;
+ for (const k of ['fix_target','kb_action']) {
+   const e = document.querySelector('[data-fm='+k+']');
+   if (!e) continue;
+   // Pick a neutral value the select actually offers - "" is not always an option.
+   const opt = [...e.options].map(o=>o.value)
+                  .find(v => ['','none'].includes((v||'').trim().toLowerCase()));
+   if (opt !== undefined) e.value = opt;
+ }
+ // kb_files is three controls: the hidden value the form saves, the dialog checkboxes, and the
+ // button that shows the count. Missing any leaves the picker claiming a selection that is gone.
+ const kv = document.getElementById('kbvalue');
+ if (kv) kv.value = '';
+ if (typeof kbBoxes === 'function') kbBoxes().forEach(b => b.checked = false);
+ const kbb = document.getElementById('kbbtn');
+ if (kbb) kbb.innerHTML = 'Select\\u2026';
+}
+function syncDepFields(){
+ const on = formAsksForChange() || depHasValues();
+ depFieldEls().forEach(f => {
+   f.classList.toggle('depoff', !on);
+   f.querySelectorAll('input,select,button,textarea').forEach(c => {
+     if (c.type === 'hidden') return;          // the saved value must stay readable
+     c.disabled = !on;
+   });
+ });
+ const h = document.getElementById('dephint');
+ if (h) h.hidden = on;
+}
 function refreshMarkLabel(){
  const b = document.getElementById('markbtn');
  if (!b) return;
  const asks = formAsksForChange();
  b.textContent = (asks ? 'Changes suggested' : 'No changes') + ' & next \u2192';
+ syncDepFields();
  const c = document.getElementById('clearbtn');
  if (c) {
    c.disabled = !asks;
@@ -2310,8 +2385,10 @@ document.addEventListener('input', e=>{
 });
 document.addEventListener('change', e=>{
  if (e.target.matches('[data-fm]')) refreshMarkLabel();
+ if (e.target.id === 'kbvalue') refreshMarkLabel();
 });
 document.addEventListener('DOMContentLoaded', refreshMarkLabel);
+document.addEventListener('DOMContentLoaded', syncDepFields);
 async function saveDoc(path,then){const fields={},ex={};
 const rv=document.querySelector('[data-fm=reviewer]');
 if(rv&&rv.value){try{localStorage.setItem('lastReviewer',rv.value)}catch(e){}}
@@ -2473,6 +2550,10 @@ async function markAndNext(path,next){
      +' — use Suggest & next, or clear it to keep this one', false);
    return;
  }
+ // Directions for a change that is not being requested are not records - they are wrong. A
+ // transcript marked "no changes" must not carry a Fix target, a KB action, KB files or a
+ // ticked BP updates, or the batch would try to act on it.
+ if (!formAsksForChange()) clearDepFields();
  document.querySelector('[data-fm=review_status]').value='reviewed';
  await saveDoc(path,next)}
 // Suggest = "this is not my call." `reviewer` stays as YOU - suggesting is still something you
@@ -3644,6 +3725,14 @@ def nav_counts():
                 mine_n += 1
     _, st = git("status", "--porcelain", "--", "transcripts")
     uncommitted = len([l for l in st.splitlines() if l.strip()])
+    # BOTH REPOS, matching the status line and the Change list on the Save page. The badge counted
+    # this working tree only, so a batch with 3 transcript edits and 2 staged Blueprint files put
+    # 3 on the nav beside a sentence reading "5 edited file(s) not yet saved" - two numbers for one
+    # thing, and the smaller one is the one seen from every other page.
+    try:
+        uncommitted += sum(len(v) for v in bp_staged().values())
+    except Exception:                                                     # noqa: BLE001
+        pass                                    # no Blueprint checkout - count this repo alone
     return open_n, mine_n, uncommitted
 
 
@@ -4185,8 +4274,12 @@ def awaiting_cell(r):
 _round_for_this_doc = None
 
 
-def _render_fields(rel, prefill):
-    """Render the whole review form, with the round derived for THIS transcript."""
+def _render_fields(rel, prefill, keys=None, heading=""):
+    """Render review fields, with the round derived for THIS transcript.
+
+    `keys` selects which ones, so the dependent group can be rendered directly beneath the
+    Summary box while the rest stay in their own grid below.
+    """
     global _round_for_this_doc
     _round_for_this_doc = derived_round(rel)
     try:
@@ -4202,10 +4295,9 @@ def _render_fields(rel, prefill):
         # What activates the assistant step under Publish is prose: an Ideal response under an
         # exchange, or a Summary. Those two carry the "triggers changes" tag, and they are the
         # only things in the form that do.
-        out = ["<div class=fldgrp><span class=fldgrp-h>No action</span>"
-               "<span class=hint> &mdash; recorded, but does not trigger AI updates to "
-               "knowledge files.</span></div>"]
-        out += [field(k, prefill.get(k, "")) for k in REVIEW_KEYS]
+        out = [heading] if heading else []
+        out += [field(k, prefill.get(k, ""))
+                for k in (keys if keys is not None else REVIEW_KEYS)]
         return "".join(out)
     finally:
         _round_for_this_doc = None
@@ -4473,7 +4565,7 @@ def detail_page(rel):
         # and all of it above the transcript the reviewer had come to read. The defaults do not
         # need explaining if they are correct, and the rest is on the buttons' own legend.
         banner = ("<div class='bar bnr-ok'>"
-                  "Add an <b>ideal response</b> under each <b>Exchange</b> to indicate the response "
+                  "Add an <b>Ideal response</b> under each <b>Exchange</b> to indicate the response "
                   "Foundry was expected to provide. This can then be used to compare the "
                   "performance of Foundry once knowledge files have been updated and "
                   "iteratively improved upon. The <b>Summary</b> section can be used to give "
@@ -4551,8 +4643,22 @@ def detail_page(rel):
           f"<span class=trigtag title='Content here activates the assistant step under Publish. The verdict fields do not.'>triggers changes</span></label>{pp}"
         f"<textarea id=proposed style='min-height:150px'>"
         f"{html.escape(proposed_of(body))}</textarea></div>"
+        # DIRECTLY UNDER THE PROSE, in its own row rather than mixed into the grid below. These
+        # four only mean something once something has been written, and putting them beside the
+        # box that has to be written first is the shortest way to say so.
+        "<div class=depwrap id=depfields>"
+        "<div class=fldgrp><span class=fldgrp-h>Directs the change</span>"
+        "<span class=hint id=dephint> &mdash; available once an <b>Ideal response</b> or "
+        "<b>Overall suggestions and comments</b> has been written.</span></div>"
+        "<div class=grid>"
+        + _render_fields(rel, prefill, DEPENDENT_FIELDS) + "</div></div>"
         "<div class=grid style='margin-top:var(--forge-spacing-medium)'>"
-        + _render_fields(rel, prefill) + "</div></div>")
+        + _render_fields(rel, prefill,
+                         [k for k in REVIEW_KEYS if k not in DEPENDENT_FIELDS],
+                         heading="<div class=fldgrp><span class=fldgrp-h>No action</span>"
+                                 "<span class=hint> &mdash; recorded, but does not trigger AI "
+                                 "updates to knowledge files.</span></div>")
+        + "</div></div>")
 
     parts.append(
         f"<div class=nav><div style='display:flex;gap:12px;align-items:center'>"
