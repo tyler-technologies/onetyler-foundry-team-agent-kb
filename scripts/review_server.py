@@ -4832,14 +4832,21 @@ def unsent_saves():
       - comparing against `origin/<current branch>` fails for the same reason, and silently -
         the missing ref just makes the "already sent" set empty and everything looks unsent.
 
-    Deliberately not filtered to this branch either. If a save was made on one lane and the
-    reviewer has since moved, it is still their unsent work and still needs sending.
+    SCANS EVERY REVIEW LANE, not just HEAD - and the previous version claimed to while doing the
+    opposite. `git log HEAD --not --remotes` is bounded by HEAD's ancestry, so with the checkout
+    on any other branch a reviewer's saves become invisible: measured 2026-08-30 with the repo
+    left on `main`, this reported 0 unsent saves while 6 sat on
+    `review/vijay-tylertech/08282026-121644`, and the Save page said "Nothing waiting." That is
+    the worst possible failure for this particular indicator - it is the one thing a reviewer
+    would check to confirm their work still exists, and it told them it did not.
+    `review/*` and not `--branches`, because machinery branches (feature/, fix/) are not saves
+    and listing them here would report the tool's own development as the reviewer's pending work.
 
     No fetch: this runs on every page render, and a network call would hang the page on a bad
     connection. It uses the last-known remote state, like the rest of the page.
     """
     rc, out = git("log", "--format=%h%x09%ad%x09%s", "--date=format:%m/%d %H:%M",
-                  "HEAD", "--not", "--remotes")
+                  "HEAD", "--branches=review/*", "--not", "--remotes")
     if rc != 0 or not out.strip():
         return []
     rows = []
