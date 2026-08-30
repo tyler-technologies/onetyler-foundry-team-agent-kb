@@ -162,74 +162,51 @@ def parse_transcript(rel):
 
 # WHICH FIELDS MEAN "SOMETHING SHOULD CHANGE", AND WHICH DO NOT.
 #
-# Stated as two explicit pools rather than left implicit in an if-chain, because the question
-# "does this transcript belong in an eval" is answered from these lists and nowhere else - and a
-# field quietly landing in the wrong pool either replays a review nobody asked to change (which
-# blocks the send) or skips one that did.
+# REMOVED: NEUTRAL_VALUES and field_asks_for_change().
 #
-# NEUTRAL means the value carries no request. Note that for most fields it is the VALUE that is
-# neutral, not the field: `answer_verdict: good` says nothing needs doing, while
-# `answer_verdict: stale` is a change request in one word.
-NEUTRAL_VALUES = {
-    # bookkeeping - who, when, what state. Never a request in itself.
-    "review_status":   None,          # None = the whole field is bookkeeping
-    "reviewer":        None,
-    "review_round":    None,
-    "notes":           None,
-    "delegated_to":    None,
-    "orchestration":   None,
-    # the "nothing wrong" end of each verdict. The review form OPENS on these values, so they
-    # are also what an untouched form looks like.
-    "routing_verdict": {"", "correct"},
-    "answer_verdict":  {"", "good"},
-    "diagnosis":       {"", "n-a"},
-    "fix_target":      {"", "none"},
-    "kb_action":       {"", "none"},
-    # `open` is the FETCH TEMPLATE's default, so it cannot signal intent; `none-needed` and
-    # `wontfix` are explicit declines. Only `applied` claims work was done.
-    "action_status":   {"", "none-needed", "open", "wontfix"},
-    "bp_updates":      {"", "no", "false", "0"},
-    "suggested_to":    {""},
-    "reassign_to":     {""},
-    "kb_files":        {""},
-}
-
-
-def field_asks_for_change(key, value):
-    """Does this one field, at this value, ask for something to change?"""
-    if key not in NEUTRAL_VALUES:
-        return False                  # unknown field - not a signal
-    neutral = NEUTRAL_VALUES[key]
-    if neutral is None:
-        return False                  # pure bookkeeping
-    return (value or "").strip().lower() not in neutral
+# They encoded the rule that a verdict field value could ask for content to change - so
+# `answer_verdict: stale` or `diagnosis: search-empty` queued an assistant and put the transcript
+# into Eval Review. That was wrong in both directions. Those fields record an OBSERVATION about an
+# answer that has already been given; they cannot describe what the new answer should say, so a
+# batch built from them had nothing for an assistant to act on and nothing for the eval to score.
+# The review form said so out loud, listing Answer verdict under a heading called "Triggers
+# changes".
+#
+# The rule now lives in one place, wants_change() below, and reads only prose: an Ideal response
+# under an exchange, or a Summary. Deleted rather than left in place unused, because a table this
+# assertive is the first thing a reader would reach for when changing this logic again.
 
 
 def wants_change(fm, body):
-    """Did this review actually ask for something to change? Bool.
+    """Did this review ask for content to change? Bool. PROSE ONLY.
 
     AN EVAL ONLY MEANS SOMETHING WHERE A CHANGE WAS ASKED FOR. Replaying a transcript the
     reviewer was happy with proves nothing, costs a question, and - worse - adds a card that has
     to be approved before the batch can be sent, so it blocks the work that WAS asked for.
 
-    Keyed on the prose as well as the fields, deliberately. The review form opens pre-filled as
-    "nothing wrong", and CLAUDE.md is explicit that reviewers frequently write the ideal response and
-    never touch the dropdowns - so `kb_action: none` beside a paragraph of "it should have said
-    X" is a common and legitimate state. Reading only the field would drop exactly the reviews
-    that matter most.
+    THE VERDICT FIELDS DO NOT COUNT, and used to. `field_asks_for_change` read them against
+    NEUTRAL_VALUES, which made a field value into a request for work: `answer_verdict: stale`
+    records what already happened and cannot ask for a knowledge file to be rewritten, yet it
+    put the transcript into a batch with nothing to test. The fields are attributes - some route
+    the transcript, none of them queues an assistant.
+
+    What does ask is prose, because prose is the only thing here an assistant can act on: an
+    Ideal response under an exchange (the answer as it should have read) or a Summary. The
+    client half of this rule is formAsksForChange() in review_server.py; they were changed in
+    step, and two copies that disagree is how a transcript reaches a batch nobody can act on.
     """
-    for k, v in (fm or {}).items():
-        if field_asks_for_change(k, v):
-            return True
-    # Written feedback: a non-empty ideal response under any exchange, or a proposed fix.
+    # The legacy fetch scaffolding is not prose. It is no longer written into new transcripts,
+    # but 67 already carry it, and a raw .strip() would read those 45 characters of template as
+    # a reviewer's answer on every untouched file.
     for m in re.finditer(r"<!-- review:\d+ -->\n(.*?)<!-- /review:\d+ -->", body or "", re.S):
-        t = re.sub(r"\*\*Review\s*[—-]\*\*.*?(?:\n|$)", "", m.group(1), count=1)
+        t = re.sub(r"\*\*Review\s*[\u2014-]\*\*.*?(?:\n|$)", "", m.group(1), count=1)
         if t.strip():
             return True
     m = re.search(r"<!-- proposed-fix -->\n(.*?)<!-- /proposed-fix -->", body or "", re.S)
     if m and m.group(1).strip():
         return True
     return False
+
 
 def collections_for(files):
     out = {}
