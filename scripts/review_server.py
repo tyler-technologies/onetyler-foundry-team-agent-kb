@@ -3723,7 +3723,11 @@ def nav_counts():
             if ME and (fm.get("suggested_to") == ME or fm.get("awaiting") == ME
                        or ME in {o for a in effective_agents(fm) for o in owners_of(a)}):
                 mine_n += 1
-    _, st = git("status", "--porcelain", "--", "transcripts")
+    # review_scope() EXACTLY, which is what the status line and the Change list count. This was
+    # scoped to `transcripts` alone, so four edited knowledge files were missing from the badge -
+    # the same "two numbers for one thing" the Blueprint half of this count already had. The
+    # docstring on review_scope() says these must agree; nav_counts was the one place not asking.
+    _, st = git("status", "--porcelain", "--", *review_scope())
     uncommitted = len([l for l in st.splitlines() if l.strip()])
     # BOTH REPOS, matching the status line and the Change list on the Save page. The badge counted
     # this working tree only, so a batch with 3 transcript edits and 2 staged Blueprint files put
