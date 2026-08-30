@@ -186,7 +186,7 @@ def main():
         #   (a) the fields say so - kb_action add/update/split with action_status open
         #   (b) the reviewer WROTE something, whatever the fields say
         #
-        # (b) exists because reviewers write the correction and click "Mark reviewed" without
+        # (b) exists because reviewers write the ideal response and click "Mark reviewed" without
         # touching the dropdowns, which is fine and expected. The form is pre-filled as
         # "no changes needed", so those transcripts claim kb_action: none while the body says
         # the answer was wrong. Keying only on (a) made them invisible: --actions printed
@@ -216,7 +216,7 @@ def main():
                 where = ", ".join(f"exchange {n}" for n in sorted(fb["corrections"])) or "-"
                 print(f"   {f.relative_to(REPO)}")
                 print(f"      by {d.get('reviewer') or d.get('reviewer') or '?'}"
-                      f" | corrections in: {where}"
+                      f" | ideal responses in: {where}"
                       f" | proposed fix: {'yes' if fb['proposed'] else 'no'}")
                 print(f"      \"{feedback_summary(txt)}\"")
         if inflight:
@@ -244,7 +244,7 @@ def main():
     if rev:
         print(f"  ** {rev} reviewed and awaiting processing - run --actions **")
     # Counted from the BODY, because that is where the feedback is. Reported separately from
-    # "open KB actions" below, which counts fields — a reviewer who wrote a correction and
+    # "open KB actions" below, which counts fields — a reviewer who wrote an ideal response and
     # left the dropdowns alone appears here and nowhere else.
     untriaged = [(f, d) for f, d in rows
                  if d.get("review_status") in ("reviewed", "suggested")

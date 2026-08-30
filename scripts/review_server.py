@@ -3,7 +3,7 @@
 Local transcript review UI for the OneTyler Cloud Living knowledge repo.
 
 Serves a browser interface on http://127.0.0.1:7777 for reading collected
-transcripts, recording verdicts and corrections, and writing them straight back
+transcripts, recording verdicts and ideal responses, and writing them straight back
 into the repo's markdown files so the result is an ordinary reviewable diff.
 
 Stdlib only — no pip install, no build step. Binds to loopback only.
@@ -387,7 +387,7 @@ REVIEW_KEYS = ["review_status", "reviewer", "suggested_to", "review_round",
 
 # `notes` IS DELIBERATELY ABSENT from the form. It was a one-line free-text box, which is the
 # wrong shape for the only thing anyone wanted to put in it: prose. A reviewer with something to
-# say now writes it against the exchange it is about (Correction) or against the transcript as a
+# say now writes it against the exchange it is about (Ideal response) or against the transcript as a
 # whole (the summary), both of which are proper textareas and both of which Claude already
 # reads.
 #
@@ -716,7 +716,7 @@ FIELD_DOC = {
                  "**Mostly automatic.** `none-needed` and `open` follow from `kb_action`, so "
                  "picking them is not a reviewer task. `applied` is Claude's, after the work is done. "
                  "`wontfix` is the only one that is genuinely a decision — and it wants a "
-                 "reason written in Correction or in the summary.",
+                 "reason written in Ideal response or in the summary.",
         "values": {
             "": "Not assessed.",
             "none-needed": "Nothing had to change. **Set automatically** when `kb_action` is `none`.",
@@ -726,24 +726,40 @@ FIELD_DOC = {
                        "never overwritten automatically — it is a claim about work, not a "
                        "restatement of `kb_action`.",
             "wontfix": "Decided against acting on it. A reviewer decision, never automatic — say why "
-                       "in Correction or in the summary, so the reason sits with the reasoning.",
+                       "in Ideal response or in the summary, so the reason sits with the reasoning.",
         },
     },
     # Not frontmatter fields — the two free-text boxes. Same treatment so the page reads
     # uniformly: a label, an icon, and nothing else.
-    "correction": {
-        "about": "What the agent SHOULD have said, in plain words. The single most valuable "
-                 "thing to write here — it is what Claude turns into content, so a vague "
-                 "\"this is wrong\" produces a vague fix. Write it as the answer should have read "
-                 "the person. Leave it empty if the answer was fine.",
+    "ideal response": {
+        # WHY THE LABEL CHANGED. This field was called "Correction", and the old help text here
+        # said "what the agent SHOULD have said" - which is right - but the label said the
+        # opposite thing, and the label is what gets read. Reviewers reasonably took it as a
+        # place for notes ABOUT the answer. What the field actually wants is the answer itself,
+        # written out as the user should have received it: the recovered 2026-08-28 workspace
+        # review holds a 2,300-character formatted reply, not a critique, and that is the shape
+        # the whole pipeline is built around - Claude turns this text into knowledge-file content
+        # directly, and the eval scores the live answer against it word for word.
+        "about": "The answer the agent should have given, written out in full as the user "
+                 "should have seen it — not notes about what went wrong. Markdown is fine, and "
+                 "\"Copy Foundry response\" seeds the box with the answer that was actually "
+                 "given, so most reviews are an edit rather than a blank page.\n\n"
+                 "A FULL RESPONSE IS WHAT MAKES THE EVALUATION WORK. After the knowledge files "
+                 "are updated, Eval Review re-asks this question and compares the new Foundry "
+                 "response against this text word for word, reporting a match percentage and "
+                 "the deviations still outstanding. Notes cannot be compared to an answer, so a "
+                 "box holding \"this is wrong\" scores meaninglessly and the check cannot say "
+                 "whether the fix landed. A complete answer both becomes knowledge-file content "
+                 "directly and gives the eval something real to measure against.\n\n"
+                 "Leave it empty if the answer was already right.",
         "values": {},
     },
     "bp_updates": {
         "about": "Tick this when the feedback also implies a change to the **Blueprint** "
-                 "documentation — either because a correction contradicts what Blueprint says, "
+                 "documentation — either because an ideal response contradicts what Blueprint says, "
                  "or because Blueprint should be checked for the same problem.\n\n"
                  "Blueprint is not edited here. Ticking it tells the assistant to work "
-                 "both repos: apply what the corrections imply, and scan the Blueprint docs for "
+                 "both repos: apply what the ideal responses imply, and scan the Blueprint docs for "
                  "conflicts with the same subject. Part 2 then opens a SECOND change request "
                  "against Blueprint alongside this one, and both are merged together.\n\n"
                  "**Required, not optional, when the fix lands in a `Docusaurus-` file.** Those "
@@ -920,7 +936,7 @@ def set_fields(p, updates):
 
     Deliberately not save(): save() re-renders the body from its `ex_reviews` and `proposed`
     arguments, so calling it to touch one header field means either passing the body back
-    (fragile) or passing empty strings, which WIPES the reviewer's correction and proposed
+    (fragile) or passing empty strings, which WIPES the reviewer's ideal response and proposed
     fix. Passing None crashes on proposed.strip(). This does a line-level substitution and
     cannot touch prose.
     """
@@ -946,24 +962,24 @@ def refresh_index():
 
 
 # ---------------------------------------------------------------------------------------------
-# CSV round-trip for corrections
+# CSV round-trip for ideal responses
 #
-# The point is COLLABORATION OUTSIDE THIS TOOL. Corrections are the one part of a review that
+# The point is COLLABORATION OUTSIDE THIS TOOL. Ideal responses are the one part of a review that
 # somebody else may be better placed to write - a product owner who knows what the answer should
 # have been but is never going to open a local review server. Export the questions and answers,
 # let them fill the fourth column in whatever they already use, import it back.
 #
-# ONLY THE CORRECTION IS IMPORTED. The first three columns are identity, not payload: they say
-# WHICH exchange a correction belongs to. An edited question therefore does not rewrite the
+# ONLY THE IDEAL RESPONSE IS IMPORTED. The first three columns are identity, not payload: they say
+# WHICH exchange an ideal response belongs to. An edited question therefore does not rewrite the
 # transcript - it stops the row matching anything, and the row is dropped. That is the intended
 # behaviour and the reason those headers carry (DO NOT MODIFY): the failure mode of a mutable
-# identity column is silently attaching a correction to the wrong exchange, which is worse than
+# identity column is silently attaching an ideal response to the wrong exchange, which is worse than
 # losing the row.
 CSV_ID_HEAD = "Transcript id (DO NOT MODIFY)"
 CSV_HEADERS = [CSV_ID_HEAD,
                "Exchange question (DO NOT MODIFY)",
-               "Answer given (DO NOT MODIFY)",
-               "Correction"]
+               "Foundry response (DO NOT MODIFY)",
+               "Ideal response"]
 
 # Excel guesses the encoding of a .csv unless a BOM tells it, and guesses wrong on anything
 # non-ASCII - so an exported transcript comes back with mojibake in the questions, which then
@@ -982,7 +998,7 @@ def _qkey(s):
 
 
 def _is_placeholder(s):
-    """The fetch template's empty-state line, which is not a correction anybody wrote."""
+    """The fetch template's empty-state line, which is not an ideal response anybody wrote."""
     t = (s or "").strip()
     return not t or t in PLACEHOLDERS
 
@@ -990,13 +1006,13 @@ def _is_placeholder(s):
 def _neutralise_markers(s):
     """Make imported text incapable of closing the block it is being written into.
 
-    A correction containing `<!-- /review:1 -->` would otherwise terminate its own block: the
-    stored correction is truncated at that point and the remainder leaks into the document body
-    as loose prose. Measured, not theorised - a five-line correction came back as one word with
+    An ideal response containing `<!-- /review:1 -->` would otherwise terminate its own block: the
+    stored ideal response is truncated at that point and the remainder leaks into the document body
+    as loose prose. Measured, not theorised - a five-line ideal response came back as one word with
     the other four sitting outside the block.
 
     `&lt;!--` renders as literal text in markdown and can never terminate anything, so the
-    correction stays readable and the file stays parseable. Every HTML-comment opener is
+    ideal response stays readable and the file stays parseable. Every HTML-comment opener is
     converted, not just the review ones: `proposed-fix` has the same shape, and a rule with an
     exception list is a rule waiting to be outgrown.
     """
@@ -1034,7 +1050,7 @@ def csv_export(rels):
             continue
         for num, _tools, q, a, rv in exs:
             # The placeholder goes out EMPTY. Shipping template text to a collaborator invites
-            # them to edit around it, and it would then import as a correction saying nothing.
+            # them to edit around it, and it would then import as an ideal response saying nothing.
             w.writerow([rel, q, a, "" if _is_placeholder(rv) else rv])
             n += 1
     return CSV_BOM + buf.getvalue(), n, skipped
@@ -1058,7 +1074,7 @@ def _sniff_reader(text):
 
 
 def csv_import(text):
-    """Apply the Correction column back onto matching exchanges. Returns a report dict.
+    """Apply the Ideal response column back onto matching exchanges. Returns a report dict.
 
     MATCHING is by transcript id plus question text, never by row position. Position would break
     the moment a collaborator sorted the sheet or deleted a row they had nothing to say about,
@@ -1083,7 +1099,7 @@ def csv_import(text):
         rows = rows[1:]
 
     # Group by transcript first: each file is opened, matched and written ONCE, so a transcript
-    # with six corrections is one read and one write rather than six of each.
+    # with six ideal responses is one read and one write rather than six of each.
     by_rel = {}
     ignored = []
     for i, row in enumerate(rows, start=2):          # 2 = first data line in a headered file
@@ -1110,7 +1126,7 @@ def csv_import(text):
             skipped.append((rel, "no frontmatter"))
             continue
         st = (fm.get("review_status") or "pending").strip() or "pending"
-        # PENDING ONLY. Anything else carries a decision, and an imported correction would edit a
+        # PENDING ONLY. Anything else carries a decision, and an imported ideal response would edit a
         # body whose frontmatter still asserts the old verdict - `reviewed` and `suggested` claim
         # a human has judged this text, `pushed` claims it is already live in Foundry, `excluded`
         # claims it is out of scope. Landing new prose under any of those makes the claim false
@@ -1135,9 +1151,9 @@ def csv_import(text):
             num = hit[0]
             new = _neutralise_markers(corr).strip()
             # BLANK MEANS "NOTHING SUPPLIED", NOT "DELETE". A round-trip through a spreadsheet
-            # drops cells for all sorts of dull reasons, and an import that wiped corrections on
+            # drops cells for all sorts of dull reasons, and an import that wiped ideal responses on
             # a blank would destroy work that is not recoverable from anywhere else. Clearing a
-            # correction stays a deliberate act in the transcript form.
+            # ideal response stays a deliberate act in the transcript form.
             if not new:
                 unchanged += 1
                 continue
@@ -1158,7 +1174,7 @@ def csv_import(text):
         # NO frontmatter repair here, unlike the transcript form. That repair exists to reconcile
         # a `reviewed` file whose fields say "nothing wrong" while its body says otherwise - and
         # only pending transcripts reach this point, where the fields have not been asserted yet.
-        # The reviewer opens it, reads the imported correction and records the verdict themselves.
+        # The reviewer opens it, reads the imported ideal response and records the verdict themselves.
 
     if applied:
         refresh_index()
@@ -1767,7 +1783,7 @@ white-space:pre-wrap;word-break:break-word;max-height:260px;overflow:auto;
 background:var(--forge-theme-surface-container);border:1px solid var(--forge-theme-outline-low)}
 .evcorr{margin-top:10px}
 .evcorr summary{cursor:pointer;font-size:13px;color:var(--forge-theme-primary)}
-/* NEUTRAL GREY, not the purple this rule used to carry. `.evcorr` was the correction's own
+/* NEUTRAL GREY, not the purple this rule used to carry. `.evcorr` was the ideal response's own
    styling; the disclosure was then repurposed to hold the ORIGINAL (bad) answer and kept the
    tint, so the known-bad answer and the target answer looked identical. Purple means "this is
    the suggestion" everywhere else in the app, which made it actively misleading here.
@@ -2096,6 +2112,12 @@ tr.row.mine-awaiting td:first-child{box-shadow:inset 3px 0 0 var(--forge-theme-w
 tr.row.mine-area .pill.mineflag{background:var(--forge-theme-primary);color:var(--on-accent)}
 span.owner{color:var(--forge-theme-text-medium);font-size:12px}
 .fld{position:relative}
+/* Label on the left, Copy Foundry response on the right. The button sits OUTSIDE the label
+   deliberately - inside one, a click would also focus the textarea and the two actions would
+   fight. Baseline alignment so the label and the button text sit on the same line. */
+.fldhead{display:flex;align-items:baseline;gap:10px;margin-top:10px}
+.fldhead label{flex:1 1 auto}
+.fldhead button{flex:0 0 auto;font-size:12px;padding:4px 10px}
 /* A derived field's value, shown as text. Sized to sit level with a real input so the
    form does not develop a step where the read-only field is. */
 /* Knowledge-file picker. A dialog because ctrl/cmd-click on a multi-select is the least
@@ -2228,13 +2250,13 @@ function formAsksForChange(){
  // The prose counts too, and counts MORE: the form opens on "nothing wrong", and a reviewer who
  // writes "it should have said X" without touching a dropdown has still asked for a change.
  //
- // BUT THE SCAFFOLDING IS NOT PROSE. Each correction box opens pre-filled with the block's own
+ // BUT THE SCAFFOLDING IS NOT PROSE. Each ideal response box opens pre-filled with the block's own
  // header - "**Review —** _verdict:_ · _should have said:_" - which the form wrote, not the
  // reviewer. A raw .trim() therefore saw 45 characters of template on every untouched transcript
  // and reported "Changes suggested" before anyone had typed a word. The server's wants_change()
  // strips the same line; this is the client half of one rule, and letting the two differ is
  // exactly what the shared NEUTRAL table exists to prevent.
- for (const e of document.querySelectorAll('[data-ex]')) if (proseTyped(e.value)) return true;
+ for (const e of document.querySelectorAll('[data-ex]')) if (askedForChangeIn(e)) return true;
  const pf = document.getElementById('proposed');
  if (pf && proseTyped(pf.value)) return true;
  return false;
@@ -2243,18 +2265,29 @@ function formAsksForChange(){
 function proseTyped(v){
  return (v || '').replace(/^\s*\*\*Review\s*[\u2014-]\*\*.*$/m, '').trim().length > 0;
 }
+// An ideal response IDENTICAL to the answer that was given is not a change - it says the answer
+// was already right. Without this, pressing Copy Foundry response and then deciding nothing was
+// wrong left the button reading "Changes suggested", which would put the transcript into Eval
+// Review to test a fix that does not exist.
+function askedForChangeIn(ta){
+ if(!proseTyped(ta.value)) return false;
+ const card = ta.closest('.card');
+ const src  = card && card.querySelector('.a');
+ if(src && src.textContent.trim() === ta.value.trim()) return false;
+ return true;
+}
 // Put every "Triggers changes" field back to its neutral value and empty the prose, so the form
 // reads as a deliberate no-change review again.
 //
 // CONFIRMS FIRST. This is the only control on the page that can discard a paragraph somebody
-// typed - a correction is often the most considered thing in the whole review - and an
+// typed - an ideal response is often the most considered thing in the whole review - and an
 // unconfirmed button next to the one you press to finish is a bad place to be one click out.
 //
 // Neutral values come from the same NEUTRAL table the label and the eval read, so "cleared"
 // means exactly "the eval will not replay this" and not merely "looks empty".
 function clearChanges(btn){
  confirmThen(btn, 'Clear the suggested changes?',
-   'Puts every verdict field back to its default and empties the corrections and the summary, '
+   'Puts every verdict field back to its default and empties the ideal responses and the summary, '
    + 'so this records as <b>no changes needed</b>. Typed text is discarded &mdash; there is '
    + 'no undo.',
    ()=>{
@@ -2280,7 +2313,7 @@ function clearChanges(btn){
      kbBoxes().forEach(b => b.checked = false);
      const kbb = document.getElementById('kbbtn');
      if (kbb) kbb.innerHTML = 'Select\u2026';
-     // Back to the scaffolding the form supplies, not to empty: a blank correction box looks
+     // Back to the scaffolding the form supplies, not to empty: a blank ideal response box looks
      // broken next to the others, and the header is what tells you where to type.
      document.querySelectorAll('[data-ex]').forEach(e => {
        const m = (e.value||'').match(/^\s*\*\*Review\s*[\u2014-]\*\*.*$/m);
@@ -2699,7 +2732,7 @@ function runEval(btn){
 }
 
 // When the answers are wrong, the batch goes back to pending so the work can continue. Only the
-// STATUS moves - every correction, summary and field value is kept, because the verdict was
+// STATUS moves - every ideal response, summary and field value is kept, because the verdict was
 // premature rather than wrong to have been written.
 //
 // IT MUST VISIBLY RESET PART 2. The first version wrote its output into the panel and changed
@@ -2710,7 +2743,7 @@ function runEval(btn){
 function resetPending(btn){
  confirmThen(btn,'Put this batch back to pending?',
    'Clears the reviewed status on the transcripts in this batch so work can continue on '
-   +'them. Corrections, summaries and field values are all kept \u2014 only the status '
+   +'them. Ideal responses, summaries and field values are all kept \u2014 only the status '
    +'changes.<br><br>Part 2 resets: the check will need to run again once the answers are '
    +'right.',
    ()=>gitDo('reset-pending').then(()=>resetPart2()));
@@ -2810,10 +2843,10 @@ function evAskGo(btn,key,agent,q){
      const t=r.pct>=70?'ok':(r.pct>=40?'warn':'bad');
      const chip=document.createElement('span');
      chip.className='evmatch '+t;
-     chip.title='Share of the substantive words in the correction that appear in this answer. '
+     chip.title='Share of the substantive words in the ideal response that appear in this answer. '
        +'A word-overlap hint only \u2014 it cannot tell a paraphrase from a contradiction, so '
        +'read the answer.';
-     chip.textContent='Match '+r.pct+'% against the correction';
+     chip.textContent='Match '+r.pct+'% against the ideal response';
      lab.appendChild(chip);
    }
    now.querySelector('pre').textContent=r.answer||'(no answer returned)';
@@ -2946,7 +2979,7 @@ function evSend(btn){
 function evReset(btn){
  confirmThen(btn,'Put the batch back to pending?',
    'Clears the reviewed status on every transcript in this batch so work can continue. '
-   +'Corrections, summaries and field values are all kept — only the status changes, and '
+   +'Ideal responses, summaries and field values are all kept — only the status changes, and '
    +'Part 2 resets.',
    ()=>post('/git',{action:'reset-pending'}).then(r=>{
      const o=document.getElementById('gitout');
@@ -3083,9 +3116,9 @@ async function bulkReview(){
  }
  toast(m); location.reload();
 }
-// ---- CSV round-trip for corrections ----------------------------------------------------
-// Four columns: transcript id, question, answer, correction. The first three are identity and
-// carry (DO NOT MODIFY) in their headers; only the correction is read back.
+// ---- CSV round-trip for ideal responses ----------------------------------------------------
+// Four columns: transcript id, question, answer, ideal response. The first three are identity and
+// carry (DO NOT MODIFY) in their headers; only the ideal response is read back.
 async function csvExport(){
  const paths=ckSel().map(c=>c.value);
  if(!paths.length){toast('Select at least one transcript',false);return}
@@ -3101,12 +3134,12 @@ async function csvExport(){
  if(r.skipped&&r.skipped.length) m+=' — '+r.skipped.length+' skipped';
  toast(m);
 }
-// Import OVERWRITES a correction that is already there, and the file was authored somewhere
+// Import OVERWRITES an ideal response that is already there, and the file was authored somewhere
 // else - so the warning comes BEFORE the file picker, not after the read. Cancelling here costs
 // nothing; cancelling after a write is not on offer.
 function csvImportPick(btn){
- confirmThen(btn,'Import corrections from a CSV?',
-   'Replaces the existing Correction on every exchange the file matches. '
+ confirmThen(btn,'Import ideal responses from a CSV?',
+   'Replaces the existing Ideal response on every exchange the file matches. '
    +'Pending transcripts only; blank cells and unmatched rows are left alone.',
    ()=>document.getElementById('csvfile').click());
 }
@@ -3123,14 +3156,37 @@ async function csvImport(input){
  const det=[];
  if(r.applied&&r.applied.length) det.push('Applied:\n'+r.applied.map(
    a=>'  • '+a[0]+' — exchange '+a[1].join(', ')).join('\n'));
- if(r.unchanged) det.push(r.unchanged+' row(s) left alone (blank or identical correction)');
+ if(r.unchanged) det.push(r.unchanged+' row(s) left alone (blank or identical ideal response)');
  if(r.ignored&&r.ignored.length) det.push('Ignored rows:\n'+r.ignored.map(
    x=>'  • line '+x[0]+': '+x[1]).join('\n'));
  if(r.skipped&&r.skipped.length) det.push('Skipped transcripts:\n'+r.skipped.map(
    x=>'  • '+x[0]+': '+x[1]).join('\n'));
  if(det.length) alert(det.join('\n\n'));
- toast(n?(n+' correction(s) imported'):'Nothing changed', n>0);
+ toast(n?(n+' ideal response(s) imported'):'Nothing changed', n>0);
  if(n) location.reload();
+}
+
+// ---- seed the Ideal response from the answer that was actually given -------------------
+// The point of the field is the ANSWER AS IT SHOULD HAVE READ, and most of a bad answer is
+// usually fine - so editing the real one is the realistic way to produce it. Retyping the
+// correct paragraphs to fix one wrong sentence is the friction that made this box get used for
+// notes instead, which then made the Eval Review match score meaningless.
+function copyFoundry(btn){
+ const card = btn.closest('.card');
+ const src  = card && card.querySelector('.a');
+ const ta   = card && card.querySelector('textarea[data-ex]');
+ if(!src || !ta){ toast('Could not find the response to copy',false); return }
+ const put = () => {
+   ta.value = src.textContent;
+   // MUST bubble: the mark-button label is driven by a delegated listener on document, so a
+   // non-bubbling event leaves the button saying "No changes" over a full ideal response.
+   ta.dispatchEvent(new Event('input',{bubbles:true}));
+   ta.focus(); ta.setSelectionRange(0,0); ta.scrollTop=0;
+ };
+ if(ta.value.trim())
+   confirmThen(btn,'Replace what is in the box?',
+     'The Foundry response overwrites the current text.', put);
+ else put();
 }
 
 // Whole-row click-through. Guarded so the controls inside a row still behave: the
@@ -3858,7 +3914,7 @@ def list_page(show_all=False):
             # PENDING ROWS ONLY, for every bulk action - marking, export and import alike.
             # A transcript that is already reviewed, pushed or excluded carries a decision, and
             # none of these three actions is a safe thing to do to a decision: marking re-stamps
-            # it, and an imported correction would edit a body whose frontmatter still asserts
+            # it, and an imported ideal response would edit a body whose frontmatter still asserts
             # the old verdict.
             #
             # Also disabled inside an unmerged change request: the verdict in that request is
@@ -4102,7 +4158,12 @@ def doc_popover(k):
     icon = (f"<button type=button class=info onclick=\"tip(this)\" "
             f"aria-label=\"What does {html.escape(k)} mean?\" title=\"What is this?\">i</button>")
     panel = (f"<div class=tip hidden><b>{html.escape(k.replace('_',' '))}</b>{flow}"
-             f"<p>{html.escape(d['about'])}</p>{table}"
+             # Blank lines become paragraphs. `about` is escaped, so markup in it would render
+             # literally and a newline inside one <p> would collapse to a space - which turned a
+             # three-part explanation into one unreadable block.
+             + "".join(f"<p>{html.escape(para.strip())}</p>"
+                       for para in re.split(r"\n\s*\n", d["about"]) if para.strip())
+             + f"{table}"
              f"<button type=button class='sec tipclose' onclick=\"tip(this)\">Close</button></div>")
     return icon, panel
 
@@ -4432,8 +4493,12 @@ def detail_page(rel):
         # and all of it above the transcript the reviewer had come to read. The defaults do not
         # need explaining if they are correct, and the rest is on the buttons' own legend.
         banner = ("<div class='bar bnr-ok'>"
-                  "Add a correction under each exchange, then complete the <b>Summary</b>. "
-                  "If no change is required, set <b>Answer verdict = good</b> and select "
+                  "Add an ideal response under each <b>Exchange</b> to indicate the response "
+                  "Foundry was expected to provide. This can then be used to compare the "
+                  "performance of Foundry once knowledge files have been updated and "
+                  "iteratively improved upon. The <b>Summary</b> section can be used to give "
+                  "overall suggestions to improve Foundry responses. If no changes are needed, "
+                  "fill out <b>Answer verdict = good</b> and select "
                   "<b>No changes &amp; next &rarr;</b>."
                   "</div>")
     elif (fm.get("review_status") or "") == "suggested":
@@ -4445,7 +4510,7 @@ def detail_page(rel):
                      if (fm.get("suggested_to") or fm.get("reassign_to"))
                      else " — no destination named")
                   + ". <b>Not a verdict.</b> Nothing has been accepted and Claude will not act "
-                    "on it. Read the correction and the proposed fix, change anything to disagree "
+                    "on it. Read the ideal response and the proposed fix, change anything to disagree "
                     "with, then <b>Mark reviewed</b> to accept it under a new name — or "
                     "<b>Suggest</b> again to hand it on.</div>")
     else:
@@ -4464,7 +4529,7 @@ def detail_page(rel):
     # summary that classifies it.
     parts = [head, banner]
 
-    ci, cp = doc_popover("correction")
+    ci, cp = doc_popover("ideal response")
     for n, tools, q, a, rv in exchanges_of(body):
         none_tools = "none" in tools.lower()
         parts.append(
@@ -4472,11 +4537,28 @@ def detail_page(rel):
             f"<div class=tools>Tools called: "
             f"{'<span class=pill.bad>none — answered without searching</span>' if none_tools else html.escape(tools)}</div>"
             f"<div class=q>{html.escape(q)}</div>"
-            f"<div style='margin:8px 0 4px;font-size:12px;color:var(--forge-theme-text-medium)'><b>Answer given</b></div>"
+            f"<div style='margin:8px 0 4px;font-size:12px;color:var(--forge-theme-text-medium)'><b>Foundry response</b></div>"
             f"<div class=a>{html.escape(a)}</div>"
-            f"<div class=fld><label style='margin-top:10px'>Correction{ci}"
-              f"<span class=trigtag>triggers changes</span></label>{cp}"
-            f"<textarea data-ex={n}>{html.escape(rv)}</textarea></div></div>")
+            "<div class=fld><div class=fldhead>"
+            f"<label style='margin:0'>Ideal response{ci}"
+            f"<span class=trigtag>triggers changes</span></label>"
+            # Editing the real answer is how an ideal response actually gets written - most of it
+            # is usually right, and retyping the correct parts to fix one paragraph is what made
+            # this box feel like a place for notes rather than for the answer.
+            "<button type=button class=sec onclick='copyFoundry(this)'>Copy Foundry response"
+            f"</button></div>{cp}"
+            # EMPTY, not the scaffolding. The fetch template used to seed every box with
+            # "**Review -** _verdict:_ - _should have said:_", which read as an instruction to
+            # annotate rather than to answer. New transcripts no longer carry it; the 67 already
+            # on disk are rendered blank here and drop it the first time they are saved, so no
+            # bulk rewrite of review data is needed.
+            f"<textarea data-ex={n}>"
+            f"{'' if _is_placeholder(rv) else html.escape(rv)}</textarea>"
+            # One line, and it states the CONSEQUENCE rather than the instruction: Eval Review
+            # scores the agent's new answer against this text, so notes score meaninglessly
+            # while a full reply gives a number worth reading.
+            "<div class=hint>The full answer, not notes &mdash; Eval Review scores the next "
+            "answer against it.</div></div></div>")
 
     # ---- Summary: the free-text conclusion, then the fields that classify it ---------------
     pi, pp = doc_popover("proposed_fix")
@@ -5400,7 +5482,7 @@ def analysis_prompt(n):
             + " **BP updates**, so the Blueprint documentation needs the same treatment:\n"
             + "\n".join(f"  - {r}" for r in bp) + "\n\n"
             f"The Blueprint checkout is at {BP_REPO}. For each of those transcripts: apply what "
-            "my corrections imply to the Blueprint pages, and also SCAN the Blueprint docs for "
+            "my ideal responses imply to the Blueprint pages, and also SCAN the Blueprint docs for "
             "anything on the same subject that now conflicts. Most of the indexed knowledge is "
             "derived from Blueprint, so a `Docusaurus-` knowledge file fixed on its own is "
             "reverted by the next reconciliation - fixing Blueprint is what makes it stick.\n\n"
@@ -8199,7 +8281,7 @@ def eval_improve_prompt(key, edited):
     files, _nq, _m = eval_estimate()
     # TARGET FIRST, THEN THE GAP. The assistant's job is to close the distance between what the
     # agent says and what the reviewer said it should say, so the target has to be stated before
-    # the current answer - otherwise the current answer reads as the subject and the correction
+    # the current answer - otherwise the current answer reads as the subject and the ideal response
     # as an aside. This is also an ITERATIVE loop: re-upload, ask again, mark up again. Saying so
     # stops the assistant treating one pass as final and rewriting more than the evidence
     # supports.
@@ -8222,10 +8304,10 @@ def eval_improve_prompt(key, edited):
         "",
     ]
     if corr:
-        L += ["1. WHAT THE ANSWER SHOULD LOOK LIKE  (my correction — the target)",
+        L += ["1. WHAT THE ANSWER SHOULD LOOK LIKE  (my ideal response — the target)",
               "----------------------------------------------------------------",
               corr, ""]
-    L += ["2. WHAT IT ACTUALLY SAYS NOW" + (", with my corrections inline in {{...}}" if marks
+    L += ["2. WHAT IT ACTUALLY SAYS NOW" + (", with my ideal responses inline in {{...}}" if marks
                                             else ""),
           "----------------------------" + ("-" * (38 if marks else 0)),
           (edited or "").strip(), ""]
@@ -8237,7 +8319,7 @@ def eval_improve_prompt(key, edited):
     else:
         L += ["I have not marked individual defects, so treat the whole of (2) as the problem."]
     L += ["Change the knowledge files so a fresh answer to that question reads like (1). Do not "
-          "simply append a correction elsewhere in the file: retrieval returns the chunk that "
+          "simply append an ideal response elsewhere in the file: retrieval returns the chunk that "
           "matches the question, and the wrong statement is IN that chunk — fix it where it is, "
           "and fix any nearby example that contradicts the rule you are adding.",
           "",
@@ -8425,11 +8507,11 @@ def eval_txt():
     -------------------------------------
     When the answers are wrong, the next step is another round of knowledge edits - and the most
     useful thing to hand the assistant is exactly what the agents SAID, next to what they said
-    before and next to the correction they were supposed to satisfy. Copying that out of the
+    before and next to the ideal response they were supposed to satisfy. Copying that out of the
     screen means selecting across several scrolling panes per card and losing the structure.
 
     So: every replayed exchange, in run order, each one demarcated, with the question, the
-    before, the now, and the reviewer's own correction. The approval state is included because
+    before, the now, and the reviewer's own ideal response. The approval state is included because
     it is the reviewer's judgement on that specific answer and is the thing that tells the
     assistant which ones still need work.
 
@@ -8484,7 +8566,7 @@ def eval_txt():
               "----------------------------------------------------",
               (after.strip() or "(no answer returned)"), ""]
         if corr:
-            L += ["REVIEWER'S CORRECTION  (what the answer was supposed to become)",
+            L += ["REVIEWER'S IDEAL RESPONSE  (what the answer was supposed to become)",
                   "---------------------------------------------------------------",
                   corr.strip(), ""]
         # The adjacent phrasings, because they are what shows the fix is not tuned to one
@@ -8499,7 +8581,7 @@ def eval_txt():
     L += [bar,
           "To act on this: read every exchange above as one body before changing anything.",
           "An exchange marked 'approved: NO' still gives a wrong answer - compare ANSWER NOW",
-          "against the REVIEWER'S CORRECTION to see what is still missing. Do not change any",
+          "against the REVIEWER'S IDEAL RESPONSE to see what is still missing. Do not change any",
           "verdict in the transcripts, and ask rather than guessing where feedback is unclear.",
           bar, ""]
     stamp = d.name if d else "no-run"
@@ -8533,11 +8615,11 @@ you your""".split())
 
 
 def match_pct(correction, answer):
-    """How much of the reviewer's correction the answer actually covers, 0-100, or None.
+    """How much of the reviewer's ideal response the answer actually covers, 0-100, or None.
 
     RECALL, not similarity, and the choice matters. `difflib`-style similarity punishes an answer
-    for being shorter or longer than the correction, which says nothing about whether it picked
-    up the content - and a reviewer's correction is often a full replacement answer while the
+    for being shorter or longer than the ideal response, which says nothing about whether it picked
+    up the content - and a reviewer's ideal response is often a full replacement answer while the
     agent's reply is a summary of it. Recall asks the question actually being asked: of the
     substantive words I told it to say, how many did it say?
 
@@ -8557,14 +8639,14 @@ def match_pct(correction, answer):
 
 
 def match_html(pct):
-    """The match hint, with a tone. "" when there is no correction to compare against."""
+    """The match hint, with a tone. "" when there is no ideal response to compare against."""
     if pct is None:
         return ""
     tone = "ok" if pct >= 70 else ("warn" if pct >= 40 else "bad")
     return (f"<span class='evmatch {tone}' title='Share of the substantive words in the "
-            "correction that appear in this answer. A word-overlap hint only — it cannot tell a "
+            "ideal response that appear in this answer. A word-overlap hint only — it cannot tell a "
             f"paraphrase from a contradiction, so read the answer.'>Match {pct}% against the "
-            "correction</span>")
+            "ideal response</span>")
 
 
 def run_clock(d):
@@ -8613,7 +8695,7 @@ def eval_review_page():
     was not expressible at all: the two buttons acted on the whole batch.
 
     So each replayed exchange gets a card with the question, the answer BEFORE, the answer NOW,
-    the reviewer's own correction to check it against, and one checkbox. The send stays shut
+    the reviewer's own ideal response to check it against, and one checkbox. The send stays shut
     until every card is ticked.
     """
     recs = eval_records()
@@ -8732,7 +8814,7 @@ def eval_review_page():
         latest, earlier = seq[-1], seq[:-1]
         loc = f"/t/{rel.split('/', 1)[1].rsplit('/', 1)[0]}/{Path(rel).name}" \
             if rel.startswith("transcripts/") and rel.count("/") >= 2 else "/"
-        # The reviewer's own correction, quoted back. They wrote it hours or days ago and it is
+        # The reviewer's own ideal response, quoted back. They wrote it hours or days ago and it is
         # the only statement of what "right" means for this exchange.
         corr = ""
         f = REPO / rel
@@ -8784,16 +8866,16 @@ def eval_review_page():
                "<button class=sec disabled title='Nothing is live to replace'>"
                "Foundry re-upload</button>")
             + "</div></div>"
-            # CORRECTION vs NOW, side by side - not Before vs Now. Before is known-bad; that is
+            # IDEAL RESPONSE vs NOW, side by side - not Before vs Now. Before is known-bad; that is
             # why the transcript was reviewed. The judgement being made is whether the answer has
             # become what the reviewer asked for, and putting the target beside the response is
             # the only layout that lets that be read in one glance. Before drops to a disclosure
             # for the occasions when someone wants to see what changed.
             "<div class=evcols>"
-            + (f"<div class=evtarget><div class=evlab>Correction</div>"
+            + (f"<div class=evtarget><div class=evlab>Ideal response</div>"
                f"<pre>{html.escape(corr)}</pre></div>"
                if corr else
-               "<div class=evtarget><div class=evlab>Correction</div>"
+               "<div class=evtarget><div class=evlab>Ideal response</div>"
                "<pre>(none written for this exchange)</pre></div>")
             # NOW IS EDITABLE, and editing it is how a reviewer marks what is still wrong:
             # `{{...}}` inline against the sentence it is about. The marker carries its own
@@ -8836,7 +8918,7 @@ def eval_review_page():
         "<div class=card><h3>When finished</h3>"
         + ("<p class=sub>Sending in opens the change request(s); merging publishes to Foundry.</p>"
            if all_ok else
-           "<p class=sub>If an answer is wrong, return the batch to pending. Corrections are kept.</p>")
+           "<p class=sub>If an answer is wrong, return the batch to pending. Ideal responses are kept.</p>")
         + "<div class=stepacts>"
         + (f"<button id=evsend onclick=\"evSend(this)\">Send the batch in</button>"
            if all_ok else
@@ -9253,7 +9335,7 @@ class H(BaseHTTPRequestHandler):
                         f"Leave it 'excluded'. Only post-go-live conversations get reviewed.")
                 save(p, fields, data.get("exchanges", {}),
                      data.get("proposed", ""))
-                # The reviewer may have written a correction and left the pre-filled
+                # The reviewer may have written an ideal response and left the pre-filled
                 # "nothing wrong" dropdowns alone — which is an expected way to work, not a
                 # mistake. But the file would then assert kb_action: none while its body says
                 # the answer was wrong, and the field-driven queries would skip it. Flip
@@ -9345,7 +9427,7 @@ class H(BaseHTTPRequestHandler):
                 stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
                 return self._send(200, json.dumps(
                     {"ok": True, "csv": body, "rows": n, "skipped": skipped,
-                     "name": f"corrections-{stamp}.csv"}), "application/json")
+                     "name": f"ideal-responses-{stamp}.csv"}), "application/json")
             except Exception as e:                                    # noqa: BLE001
                 return self._send(200, json.dumps({"ok": False, "error": str(e)}),
                                   "application/json")
@@ -9358,12 +9440,12 @@ class H(BaseHTTPRequestHandler):
                                   "application/json")
         if self.path == "/bulk":
             # Mark several transcripts reviewed at once. For a batch of thumbs-up
-            # conversations that need no correction, one-at-a-time is pure friction.
+            # conversations that need no ideal response, one-at-a-time is pure friction.
             #
             # Refuses anything that is NOT a clean no-change review, rather than forcing it:
             #   - already reviewed/pushed/excluded  -> skip, do not silently re-stamp
             #   - pre-go-live                        -> skip, it must stay excluded
-            #   - carries WRITTEN feedback           -> skip. A correction someone typed needs
+            #   - carries WRITTEN feedback           -> skip. An ideal response someone typed needs
             #     a real verdict, and bulk-stamping it "nothing wrong" would bury it.
             # Every skip is reported with its reason; nothing fails silently.
             try:
@@ -9673,7 +9755,7 @@ class H(BaseHTTPRequestHandler):
                             # closes again rather than trusting a stale run.
                             set_eval_ran(candidate_fingerprint())
                 elif act == "reset-pending":
-                    # Status only. Corrections, summaries and field values stay - the verdict was
+                    # Status only. Ideal responses, summaries and field values stay - the verdict was
                     # premature, not wrong to have been written, and throwing the prose away
                     # would make the reviewer redo the part that took the thinking.
                     changed, bpmsgs = [], []
@@ -9702,7 +9784,7 @@ class H(BaseHTTPRequestHandler):
                     rc = 0
                     out = (("Put back to pending:\n" + "\n".join("  " + c for c in changed)
                             + ("\n\nBlueprint:\n" + "\n".join(bpmsgs) if bpmsgs else "")
-                            + "\n\nCorrections, summaries and field values were left alone. "
+                            + "\n\nIdeal responses, summaries and field values were left alone. "
                               "Keep working, then send the batch in when the answers come out "
                               "right.") if changed else
                            "Nothing in this batch was reviewed or suggested, so there was "

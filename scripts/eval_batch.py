@@ -213,7 +213,7 @@ def wants_change(fm, body):
     to be approved before the batch can be sent, so it blocks the work that WAS asked for.
 
     Keyed on the prose as well as the fields, deliberately. The review form opens pre-filled as
-    "nothing wrong", and CLAUDE.md is explicit that reviewers frequently write the correction and
+    "nothing wrong", and CLAUDE.md is explicit that reviewers frequently write the ideal response and
     never touch the dropdowns - so `kb_action: none` beside a paragraph of "it should have said
     X" is a common and legitimate state. Reading only the field would drop exactly the reviews
     that matter most.
@@ -221,7 +221,7 @@ def wants_change(fm, body):
     for k, v in (fm or {}).items():
         if field_asks_for_change(k, v):
             return True
-    # Written feedback: a non-empty correction under any exchange, or a proposed fix.
+    # Written feedback: a non-empty ideal response under any exchange, or a proposed fix.
     for m in re.finditer(r"<!-- review:\d+ -->\n(.*?)<!-- /review:\d+ -->", body or "", re.S):
         t = re.sub(r"\*\*Review\s*[—-]\*\*.*?(?:\n|$)", "", m.group(1), count=1)
         if t.strip():

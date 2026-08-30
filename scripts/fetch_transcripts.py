@@ -394,8 +394,13 @@ def render(slug, meta, data, deleg=None):
             L += ["**Tools called:** _not recorded for team conversations — see Delegation above_", ""]
         L += ["**Q:**", "", "> " + scrub(unescape_question(e.get("question"))).replace("\n", "\n> "), ""]
         L += ["**A:**", "", "```markdown", scrub(e.get("response") or ""), "```", ""]
-        L += [f"<!-- review:{i} -->",
-              "**Review —** _verdict:_ · _should have said:_", "",
+        # EMPTY. This block used to be seeded with
+        #   **Review -** _verdict:_ - _should have said:_
+        # which put an annotation prompt where the answer belongs, and every downstream tool
+        # then needed a rule to ignore it (see reviewtext.PLACEHOLDERS, kept for the
+        # transcripts already carrying it). The field wants the answer the agent should have
+        # given, so it starts blank and the form offers "Copy Foundry response" to seed it.
+        L += [f"<!-- review:{i} -->", "",
               f"<!-- /review:{i} -->", ""]
     L += ["---", "", "## Proposed fix", "",
           "_What should change so this answer is right next time? For an instructions or"

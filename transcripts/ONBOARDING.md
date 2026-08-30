@@ -122,12 +122,12 @@ tools-called line:
 Then `fix_target` says where the fix goes: `knowledge-file`, `agent-instructions`,
 `team-routing`, `sample-prompts`, or `none`.
 
-**The single most valuable thing you can write** is the correction under a bad answer — what
+**The single most valuable thing you can write** is the ideal response under a bad answer — what
 it *should* have said, in your own words. That's what Claude turns into content. A vague
 "this is wrong" produces a vague fix.
 
 **And that alone is enough.** You don't have to set `diagnosis` or `fix_target` or any of the
-other dropdowns — write the correction, hit *Mark reviewed & next*, and Claude classifies it
+other dropdowns — write the ideal response, hit *Mark reviewed & next*, and Claude classifies it
 from what you wrote. Set the fields if you have a clear view; skip them if you don't. Either
 way the feedback gets acted on.
 

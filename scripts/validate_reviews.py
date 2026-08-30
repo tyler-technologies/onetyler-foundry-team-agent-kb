@@ -20,7 +20,7 @@ review state on the base branch with the state in the PR:
   base suggested -> PR suggested, same round  COLLISION               FAIL
 
 `suggested` is protected for the same reason the finished states are. A suggestion is real
-work — a colleague's correction and proposed fix, handed to the area owner — and it is NOT
+work — a colleague's ideal response and proposed fix, handed to the area owner — and it is NOT
 covered by the reviewer/verdict states. When it was left out of this check, a suggestion that
 had merged to the base branch read as never-looked-at, so the next person to review that
 transcript from a stale base overwrote it and CI called it a clean first review.

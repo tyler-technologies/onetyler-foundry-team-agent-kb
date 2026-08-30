@@ -81,7 +81,7 @@ everything alone rather than tidying up first.
 | Save without submitting | **Save & Publish → Save progress** |
 | Submit for review | **Save & Publish → Send my reviews in** |
 
-**You do not have to fill in the dropdowns.** Writing the correction in your own words is the
+**You do not have to fill in the dropdowns.** Writing the ideal response in your own words is the
 valuable part. The classification fields are clerical and get filled in later.
 
 ---

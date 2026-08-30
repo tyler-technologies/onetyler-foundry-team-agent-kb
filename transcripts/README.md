@@ -104,7 +104,7 @@ excluded ─── out of scope entirely (pre-go-live testing). Not part of the 
 | State | Means | Set by |
 |---|---|---|
 | `pending` | Nobody has looked at it. May hold partially-filled fields — a deliberate "come back to it", **for yourself**. | default |
-| `suggested` | A worked-up correction and proposed fix, explicitly **not** a verdict, handed to the area owner. Claude will not act on it. | whoever hits **Suggest** |
+| `suggested` | A worked-up ideal response and proposed fix, explicitly **not** a verdict, handed to the area owner. Claude will not act on it. | whoever hits **Suggest** |
 | `reviewed` | A human verdict is recorded. **This is the queue Claude works from.** | you |
 | `pushed` | Processed, and any resulting change is live in Foundry. Terminal. | Claude, at step (g) |
 | `excluded` | Not real feedback — pre-go-live testing. | you |
@@ -119,7 +119,7 @@ Use it when you can see what went wrong but the call isn't yours to make: an Ops
 question you have opinions about, an Identity answer that looks thin, anything where the
 person who owns that corpus should sign off.
 
-Fill in the fields and the correction exactly as you would for a real review, then hit
+Fill in the fields and the ideal response exactly as you would for a real review, then hit
 **Suggest & next** instead of **Mark reviewed & next**. Commit and open a PR the usual way
 (the **Git & PR** tab). It merges like any other review contribution — CI does not require a
 verdict — and the owner picks it up on their next pull.
@@ -197,7 +197,7 @@ reviewed.
 - Each exchange shows the question, the answer, and — importantly — **which tools the agent
   called**. `none — answered without searching` is highlighted, because it usually means the
   agent answered from model priors rather than the knowledge base.
-- Fill in the dropdowns, write a correction under any bad answer, and write the
+- Fill in the dropdowns, write an ideal response under any bad answer, and write the
   **Proposed fix** at the bottom.
 - **Mark reviewed & next** saves and moves to the next transcript, so you can work through
   a batch without going back to the list.
