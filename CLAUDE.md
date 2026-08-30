@@ -1053,7 +1053,7 @@ mean two different things, stop and ask which. Do not pick the more likely readi
 proceed.
 
 This costs a round-trip and saves a wrong change to a live agent. The asymmetry is the whole
-argument: a question costs minutes, while a misread correction ships wrong content to
+argument: a question costs minutes, while a misread ideal response ships wrong content to
 customers, looks resolved on the dashboard, and is only caught if someone re-reads the
 transcript later.
 
@@ -1075,7 +1075,7 @@ blocked on, and what you would do under each reading.
 
 **THE PROSE IS THE FEEDBACK. THE FIELDS ARE A HINT, AND OFTEN A WRONG ONE.**
 
-Reviewers write the correction under the bad answer, and/or a **Proposed fix**, and click
+Reviewers write the ideal response under the bad answer, and/or a **Proposed fix**, and click
 *Mark reviewed*. They frequently do not touch the dropdowns — and they are not expected to.
 Writing "this is wrong, it should have said X" is the valuable part; turning that into
 `diagnosis` and `fix_target` is clerical work, and it is **your** job.
@@ -1261,7 +1261,7 @@ Full conventions are in `README.md`. The essentials:
   `GitHub-`, `Misc-`).
 - **`FAQ-<Domain>.md` is the exception**: one per agent corpus, authored here with no upstream
   source. It is the home of record for answers that exist nowhere else — verbal SME guidance,
-  observed behaviour, corrections an upstream owner has not yet made. Put such content
+  observed behaviour, ideal responses an upstream owner has not yet made. Put such content
   **there, not in a `Docusaurus-` or `Conf-` file**, because those are re-derived from their
   sources and the next reconciliation would silently delete it. Every entry carries
   `Source` / `Added` / `Confidence` / `Promote when`. Never add an unconfirmed claim: the

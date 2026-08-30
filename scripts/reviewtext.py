@@ -3,7 +3,7 @@
 
 THE FEEDBACK IS THE PROSE, NOT THE DROPDOWNS.
 
-Reviewers write a correction under the bad answer and click "Mark reviewed & next". They
+Reviewers write an ideal response under the bad answer and click "Mark reviewed & next". They
 often do not touch the header fields at all — and they should not have to. Writing "this is
 wrong, it should have said X" is the valuable part; classifying it into `diagnosis` and
 `fix_target` is clerical work an agent can do from the prose.
@@ -11,14 +11,14 @@ wrong, it should have said X" is the valuable part; classifying it into `diagnos
 That collides with how the form is pre-filled. A `pending` transcript opens set to
 routing `correct` / answer `good` / diagnosis `n-a` / fix_target `none` / kb_action `none` /
 action_status `none-needed`, so that a genuinely clean transcript is one click. Click
-"Mark reviewed" after writing a correction and the file now says "nothing wrong" in the
+"Mark reviewed" after writing an ideal response and the file now says "nothing wrong" in the
 frontmatter while the body says the answer was wrong.
 
 Measured on 2026-08-26: in exactly that state, `review_status.py --check` passed without
 complaint and `--actions` — the command CLAUDE.md tells agents to use to find work —
 returned NOTHING, while the dashboard said "1 reviewed and awaiting processing". An agent
 follows that pointer, finds an empty list, and reasonably concludes there is nothing to do.
-The reviewer's correction is never acted on and nobody finds out.
+The reviewer's ideal response is never acted on and nobody finds out.
 
 So: any tool deciding "is there work here" must read the BODY. Fields are a hint, and a
 misleading one.
@@ -58,13 +58,13 @@ def body_feedback(text):
     Returns {"corrections": {n: text}, "proposed": text}. Both are stripped of the empty-state
     placeholders, so truthiness means a human actually wrote something.
     """
-    corrections = {}
+    ideals = {}
     for m in re.finditer(r"<!-- review:(\d+) -->\n?(.*?)<!-- /review:\1 -->", text or "", re.S):
         c = _clean(m.group(2))
         if c:
-            corrections[int(m.group(1))] = c
+            ideals[int(m.group(1))] = c
     pm = re.search(r"<!-- proposed-fix -->\n?(.*?)<!-- /proposed-fix -->", text or "", re.S)
-    return {"corrections": corrections, "proposed": _clean(pm.group(1)) if pm else ""}
+    return {"corrections": ideals, "proposed": _clean(pm.group(1)) if pm else ""}
 
 
 def has_feedback(text):
@@ -74,7 +74,7 @@ def has_feedback(text):
 
 def feedback_summary(text, width=90):
     """One-line gist for a listing. Prefers the proposed fix, which is usually the
-    actionable sentence; falls back to the first correction."""
+    actionable sentence; falls back to the first ideal response."""
     fb = body_feedback(text)
     s = fb["proposed"] or (next(iter(fb["corrections"].values()), "") if fb["corrections"] else "")
     s = " ".join(s.split())

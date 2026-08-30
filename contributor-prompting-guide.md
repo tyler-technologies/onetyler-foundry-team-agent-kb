@@ -146,7 +146,7 @@ specifically.
 You do this part in your **browser**, not by typing at the AI. Read the question, read the
 answer, and if the answer was wrong, write what it *should* have said.
 
-**You do not have to fill in the dropdown boxes.** Writing the correction in your own words is
+**You do not have to fill in the dropdown boxes.** Writing the ideal response in your own words is
 the valuable bit. The AI works out the rest from what you wrote.
 
 If you are unsure whether an answer is right, say so in your note rather than guessing. A
