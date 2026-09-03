@@ -366,7 +366,13 @@ Available behavior differs sharply by tier:
 
 ## Workspaces
 
-A **Workspace** is analogous to a client environment in which solutions are installed for a particular need: production use, testing, training, etc. Each customer typically has **1 production workspace** and optionally **3–7 non-production workspaces**. (Some org-to-org relationships folded into one Customer Id may exhibit multiple production portals.) A workspace often has multiple products licensed on it; product teams should test with co-existing products on shared workspaces (not separate-workspace-per-product) to simulate real client usage. **Test with at least 2 organizations** to better reflect production diversity.
+A **Workspace** is a **logical construct** that groups Tyler solutions together for a given customer organization and business use — production use, testing, training, and so on — regardless of each solution's hosting environments. All product instances, datasets, and integrations participating in that customer and business use are tagged with the same **workspace key**, which gives customers a "single pane of glass" experience both within a product and across products.
+
+For a **customer organization**, Tyler allows by default **one production workspace and six non-production workspaces**. The production workspace key is the same as `{orgKey}`; the six standard non-production workspaces have keys of the form `{orgKey}-{test|train|staging|impl|uat|dev}`. Anything beyond that set is a **non-standard workspace** and needs justification through the Tickets portal (see *Naming convention* below). (Some org-to-org relationships folded into one Customer Id may exhibit multiple production portals.)
+
+**The workspace concept is defined primarily for customer organizations**, and the rules above describe them. Internal organizations use the workspace only as a construct for compatibility with deployment workflows — nothing there depends on a customer business purpose — which is why their suffix rules are deliberately more liberal. Do not apply the customer suffix set to an internal org.
+
+A workspace is **independent of product tenancy** — it is not 1:1 with a tenant, because it groups several solutions and each carries its own product tenancy. A workspace often has multiple products licensed on it; product teams should test with co-existing products on shared workspaces (not separate-workspace-per-product) to simulate real client usage. **Test with at least 2 organizations** to better reflect production diversity.
 
 ### Workspaces — create
 
@@ -377,10 +383,14 @@ Use the standard customers (`demo`, `dev`, `test` or `testinprod` for unscripted
 
 Under organization details → **Manage workspaces** → **+ Add a workspace**.
 
+**Ops Center is not the only route.** Workspaces are also created through **Ops Center APIs**, called by a deployment tool such as **Tyler Deploy** or **Cloud Provisioner** — that is the usual path when workspace creation is part of a provisioning pipeline rather than a person doing it by hand. Customers have no path of their own: they cannot create workspaces from Admin Center.
+
 **Naming convention:**
 - Production workspace key = `<organization id>` (only 1 allowed; for standard orgs, this already exists).
 - Non-production workspace key = `<organization id>-<unique workspace id>`. The user-selectable suffix must be **alphanumeric only**, no spaces, no special characters, **no `-`** in the suffix.
-- Examples: `demo-notify001`, `demo-vijayvenkataraman`, `demo-cityofrentonwa`.
+- **For a customer organization, the suffix must be one of the six standard values: `test`, `train`, `staging`, `impl`, `uat`, `dev`.** These are what the default allowance of six non-production workspaces refers to. Anything else is a non-standard workspace and needs a business justification through the Tickets portal explaining how the suffix reflects a customer business purpose; numbered variants of the standard set (`impl2`, `test2`, `train2`) are the most common exception.
+- The suffix cannot be `admin` (case-insensitive).
+- **Internal organizations are deliberately more liberal** — they use the workspace only as a construct for compatibility with deployment workflows, so the six-value customer set does not apply to them. Keys such as `demo-notify001` are internal-org keys and are not counter-examples to the customer rule.
 
 Wizard tabs:
 

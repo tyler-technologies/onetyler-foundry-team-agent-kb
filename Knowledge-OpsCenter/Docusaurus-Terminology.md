@@ -230,7 +230,27 @@ In software, an identifier assigned to software licenses, products, services, bu
 
 ### Workspace
 
-A consistent, **logical** construct that groups Tyler solutions regardless of each solution's hosting environment. On TCP, all of a customer's workspaces (prod, test, train, staging, etc.) typically share the same environment and software version with data segregated virtually. For other products, the same workspaces may be hosted in entirely different environments using different versions. From a customer's perspective, the group of solutions in "production" relate to one another even if they sit in different hosting environments. In the One Tyler Ecosystem, a workspace is **1:1 with a *Tenant***.
+A **logical construct** that groups Tyler solutions together for a given customer organization and business use (for example, production use or test use), regardless of each solution's hosting environments. All product instances, datasets, and integrations participating in that customer and business use are tagged with the same workspace key, which gives customers a "single pane of glass" experience both within a product and across products.
+
+**Core definition:**
+- A logical construct, **independent of product tenancy, datasets, and integrations**
+- Every deployment and provisioning action across Tyler must be tagged with a workspace key
+- When multiple instances of a product are installed for production use, all of those instances receive the **same** workspace key
+- For a **customer organization**, Tyler allows by default **one production workspace and six non-production workspaces**
+- Represents a "customer business purpose"
+
+**Identifiers:**
+- Each workspace has a unique **Workspace ID** (`portalId` / `workspaceKey`)
+- The production workspace key is the same as `{orgKey}`
+- For a customer organization, the six standard non-production workspaces have keys of the form `{orgKey}-{test|train|staging|impl|uat|dev}`. The suffix cannot be `admin`.
+- **The workspace concept is defined primarily for CUSTOMER organizations**, and the rules above describe them. Internal organizations use the workspace only as a construct for compatibility with deployment workflows — nothing there depends on a customer business purpose — which is why their suffix rules are deliberately more liberal. Do not apply the customer suffix set to an internal org.
+
+**Creating one:** Tyler staff create workspaces in **Ops Center** (organization details → **Manage workspaces** → **+ Add a workspace**), or they are created through **Ops Center APIs** called by a deployment tool such as **Tyler Deploy** or **Cloud Provisioner**. Customers cannot create workspaces from Admin Center. Answer "how do I get a workspace" with that mechanism, not with "contact Tyler Support" alone.
+- Each workspace has a configurable title that controls Community App Directory banner text and navigation
+
+On TCP, all of a customer's workspaces typically share the same environment and software version, with data segregated virtually. For other products, the same workspaces may be hosted in entirely different environments running different versions. From a customer's perspective, the group of solutions in "production" relate to one another even if they sit in different hosting environments.
+
+**A workspace is NOT 1:1 with a tenant.** A workspace groups several Tyler solutions, and each of those solutions carries its own product tenancy — so one workspace generally spans many tenants. "Tenant" is a product-level *technical* construct; "workspace" is the cross-product *logical* one. (Stated here as well as under **Tenant** below on purpose: retrieval returns whichever entry matches the question, and the earlier wording asserting 1:1 was wrong.)
 
 ### Environment
 
@@ -238,7 +258,7 @@ The infrastructure on which a product is hosted for a specific organizational us
 
 ### Tenant
 
-A technical construct that virtually segregates data and configuration in a system designed to share infrastructure. Typically relates to **Workspaces** for most Tyler products. ("Workspace" is the functional term; "Tenant" is the technical term.)
+A technical construct that virtually segregates data and configuration in a system designed to share infrastructure. Tenancy is a property of an individual **product**, so a single **Workspace** generally spans several tenants — one per participating product instance. ("Workspace" is the cross-product functional term; "Tenant" is the per-product technical term. They are **not** 1:1 — see **Workspace** above.)
 
 ### System
 
@@ -451,7 +471,7 @@ In **technical** discussions: an API or micro-service that serves functionality.
   - Authentication ↔ Authorization (who vs what)
   - Licensing ↔ Availability (org-level vs workspace-level; BOTH required)
   - Customer/Client ↔ Organization (business relationship vs deployment entity)
-  - Tenant ↔ Workspace (technical vs functional/logical, 1:1)
+  - Tenant ↔ Workspace (per-product technical vs cross-product logical; **not 1:1** — one workspace spans many tenants)
   - Environment ↔ Workspace (infra vs logical)
   - Deployment ↔ Release management (engineering vs business; can differ in cloud-native)
   - Workforce Direct ↔ Workforce Managed ↔ Workforce Delegated
