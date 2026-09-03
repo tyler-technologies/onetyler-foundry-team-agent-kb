@@ -367,7 +367,11 @@ Live doc: https://docs.tylerdev.io/app-guides/client/admin-center/products
 
 ### Workspaces
 
-Workspaces are provisioned by Tyler — customers cannot create new ones through Admin Center. If a workspace is missing, contact Tyler Support.
+Workspaces are provisioned by Tyler — customers cannot create new ones through Admin Center.
+
+**How a workspace actually gets created:** Tyler staff create it in **Ops Center** (organization details → **Manage workspaces** → **+ Add a workspace**), or it is created through **Ops Center APIs** called by a deployment tool such as **Tyler Deploy** or **Cloud Provisioner**. A customer who needs a new workspace, or finds one missing, asks Tyler — they have no Admin Center path to it. Do **not** answer "contact Tyler Support" as though no mechanism existed; name the mechanism.
+
+**What Admin Center can and cannot do here.** Admin Center is where a customer **views** workspace details and edits presentation-level settings (title, links, contacts, banner, ACLs). It **cannot create a workspace, and cannot change licensing or product availability** — both of those are Ops Center, and therefore Tyler staff. Ops Center is the tool for creating organizations and workspaces, licensing products to an organization, and activating them on a workspace.
 
 **Workspace > Overview:** Shows type (production/non-production), status (enabled/disabled). Workspace ID, title (controls Community App Directory banner text and nav rail), and a "Danger Zone: Disable Workspace" section. Disabling a workspace affects all applications within it — contact Tyler Support first.
 
@@ -571,7 +575,7 @@ For full integration guidance, see the Blueprint docs at the source URL above.
 
 6. **Community users not in Users:** Admin Center > Users only shows Workforce users. Community (public) users are managed separately; direct community user support queries to CAPM or the Identity agent.
 
-7. **Workspaces are Tyler-provisioned:** Customers cannot create workspaces. If a workspace is missing, Tyler Support must be contacted.
+7. **Workspaces are Tyler-provisioned:** Customers cannot create workspaces from Admin Center. Creation happens in **Ops Center** (**Manage workspaces** → **+ Add a workspace**) or through **Ops Center APIs** driven by a deployment tool (**Tyler Deploy**, **Cloud Provisioner**). Name that mechanism rather than answering only "contact Tyler Support". (Repeated from the Workspaces section on purpose — retrieval returns whichever chunk matches the question.)
 
 8. **Products page vs. Admin Apps page:** Products shows licensed products and their app links. Admin Apps shows only apps the signed-in user can access via ACLs — an empty Admin Apps page means the user has no ACL with admin apps.
 

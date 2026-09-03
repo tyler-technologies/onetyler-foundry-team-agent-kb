@@ -265,7 +265,21 @@ For deep Identity questions, also point the user to the **Identity specialized a
 
 **Vendor** — (Tyler business) an entity providing software/services to Tyler or its customers under a formal agreement; (in software) a public customer/user of Tyler's customers.
 
-**Workspace** — a consistent **logical** construct grouping Tyler solutions regardless of each solution's hosting environment; associated 1:1 with a **tenant**. Some platforms (e.g., TCP) host all a customer's workspaces (prod/test/train/staging) in one environment with virtual data segregation.
+**Workspace** — a **logical construct** that groups Tyler solutions together for a given customer organization and business use (for example, production use or test use), regardless of each solution's hosting environments. All product instances, datasets, and integrations participating in that customer and business use are tagged with the same **workspace key**, which gives customers a "single pane of glass" experience both within a product and across products.
+
+- A logical construct, **independent of product tenancy, datasets, and integrations** — a workspace is **not** 1:1 with a tenant, because it groups several solutions and each carries its own product tenancy
+- Every deployment and provisioning action across Tyler must be tagged with a workspace key
+- When multiple instances of a product are installed for production use, all of those instances receive the **same** workspace key
+- For a **customer organization**, Tyler allows by default **one production workspace and six non-production workspaces**
+- Represents a "customer business purpose"
+- Each workspace has a unique **Workspace ID** (`portalId` / `workspaceKey`). The production workspace key is the same as `{orgKey}`; for a customer organization the six standard non-production workspaces have keys of the form `{orgKey}-{test|train|staging|impl|uat|dev}`
+- Each workspace has a configurable title that controls Community App Directory banner text and navigation
+
+The workspace concept is defined primarily for **customer organizations**, and the rules above describe them. Internal organizations use the workspace only as a construct for compatibility with deployment workflows — nothing there depends on a customer business purpose — which is why their suffix rules are deliberately more liberal. Do not apply the customer suffix set to an internal org.
+
+**Creating one:** Tyler staff create workspaces in **Ops Center** (organization details → **Manage workspaces** → **+ Add a workspace**), or they are created through **Ops Center APIs** called by a deployment tool such as **Tyler Deploy** or **Cloud Provisioner**. Customers cannot create workspaces from Admin Center, so a customer needing one asks Tyler. When answering "how do I get a workspace", name that mechanism — not just "contact Tyler Support".
+
+Some platforms (for example, TCP) host all of a customer's workspaces in one environment with virtual data segregation; other products may host the same workspaces in entirely different environments running different versions.
 
 **Workforce App Directory** — a directory of all Workforce applications a user can discover and navigate to. → `Docusaurus-ClientApps.md`.
 
