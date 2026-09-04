@@ -21,7 +21,7 @@ deploying, so it is closed out. `action_status` records which of those two happe
 Re-reviewing something already `pushed` is fine — use the Re-review button, which raises
 `review_round` and sets it back to `reviewed`.
 """
-import argparse, re, sys
+import argparse, re, subprocess, sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
@@ -111,8 +111,29 @@ def main():
     for f, why in skipped:
         print(f"  skipped  {f.relative_to(REPO) if f.exists() else f}: {why}", file=sys.stderr)
     print(f"\n{len(moved)} closed out, {len(skipped)} skipped")
+    # REGENERATE INDEX.md HERE, rather than telling the human to.
+    #
+    # This script rewrites `review_status` in every file it closes, which is exactly what
+    # INDEX.md summarises - so leaving it stale is not a tidiness problem, it is a CI failure
+    # on the next pull request. `validate` regenerates the index and fails if it differs, and
+    # closing out 11 transcripts moved the header from "11 reviewed, 16 pushed" to "0 reviewed,
+    # 27 pushed" while the committed file still claimed the old counts. Observed twice: run
+    # 33260021601 and run 33888825829.
+    #
+    # A printed "Next:" line cannot be relied on. The review server has always called
+    # review_status.py itself after a write (refresh_index()); this is the CLI equivalent, and
+    # the only write path that changes review_status.
     if moved and not a.dry_run:
-        print("Next: python3 scripts/review_status.py   (refreshes INDEX.md)")
+        r = subprocess.run([sys.executable, str(REPO / "scripts" / "review_status.py")],
+                           cwd=REPO, capture_output=True, text=True, timeout=120)
+        if r.returncode == 0:
+            print("INDEX.md refreshed")
+        else:
+            # Reported, not fatal: the close-out itself succeeded and is already on disk.
+            # Saying so beats a silent stale index, which is the failure this replaces.
+            print("could NOT refresh INDEX.md - run 'python3 scripts/review_status.py' and "
+                  f"commit it, or the next pull request fails validate:\n{r.stderr.strip()[:300]}",
+                  file=sys.stderr)
     return 0
 
 
