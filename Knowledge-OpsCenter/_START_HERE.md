@@ -12,7 +12,7 @@ Domain: Ops Center (Tyler Cloud Platform — operational tooling, organization/w
 
 | File | One-liner — what's in it |
 |---|---|
-| `FAQ-OpsCenter.md` | **Authored answers with no upstream source** — verbal SME guidance, observed behaviour, corrections upstream owners have not yet made. Currently: how to disambiguate the word "client"; that there is **no** consolidated list of Admin Center instances you can access; choosing between the two Admin Center access paths (ticket `4165` for occasional, Manager's Guide for frequent); and the OneTyler / CorpDev rename. Check here when no `Conf-`/`Docusaurus-` file answers the question. |
+| `FAQ-OpsCenter.md` | **Authored answers with no upstream source** — verbal SME guidance, observed behaviour, corrections upstream owners have not yet made. Currently: how to disambiguate the word "client"; that there is **no** consolidated list of Admin Center instances you can access; choosing between the **three** Admin Center access paths (ticket `4165` for occasional, in-product **+ Promote me as admin** if you already hold self-promotion rights, Manager's Guide to obtain those rights); that Ops Center has **authentication** logs but **no audit/activity logs**, and how to get activity data and product-licensing attribution; how to add an org email domain; renaming/deleting a workspace; and the OneTyler / CorpDev rename. Check here when no `Conf-`/`Docusaurus-` file answers the question. |
 | `Conf-CRMCustomerIdentifiers.md` | The deep technical/operational reference for the **CRM Customer Identifier** (= the Ops Center Org Key). Generation algorithm, portability across CRM merges, usage across TCP / Tyler Deploy / TID-W / SaaS / Twilio, troubleshooting tree, exact ticket subjects. |
 | `Conf-GatewayOperationalTesting.md` | How to validate a **Gateway-ready product** against the real-world test org `tylertownwa`. Test account emails (**password NOT in this corpus** — points to the source Confluence page), 4 Gateway integration components, Core vs Full compliance, Tyler Deploy addendum, net-new-customer routing rules. |
 | `Conf-AddingExternalUsersToEntraId.md` | The **Workforce Direct-only** workaround for adding non-employee users (temps, contractors) to a customer's Entra ID **without consuming an Office 365 license**. Tyler-staff coaching material — NOT to share with customers directly. |
@@ -51,19 +51,23 @@ The Ops Center Foundry agent surfaces four starting prompts to new users. The ca
 1. **"How do I get access to Ops Center?"** — *Starting prompts → How do I get access to Ops Center?*; deeper: `Docusaurus-OpsCenter.md` → *Access — environment URLs*, *Access — request a ticket*, *Access — promote teammates*; `Knowledge-Shared/Conf-OneTylerTickets.md` → *Basic Access* for the exact Notes-field wording on shared form 4133.
 2. **"How can I get access to a client's Admin Center?"** / **"I need to add myself as an org
    admin"** — start with `FAQ-OpsCenter.md` → *I need to be an Org Admin / I need access to a
-   customer's Admin Center*, which gives the rule for choosing between the two paths and is
-   the thing most often got wrong. Then *Starting prompts → How can I get access…*; deeper:
+   customer's Admin Center*, which gives the rule for choosing between the **three** paths and
+   is the thing most often got wrong. Then *Starting prompts → How can I get access…*; deeper:
    `Knowledge-Shared/Conf-OneTylerTickets.md` → *Client Admin Center access request* (form
-   4165) for the standard path, and `Docusaurus-OpsCenter.md` → *Organization Details —
+   4165) for the occasional path, and `Docusaurus-OpsCenter.md` → *Organization Details —
    Admins* + the *Org Admin promotions — a Manager's guide* Confluence page for the
-   elevated-permission self-promote alternative. **Always present both**, sized to how often
-   the user needs access.
+   elevated-permission self-promote route. **Size the answer to how often the user needs
+   access, and check first whether they already hold self-promotion rights** — if they do, the
+   answer is one in-product action (**+ Promote me as admin**) and no request at all. Sending
+   someone who already has the permission to the Manager's Guide, or sending a one-off request
+   there instead of to form 4165, are the two observed failures.
 3. **"Where can I see the Identity Configuration details for a customer?"** — *Starting prompts → Where can I see the Identity Configuration…*; deeper: `Docusaurus-OpsCenter.md` → *Organization Details* (Basic details for Identity Tier; Manage workspaces for per-workspace OnPrem Target), *Identity Workforce (org details)* for tier-specific federation/AD-Agent setup, and *Authentication logs* for sign-in history. Always flag that Identity Tier cannot be changed after org creation (the narrow UNINITIATED WD→WM conversion ticket is the only exception).
 4. **"Where can I see Ops Center training and other useful guides?"** — *Starting prompts → Where can I see Ops Center training…*. **Primary URL — must be surfaced verbatim, never paraphrased:** https://tylertech.atlassian.net/wiki/spaces/TTI/pages/386599613/Tyler+Cloud+Platform+TCP+Deployment — the Tyler Cloud Platform Deployment / Operational Training Hub on Confluence, which hosts the 6-part video series, the slide deck, and the handout PDF. Deeper: `Misc-Links.md` → *TCP / TID Operational Training* for the same URL plus the individual demo/setup Confluence pages; `Training-OpsCenterOperations.md` → *Resources* table also carries the URL; `Training-OpsCenterOperations.md` and `Training-WorkforceManagedToDirectMigration.md` for the GPT-distilled training narratives.
 
 ### "How do I file a ticket / what's the right ticket for X?"
 - `Knowledge-Shared/Conf-OneTylerTickets.md` (start here always)
 - **Critical disambiguation:** "Add an Org Admin / Promote me as admin" does NOT use the generic form 4133 — see *Org Admins* section in that file.
+- **Critical disambiguation:** **"audit logs" vs "authentication logs".** Ops Center has only the latter, and they cover sign-ins — never operational actions like who licensed a product. A question about audit/activity logs goes to `FAQ-OpsCenter.md` → *How do I access audit logs in Ops Center?*, which carries the ticket route and the QuickSight caveat. Answering it from `Docusaurus-OpsCenter.md` → *Authentication logs* is the known wrong answer.
 
 ### "What does this Tyler term mean?"
 - `Docusaurus-Terminology.md` (authoritative glossary)
