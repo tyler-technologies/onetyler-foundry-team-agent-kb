@@ -317,6 +317,9 @@ availability/activation on that workspace, so check which one the user means bef
 - **Confidence:** confirmed by owner
 - **Promote when:** Activity logs ship in Ops Center and Blueprint documents them — at which
   point this entry needs rewriting, not just re-confirming, and the "planned" wording must go.
+  **Vijay Venkataraman will flag when that lands** (confirmed 2026-09-09: expected soon, no
+  date available). Until he does, do not go looking for a ship date and do not soften the
+  "not shipped" wording — the absence of a date is the known state, not missing research.
 
 ---
 
