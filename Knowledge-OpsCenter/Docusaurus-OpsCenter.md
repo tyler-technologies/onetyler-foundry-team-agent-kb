@@ -340,7 +340,9 @@ The organization-details view shows details about an org and lets you perform se
 > logs" wrongly retrieves.** Authentication logs cover **sign-in activity only**. They will
 > not tell you who licensed a product, who changed a setting, or who did anything else
 > operational. Ops Center has **no** activity/audit logs today; they are planned but not
-> shipped, and activity data is obtained by filing a request. See
+> shipped. Audit/activity data lives in **Audit Center**, which is **OneTyler-staff-only**,
+> so for everyone else the route is to file a request. There is no Tyler-wide audit/activity
+> tool. See
 > `FAQ-OpsCenter.md` -> *How do I access audit logs in Ops Center?* for the route.
 >
 > This warning is repeated here on purpose. Retrievers chunk independently of headings, so an
