@@ -100,9 +100,10 @@ Do not offer a workaround that implies a consolidated list exists.
 
 ### Q: I need to be an Org Admin / I need access to a customer's Admin Center — how do I get it?
 
-**A:** **There are two different paths, and the right one depends on how often you need
-access.** Present both; do not send someone down the manager's-guide route when a single
-ticket would do.
+**A:** **There are three paths, and the right one depends on how often you need access and on
+whether you already hold the self-promotion permission.** Present the one that fits; do not
+send someone down the manager's-guide route when a single ticket would do, and do not send
+someone who *already* has self-promotion rights to raise anything at all.
 
 **Occasional access to one customer's Admin Center** — use the **Client Admin Center access
 request** ticket. **Give the user the Confluence page, not the raw form URL** — it carries the
@@ -117,27 +118,50 @@ it makes you an Org Admin for that one organization. Requirements: the org must 
 in Ops Center in that environment, and you must not already have access. Allow up to five
 minutes after approval.
 
-**Frequent access across many customers' Admin Centers** — follow the **Manager's Guide**:
-*Tyler Cloud Platform (TCP) | Org Admin promotions (Admin Center access) - a Manager's guide*
-(`/wiki/spaces/TTI/pages/386629479/`)
+**Frequent access, and you ALREADY have self-promotion permission** — just do it yourself, in
+product. No ticket. Ops Center -> **Organization Details -> Admins**, then
+**+ Promote me as admin**. OneTyler grants this elevated *Promote / Remove yourself as Org
+Admin* right to select Ops users whose roles require routine customer access, so a good number
+of people asking this question can already self-serve and do not know it. **Check whether the
+user has the permission before routing them anywhere** — if the menu action is there, that is
+the whole answer.
 
-This exists so a team that routinely needs Admin Center access does not have to raise a
-separate ticket per organization. It is a manager-driven workflow — the team's manager
-delegates special permissions — and there is no single ticket URL for it.
+Please also **remove your own Org Admin rights when you no longer need them**. Tyler-staff Org
+Admins can self-remove from the same screen, and cleaning up is expected rather than optional.
+Permission changes take a little time to propagate.
 
-Neither path uses the generic "Ops Center additional permissions" form (`4133`).
+**Frequent access, and you do NOT yet have that permission** — this is the only case that
+needs the **Manager's Guide**: *Tyler Cloud Platform (TCP) | Org Admin promotions (Admin Center
+access) - a Manager's guide* (`/wiki/spaces/TTI/pages/386629479/`)
+
+It is a manager-driven workflow — the team's manager delegates the self-promotion permission —
+and there is **no single ticket URL** for it. Prerequisites: the user already has Ops Center
+access, and does not already have self-promotion rights. Once granted, they are in the case
+above permanently and never need this route again.
+
+None of the three paths uses the generic "Ops Center additional permissions" form (`4133`).
 
 **Why this entry exists:** asked as "need to add myself as an org admin for product add", the
 team agent returned only the Manager's Guide. That answer is not wrong, but for a one-off
 request it sends the user into a manager-approval process when ticket `4165` would have
-settled it. The two routes are catalogued separately in
+settled it. The routes are catalogued separately in
 `Knowledge-Shared/Conf-OneTylerTickets.md`; what was missing everywhere was the rule for
 choosing between them.
 
-- **Source:** Vijay Venkataraman, reviewing transcript `team/2026-08-24--53d51e27`. Ticket
-  numbers and prerequisites cross-checked against `Knowledge-Shared/Conf-OneTylerTickets.md`
-  (*Client Admin Center access request*, and *Add an Org Admin, or self-promote as Org
-  Admin*).
+**Why it says three paths and not two:** asked again as plain "how to add myself as an admin",
+the agent described the ticket route and the Manager's Guide but presented the manager's guide
+as the way to get access, when for someone who already holds the self-promotion permission the
+answer is a single in-product action and no request at all. Collapsing "use the permission you
+have" and "obtain the permission" into one branch is what made the answer incomplete. Treat
+them as separate outcomes.
+
+- **Source:** Vijay Venkataraman, reviewing transcript `team/2026-08-24--53d51e27`, and again
+  on `team/2026-09-08--4125fbd2` for the three-path split. Ticket numbers and prerequisites
+  cross-checked against `Knowledge-Shared/Conf-OneTylerTickets.md` (*Client Admin Center access
+  request*, and *Add an Org Admin, or self-promote as Org Admin*), and the in-product
+  self-promote screen against `Docusaurus-OpsCenter.md` -> *Organization Details - Admins*.
+- **Added:** 2026-08-24, three-path split added 2026-09-09, by vijay-tylertech
+- **Confidence:** confirmed by owner
 - **Added:** 2026-08-25 by vijay-tylertech
 - **Confidence:** confirmed by owner
 - **Promote when:** the Confluence ticket page or the Manager's Guide itself states the
@@ -232,6 +256,50 @@ OneTyler, but quote system names exactly as they appear in that system.
 - **Confidence:** confirmed by owner
 - **Promote when:** also recorded in `Docusaurus-Terminology.md` under *OneTyler (formerly
   CorpDev)*. Keep here only while the rename is still in flight.
+
+### Q: How do I access audit logs in Ops Center? / Where do I see who licensed a product for a workspace?
+
+**A:** **Ops Center does not have audit logs today. It has *authentication* logs, and they are
+a different thing.** This is the trap in the question: searching for "audit logs" lands on the
+**Authentication logs** section, which looks like an answer and is not one. Say the distinction
+out loud before describing either.
+
+| | **Authentication logs** | **Activity / audit logs** |
+|---|---|---|
+| In Ops Center today? | **Yes** | **No** |
+| What they cover | User **sign-in** activity | Operational **actions** — who licensed a product, who changed a setting |
+| How to get them | Ops Center -> **Organizations** -> select the org -> **Organization Details** -> *Authentication logs*. Behaviour differs sharply by Identity Workforce tier — see the comparison table in `Docusaurus-OpsCenter.md` -> *Authentication logs*. | **File a request.** Use the Confluence ticket page -> *Other non-product assistance with Organizations and Workspaces*: <https://tylertech.atlassian.net/wiki/spaces/TTI/pages/386600308/Tyler+Cloud+Platform+TCP+Ops+Center+Related+Tickets+and+Permissions> — state the activity you need. |
+
+**Authentication logs will not answer "who licensed this product".** They track logins, not
+operational changes. Do not offer them as a substitute; that is the specific way this question
+gets answered wrongly.
+
+**Activity logs are planned, not shipped.** Ops Center is expected to gain Activity logs
+against a **product in the Product Registry** and against an **organization**. Describe this as
+coming, never as available, and do not promise a date.
+
+**What to do about "who licensed a product for a workspace" in the meantime:**
+
+1. **File the request** above — that is the supported route to activity data today.
+2. **Ops telemetry (AWS QuickSight)** gives you licensing *counts and current state*, not
+   attribution. It will tell you a product **is** licensed, never **who** licensed it. Path:
+   <https://sso.tylertech.com/app/UserHome> -> **Tyler Cloud Insights Center** -> **TCP Prod
+   Stats** dashboard. See `Docusaurus-OpsCenter.md` -> *Ops telemetry (AWS QuickSight)*.
+3. **Ask the OneTyler team** for a specific attribution question that cannot wait.
+
+Also worth separating: **licensing is org-level, availability is workspace-level** (see
+`Docusaurus-OpsCenter.md` -> *Product licensing (organization) and availability (workspace)*).
+A question phrased "licensed a product **for a workspace**" is usually really about
+availability/activation on that workspace, so check which one the user means before answering.
+
+- **Source:** Vijay Venkataraman, reviewing transcript `team/2026-09-04--f4fc1c8a` — the team
+  agent answered "how do i access audit logs in ops center" with the authentication-logs
+  material, which is the wrong log type, and did not mention that activity data requires a
+  ticket today.
+- **Added:** 2026-09-09 by vijay-tylertech
+- **Confidence:** confirmed by owner
+- **Promote when:** Activity logs ship in Ops Center and Blueprint documents them — at which
+  point this entry needs rewriting, not just re-confirming, and the "planned" wording must go.
 
 ---
 

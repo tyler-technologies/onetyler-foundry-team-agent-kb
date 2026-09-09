@@ -336,6 +336,19 @@ The organization-details view shows details about an org and lets you perform se
 
 ### Authentication logs
 
+> **These are NOT audit or activity logs, and this section is what a question about "audit
+> logs" wrongly retrieves.** Authentication logs cover **sign-in activity only**. They will
+> not tell you who licensed a product, who changed a setting, or who did anything else
+> operational. Ops Center has **no** activity/audit logs today; they are planned but not
+> shipped, and activity data is obtained by filing a request. See
+> `FAQ-OpsCenter.md` -> *How do I access audit logs in Ops Center?* for the route.
+>
+> This warning is repeated here on purpose. Retrievers chunk independently of headings, so an
+> agent answering "how do I see audit logs" retrieves *this* table rather than the FAQ entry
+> that governs it — stating the rule only in the FAQ was measured as insufficient. Do not
+> tidy it away as duplication. (Authored addition, not from Blueprint: re-add it if this file
+> is re-derived.)
+
 Available behavior differs sharply by tier:
 
 | Aspect | Workforce Managed | Workforce Direct |
