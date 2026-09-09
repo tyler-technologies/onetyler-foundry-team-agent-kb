@@ -268,24 +268,35 @@ out loud before describing either.
 |---|---|---|
 | In Ops Center today? | **Yes** | **No** |
 | What they cover | User **sign-in** activity | Operational **actions** — who licensed a product, who changed a setting |
-| How to get them | Ops Center -> **Organizations** -> select the org -> **Organization Details** -> *Authentication logs*. Behaviour differs sharply by Identity Workforce tier — see the comparison table in `Docusaurus-OpsCenter.md` -> *Authentication logs*. | **File a request.** Use the Confluence ticket page -> *Other non-product assistance with Organizations and Workspaces*: <https://tylertech.atlassian.net/wiki/spaces/TTI/pages/386600308/Tyler+Cloud+Platform+TCP+Ops+Center+Related+Tickets+and+Permissions> — state the activity you need. |
+| How to get them | Ops Center -> **Organizations** -> select the org -> **Organization Details** -> *Authentication logs*. Behaviour differs sharply by Identity Workforce tier — see the comparison table in `Docusaurus-OpsCenter.md` -> *Authentication logs*. | **Not in Ops Center at all.** Held in **Audit Center**, which is OneTyler-staff-only. Everyone else files a request: use the Confluence ticket page -> *Other non-product assistance with Organizations and Workspaces*: <https://tylertech.atlassian.net/wiki/spaces/TTI/pages/386600308/Tyler+Cloud+Platform+TCP+Ops+Center+Related+Tickets+and+Permissions> — state the activity you need. |
 
 **Authentication logs will not answer "who licensed this product".** They track logins, not
 operational changes. Do not offer them as a substitute; that is the specific way this question
 gets answered wrongly.
 
-**Activity logs are planned, not shipped.** Ops Center is expected to gain Activity logs
-against a **product in the Product Registry** and against an **organization**. Describe this as
-coming, never as available, and do not promise a date.
+**There is no Tyler-wide audit/activity tool at all.** Authentication logs in Ops Center are
+the **only** log surface available across Tyler. Audit and activity data does exist, in
+**Audit Center** — but Audit Center is a **OneTyler-staff-only** tool, so it is not an answer
+you can hand to a general Tyler audience. That restriction is precisely *why* the route for
+everyone else is to file a request: the request is how you reach data held in a tool you
+cannot open yourself. Never tell a user to "check the audit logs" without establishing that
+they are OneTyler staff.
+
+**Activity logs in Ops Center are planned, not shipped.** Ops Center is expected to gain
+Activity logs against a **product in the Product Registry** and against an **organization**.
+Describe this as coming, never as available, and do not promise a date.
 
 **What to do about "who licensed a product for a workspace" in the meantime:**
 
-1. **File the request** above — that is the supported route to activity data today.
+1. **File the request** above — that is the supported route for anyone who is not OneTyler
+   staff, and it is the right first answer in almost every case.
 2. **Ops telemetry (AWS QuickSight)** gives you licensing *counts and current state*, not
    attribution. It will tell you a product **is** licensed, never **who** licensed it. Path:
    <https://sso.tylertech.com/app/UserHome> -> **Tyler Cloud Insights Center** -> **TCP Prod
    Stats** dashboard. See `Docusaurus-OpsCenter.md` -> *Ops telemetry (AWS QuickSight)*.
 3. **Ask the OneTyler team** for a specific attribution question that cannot wait.
+4. **If the user is OneTyler staff**, the answer is in **Audit Center**, which records the
+   acting user against product-licensing events. Do not offer this branch otherwise.
 
 Also worth separating: **licensing is org-level, availability is workspace-level** (see
 `Docusaurus-OpsCenter.md` -> *Product licensing (organization) and availability (workspace)*).
@@ -295,7 +306,13 @@ availability/activation on that workspace, so check which one the user means bef
 - **Source:** Vijay Venkataraman, reviewing transcript `team/2026-09-04--f4fc1c8a` — the team
   agent answered "how do i access audit logs in ops center" with the authentication-logs
   material, which is the wrong log type, and did not mention that activity data requires a
-  ticket today.
+  ticket today. The Audit Center scoping is his correction on 2026-09-09: "TCP Audit log
+  currently only exists in Audit Center that is only for OneTyler staff. There is no Tyler
+  wide tool that gives Audit/Activity logs excepting Authentication logs which is available
+  in Ops Center."
+- **Note:** `Knowledge-BP-General/Docusaurus-OpsApps.md` owns Audit Center and its upstream
+  Blueprint page is a **stub**, so that file cannot currently say who Audit Center is for.
+  This entry is the only place that restriction is written down.
 - **Added:** 2026-09-09 by vijay-tylertech
 - **Confidence:** confirmed by owner
 - **Promote when:** Activity logs ship in Ops Center and Blueprint documents them — at which

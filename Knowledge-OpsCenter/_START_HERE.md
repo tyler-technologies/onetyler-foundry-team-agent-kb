@@ -67,7 +67,7 @@ The Ops Center Foundry agent surfaces four starting prompts to new users. The ca
 ### "How do I file a ticket / what's the right ticket for X?"
 - `Knowledge-Shared/Conf-OneTylerTickets.md` (start here always)
 - **Critical disambiguation:** "Add an Org Admin / Promote me as admin" does NOT use the generic form 4133 — see *Org Admins* section in that file.
-- **Critical disambiguation:** **"audit logs" vs "authentication logs".** Ops Center has only the latter, and they cover sign-ins — never operational actions like who licensed a product. A question about audit/activity logs goes to `FAQ-OpsCenter.md` → *How do I access audit logs in Ops Center?*, which carries the ticket route and the QuickSight caveat. Answering it from `Docusaurus-OpsCenter.md` → *Authentication logs* is the known wrong answer.
+- **Critical disambiguation:** **"audit logs" vs "authentication logs".** Ops Center has only the latter, and they cover sign-ins — never operational actions like who licensed a product. **Authentication logs are the only Tyler-wide log surface**; audit/activity data lives in **Audit Center**, which is **OneTyler-staff-only**, so for everyone else the answer is to file a request. A question about audit/activity logs goes to `FAQ-OpsCenter.md` → *How do I access audit logs in Ops Center?*, which carries the ticket route, the Audit Center scoping and the QuickSight caveat. Answering it from `Docusaurus-OpsCenter.md` → *Authentication logs* is the known wrong answer.
 
 ### "What does this Tyler term mean?"
 - `Docusaurus-Terminology.md` (authoritative glossary)
