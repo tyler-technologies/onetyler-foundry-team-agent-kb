@@ -3783,7 +3783,8 @@ def page(title, inner, active="", all_view=False, rel="", agent=""):
     # Saved locally but not yet sent in - the Publish badge. Distinct from `uncommitted`,
     # which is unsaved edits and belongs to Save.
     try:
-        unsent = len(unsent_saves())
+        # This lane only: the badge points at Publish, whose actions are lane-scoped.
+        unsent = len(unsent_saves(lane=current_lane()[0]))
     except Exception:                                                  # noqa: BLE001
         unsent = 0
     open_pr_count = pr_count() if is_admin() else 0
@@ -4823,8 +4824,14 @@ def save_reviews(msg):
     return rc, "\n\n".join(x for x in lines if x)
 
 
-def unsent_saves():
+def unsent_saves(lane=None):
     """Saves that have NOT been sent anywhere yet - nothing else.
+
+    `lane` SCOPES THE ANSWER TO ONE BRANCH, and anything that gates an action must pass it.
+    Unscoped, this spans every review lane, which is the right answer for "does my work still
+    exist anywhere" and the wrong one for "is there something to send from here": the Publish
+    page's buttons all operate on the CURRENT lane, so saves abandoned on another lane produced
+    a nag no button could clear. See stranded_saves().
 
     `git log HEAD --not --remotes`, which is the exact question: commits on HEAD that no remote
     ref can reach. Everything else is an approximation of it and each one has a hole:
@@ -4849,8 +4856,9 @@ def unsent_saves():
     No fetch: this runs on every page render, and a network call would hang the page on a bad
     connection. It uses the last-known remote state, like the rest of the page.
     """
+    rev = [lane] if lane else ["HEAD", "--branches=review/*"]
     rc, out = git("log", "--format=%h%x09%ad%x09%s", "--date=format:%m/%d %H:%M",
-                  "HEAD", "--branches=review/*", "--not", "--remotes")
+                  *rev, "--not", "--remotes")
     if rc != 0 or not out.strip():
         return []
     rows = []
@@ -4859,6 +4867,37 @@ def unsent_saves():
         if len(parts) == 3:
             rows.append({"h": parts[0], "when": parts[1], "subject": parts[2]})
     return rows
+
+
+def stranded_saves():
+    """Unsent saves on review lanes OTHER than the current one. {lane: [save, ...]}.
+
+    Real work - never pushed anywhere - but NOTHING ON THE PUBLISH PAGE CAN SEND IT, because
+    every action there operates on the current lane. Counting these into the page's "not sent
+    in yet" figure is what produced a nag no button could clear.
+
+    Measured 2026-09-09: six saves abandoned on `review/vijay-tylertech/08282026-121644` held
+    `part2_state()["push"]` at "wait" permanently, so Publish said "7 change(s) have not been
+    sent in yet - do Part 2" while its own change list said "Nothing edited yet" and the working
+    tree was clean. Pressing the button pushed the current lane and changed the figure by
+    nothing, because the six commits were never on it.
+
+    So they are surfaced separately rather than folded into a count, and deliberately NOT
+    hidden: under-reporting unsent work is the worst failure this indicator has - a reviewer
+    checks it to confirm their work still exists.
+    """
+    cur, _shared = current_lane()
+    out = {}
+    rc, refs = git("for-each-ref", "--format=%(refname:short)", "refs/heads/review/")
+    if rc != 0:
+        return out
+    for lane in (l.strip() for l in refs.splitlines()):
+        if not lane or lane == cur:
+            continue
+        rows = unsent_saves(lane=lane)
+        if rows:
+            out[lane] = rows
+    return out
 
 
 def reset_unsaved():
@@ -4920,7 +4959,10 @@ def discard_saves(target):
        survive in the reflog for ~90 days, but a named tag is something you can act on without
        knowing what a reflog is - and the message says how.
     """
-    saves = unsent_saves()
+    # THIS LANE ONLY. Discarding rewinds HEAD, so offering a save that lives on a different
+    # lane would rewind the wrong branch - it would "discard" by rewriting history the save is
+    # not even part of.
+    saves = unsent_saves(lane=current_lane()[0])
     hashes = [s["h"] for s in saves]
     if target not in hashes:
         return 1, ("That save cannot be discarded — it has already been sent in, so it is part "
@@ -5784,7 +5826,9 @@ def git_fragments():
     # "fatal: no upstream configured" - and the raw git error was being interpolated straight
     # into the status line the reviewer reads. Same primitive as unsent_saves(): commits no
     # remote can reach.
-    unpushed = str(len(unsent_saves()))
+    # THIS LANE ONLY - it prefixes "do Part 2", and Part 2 acts on this lane. Stranded saves on
+    # other lanes are reported by their own line below, not counted into a call to action.
+    unpushed = str(len(unsent_saves(lane=current_lane()[0])))
 
     # COUNTED ACROSS BOTH REPOS, because that is what the Change list below now shows. `n` is
     # this repo's working tree only, so while the list gained a "Blueprint docs" group the
@@ -5847,7 +5891,7 @@ def git_fragments():
              or "<div class=hint style='margin-top:6px'>Nothing edited yet — review something on "
                 "<b>My Transcripts</b> first.</div>")
 
-    saves = unsent_saves()
+    saves = unsent_saves(lane=current_lane()[0])
     if saves:
         # Collapsed. It is a record of what already happened, so it is the last thing anyone
         # needs on arrival, and left open it pushes the two actual buttons down the page. The
@@ -5875,6 +5919,29 @@ def git_fragments():
     else:
         saves_html = ("<div class=saves><span class=hint>Nothing saved and unsent."
                       "</span></div>")
+
+    # STRANDED SAVES GET THEIR OWN LINE, never folded into the count above. They are real
+    # unsent work, but they live on a lane this page cannot act on, so presenting them as
+    # "changes not sent in yet - do Part 2" pointed at a button that could not clear them.
+    # Named, with their lane, because the only way to send them is to switch to that lane.
+    stranded = stranded_saves()
+    if stranded:
+        n_str = sum(len(v) for v in stranded.values())
+        rows = "".join(
+            f"<tr><td class=swhen>{html.escape(v[0]['when'])}</td>"
+            f"<td><code>{html.escape(lane)}</code></td>"
+            f"<td class=sstate>{len(v)} save(s)</td></tr>"
+            for lane, v in sorted(stranded.items()))
+        saves_html += (
+            "<details class=saves><summary>Saves on other review lanes"
+            f"<span class=hint> &mdash; <b>{n_str}</b> never sent, on "
+            f"{len(stranded)} other lane(s)</span>"
+            "<span class=chev aria-hidden=true></span></summary>"
+            "<table>" + rows + "</table>"
+            "<div class=hint>These are not counted above and nothing on this page can send "
+            "them: every action here works on the lane you are currently on. To send one, "
+            "switch to that lane first. Listed so abandoned work stays visible rather than "
+            "silently disappearing.</div></details>")
     # The change list now lives INSIDE the state bar, collapsed. It was a permanently-open
     # panel between the "Publish your reviews" heading and Part 1, so the first actual step
     # started well down the page - and the list is reference material, not something you act on.
@@ -9085,7 +9152,10 @@ def part2_state():
     pushed = False
     if branch:
         rc, _o = git("rev-parse", "--verify", "--quiet", f"refs/remotes/origin/{branch}")
-        pushed = rc == 0 and not unsent_saves()
+        # SCOPED TO THIS LANE. Unscoped, saves abandoned on any other review lane held this at
+        # "wait" forever, so the button never advanced past "Upload to GitHub" and the change
+        # request stage was unreachable through the flow.
+        pushed = rc == 0 and not unsent_saves(lane=branch)
     out["push"] = "done" if pushed else "wait"
 
     out["pr"] = "wait"
