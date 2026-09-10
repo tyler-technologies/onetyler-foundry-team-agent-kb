@@ -9148,7 +9148,23 @@ def part2_state():
     else:
         out["eval"] = "you"                       # ran; waiting on the reviewer to read it
 
-    branch, _ = current_lane()
+    branch, shared = current_lane()
+
+    # A REVIEW BATCH ALWAYS LIVES ON A review/ LANE - ensure_lane() creates one on the first
+    # save - so sitting on a shared branch means no batch has been started, and the two
+    # git stages have nothing to act on. Reported as `none` rather than as work:
+    #
+    # On `main` with a clean tree, push used to report "done" purely because origin/main
+    # exists, and pr reported "wait" because no PR is open for main. The page therefore
+    # offered "Process: Create the change request" - from main, with no batch - which is how
+    # the previous batch's state appeared not to reset once its request had merged and the
+    # lane was deleted. Nothing was stale; the stages were answering a question that no
+    # longer applied.
+    if shared:
+        out["push"] = "none"
+        out["pr"] = "none"
+        return out
+
     pushed = False
     if branch:
         rc, _o = git("rev-parse", "--verify", "--quiet", f"refs/remotes/origin/{branch}")
@@ -9200,7 +9216,13 @@ def git_page(which="save"):
     # with eval="you" - run, not yet approved - the button said "Eval Review" while the press
     # actually attempted the change request.
     spent = st["eval"] in ("you", "done")
-    if not spent and eval_estimate()[1]:
+    # `none` on both git stages means there is no batch on this branch at all - see
+    # part2_state(). Offering "Create the change request" there proposed opening one from a
+    # shared branch, which is the state a reviewer reads as "the last batch never cleared".
+    no_batch = st["push"] == "none" and st["pr"] == "none"
+    if no_batch:
+        next_step = None
+    elif not spent and eval_estimate()[1]:
         next_step = "Eval Review"
     elif st["push"] != "done":
         next_step = "Upload to GitHub"
@@ -9208,7 +9230,8 @@ def git_page(which="save"):
         next_step = "Create the change request"
     else:
         next_step = "Re-send"        # everything already out; the press just re-pushes
-    btn_label = f"Process: {next_step}"
+    btn_label = ("Nothing to publish" if next_step is None
+                 else f"Process: {next_step}")
     if n_ai:
         # A stage with its own state, `ai`, because it is neither waiting on this button nor
         # something the page can do. The prompt is a copy button rather than text to retype:
@@ -9339,8 +9362,16 @@ def git_page(which="save"):
              + _eval_optin(spent=st["eval"] in ("you", "done"))
              + _router_warning()
              + "<div class=stepacts>"
-             f"<button onclick='sendReviews(this)' data-ai-pending='{n_ai}' "
-             f"data-label=\"{html.escape(btn_label)}\">{html.escape(btn_label)}</button></div>"
+             # Disabled when there is no batch on this branch, so the page cannot invite an
+             # action it would refuse. The label already says so; a live button saying
+             # "Nothing to publish" would still read as something to press.
+             f"<button onclick='sendReviews(this)' data-ai-pending='{n_ai}'"
+             f"{' disabled' if no_batch else ''} "
+             f"data-label=\"{html.escape(btn_label)}\">{html.escape(btn_label)}</button>"
+             + ("<div class=hint>No review batch on this branch. Review something on "
+                "<b>My Transcripts</b> and save it — that starts the next batch on its own "
+                "lane.</div>" if no_batch else "")
+             + "</div>"
              # Publishing ENDS here. Merging and the Foundry upload are decisions ABOUT a
              # request that already exists, not steps in submitting one, and they live on the
              # PRs tab where the request can be seen next to its checks.
@@ -9524,14 +9555,37 @@ class H(BaseHTTPRequestHandler):
                 # is findable. Deliberately does NOT guess diagnosis/fix_target: that is a
                 # judgement from the prose, and Claude records it with its reasoning.
                 fm_after, body_after = parse(p)
-                if (fm_after and (fm_after.get("review_status") in ("reviewed", "suggested"))
-                        and needs_triage(fm_after, body_after or "")):
+                marked = (fm_after or {}).get("review_status") in ("reviewed", "suggested")
+                if fm_after and marked and needs_triage(fm_after, body_after or ""):
                     note = fm_after.get("notes", "")
                     mark = "needs-triage: written feedback, fields not classified"
                     upd = {"action_status": "open"}
                     if mark not in note:
                         upd["notes"] = (note + " || " if note else "") + mark
                     set_fields(p, upd)
+                elif fm_after and marked:
+                    # DERIVE action_status FROM kb_action ON SAVE, not only when the dropdown
+                    # is touched. The browser derives it from kb_action's `change` event, so a
+                    # reviewer who leaves that dropdown at its default - which is exactly what
+                    # "No changes & next" means - never fires it, and whatever action_status
+                    # the file already had survives the review untouched.
+                    #
+                    # Measured 2026-09-10: three transcripts marked "No changes & next" kept
+                    # `action_status: open` from when they were pending, so awaiting_analysis()
+                    # counted them and Publish said "Update the knowledge files - 3
+                    # transcript(s) waiting. Needs an assistant." for reviews that had asked
+                    # for nothing. The reviewer had no way to clear it: the field they would
+                    # have to change is the one the flow told them not to touch.
+                    #
+                    # Same rule the browser applies, and the same two exemptions: `applied` is
+                    # a claim that work was done and `wontfix` is a decision with a reason in
+                    # notes, so neither is ever overwritten here.
+                    act = (fm_after.get("action_status") or "").strip()
+                    if act not in ("applied", "wontfix"):
+                        kb = (fm_after.get("kb_action") or "").strip().lower()
+                        want = "none-needed" if kb in ("", "none") else "open"
+                        if act != want:
+                            set_fields(p, {"action_status": want})
                 refresh_index()
                 return self._send(200, json.dumps({"ok": True, "path": rel}), "application/json")
             except Exception as e:
