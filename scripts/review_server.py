@@ -3780,6 +3780,11 @@ def page(title, inner, active="", all_view=False, rel="", agent=""):
     with an icon, a label and a live count per item makes each one visibly a destination.
     """
     open_n, mine_n, uncommitted = nav_counts()
+    # Saves taken on this lane and not yet sent - what "Save" means as a destination.
+    try:
+        n_backups = len(unsent_saves(lane=current_lane()[0]))
+    except Exception:                                                  # noqa: BLE001
+        n_backups = 0
     # Saved locally but not yet sent in - the Publish badge. Distinct from `uncommitted`,
     # which is unsaved edits and belongs to Save.
     try:
@@ -3810,7 +3815,10 @@ def page(title, inner, active="", all_view=False, rel="", agent=""):
         # TWO ITEMS, NOT ONE. "Save & Share" named two jobs with nothing in common: a local
         # checkpoint that shares nothing, and the publish sequence. The badges differ too -
         # unsaved edits are a Save concern, saved-but-unsent work is a Publish one.
-        + item("/save", icon("folder", 19, "ic-git"), "Save", uncommitted or None, "save")
+        # BACKUPS, not edited files. The badge sat beside a page whose own heading is "Back up
+        # review progress", so a count of unsaved edits read as the number of saves taken - and
+        # the edit count is already stated, in words, in the status line on both git pages.
+        + item("/save", icon("folder", 19, "ic-git"), "Save", n_backups or None, "save")
         + item("/publish", icon("publish", 19, "ic-git"), "Publish", unsent or None, "publish")
         # Visible to everyone who can run Part 2, which is everyone. The badge is the number
         # still needing a decision, so an unread eval is visible from any page rather than only
@@ -9096,6 +9104,35 @@ def eval_review_page():
     return page("Eval Review", head + "".join(cards) + foot, active="evalrev")
 
 
+def publishable_batch():
+    """Is there review work Part 2 could send from here? Content, not branch name.
+
+    AN EARLIER VERSION GATED PART 2 ON BEING ON A review/ LANE. That disabled the entire
+    publish cycle for the ordinary case: mark a transcript while still on main, and the page
+    said "Nothing to publish" over two unsaved verdicts. A review needs a change request even
+    when it asked for no knowledge changes at all - recording that it WAS reviewed is the
+    point of sending it, and the assistant step is the only one that depends on there being
+    changes.
+
+    Three ways there is something to send, checked in cost order:
+      - unsaved edits in review scope: a batch is starting
+      - saves on this lane that no remote has: a batch is part-way out
+      - transcripts differing from origin/main: committed and not merged yet
+    """
+    _, st = git("status", "--porcelain", "--", *review_scope())
+    if st.strip():
+        return True
+    try:
+        if sum(len(v) for v in bp_staged().values()):
+            return True
+    except Exception:                                                     # noqa: BLE001
+        pass
+    if unsent_saves(lane=current_lane()[0]):
+        return True
+    _, listed = git("diff", "--name-only", "origin/main", "--", "transcripts")
+    return bool(listed.strip())
+
+
 def part2_state():
     """Which Part 2 stages are already done, derived from reality. {stage: cls}.
 
@@ -9150,19 +9187,24 @@ def part2_state():
 
     branch, shared = current_lane()
 
-    # A REVIEW BATCH ALWAYS LIVES ON A review/ LANE - ensure_lane() creates one on the first
-    # save - so sitting on a shared branch means no batch has been started, and the two
-    # git stages have nothing to act on. Reported as `none` rather than as work:
-    #
-    # On `main` with a clean tree, push used to report "done" purely because origin/main
-    # exists, and pr reported "wait" because no PR is open for main. The page therefore
-    # offered "Process: Create the change request" - from main, with no batch - which is how
-    # the previous batch's state appeared not to reset once its request had merged and the
-    # lane was deleted. Nothing was stale; the stages were answering a question that no
-    # longer applied.
-    if shared:
+    # NOTHING TO SEND AT ALL -> the two git stages do not apply. This is the state after a
+    # request has merged and its lane is gone: push used to report "done" purely because
+    # origin/main exists and pr "wait" because no PR is open for main, so the page offered
+    # "Process: Create the change request" from main and read as the previous batch never
+    # having reset.
+    if not publishable_batch():
         out["push"] = "none"
         out["pr"] = "none"
+        return out
+
+    # THERE IS A BATCH, BUT NO LANE YET. Marking a transcript while still on main is the normal
+    # way a batch begins; ensure_lane() creates the lane on the first save. The stages apply -
+    # they are simply not done - so they must read `wait`, not `none`. Reporting `none` here
+    # disabled the publish cycle for a review that asked for no knowledge changes, which still
+    # needs a change request to record that it was reviewed.
+    if shared:
+        out["push"] = "wait"
+        out["pr"] = "wait"
         return out
 
     pushed = False
