@@ -4839,7 +4839,7 @@ def unsent_saves(lane=None):
     Unscoped, this spans every review lane, which is the right answer for "does my work still
     exist anywhere" and the wrong one for "is there something to send from here": the Publish
     page's buttons all operate on the CURRENT lane, so saves abandoned on another lane produced
-    a nag no button could clear. See stranded_saves().
+    a nag no button could clear.
 
     `git log HEAD --not --remotes`, which is the exact question: commits on HEAD that no remote
     ref can reach. Everything else is an approximation of it and each one has a hole:
@@ -4875,37 +4875,6 @@ def unsent_saves(lane=None):
         if len(parts) == 3:
             rows.append({"h": parts[0], "when": parts[1], "subject": parts[2]})
     return rows
-
-
-def stranded_saves():
-    """Unsent saves on review lanes OTHER than the current one. {lane: [save, ...]}.
-
-    Real work - never pushed anywhere - but NOTHING ON THE PUBLISH PAGE CAN SEND IT, because
-    every action there operates on the current lane. Counting these into the page's "not sent
-    in yet" figure is what produced a nag no button could clear.
-
-    Measured 2026-09-09: six saves abandoned on `review/vijay-tylertech/08282026-121644` held
-    `part2_state()["push"]` at "wait" permanently, so Publish said "7 change(s) have not been
-    sent in yet - do Part 2" while its own change list said "Nothing edited yet" and the working
-    tree was clean. Pressing the button pushed the current lane and changed the figure by
-    nothing, because the six commits were never on it.
-
-    So they are surfaced separately rather than folded into a count, and deliberately NOT
-    hidden: under-reporting unsent work is the worst failure this indicator has - a reviewer
-    checks it to confirm their work still exists.
-    """
-    cur, _shared = current_lane()
-    out = {}
-    rc, refs = git("for-each-ref", "--format=%(refname:short)", "refs/heads/review/")
-    if rc != 0:
-        return out
-    for lane in (l.strip() for l in refs.splitlines()):
-        if not lane or lane == cur:
-            continue
-        rows = unsent_saves(lane=lane)
-        if rows:
-            out[lane] = rows
-    return out
 
 
 def reset_unsaved():
@@ -5928,28 +5897,6 @@ def git_fragments():
         saves_html = ("<div class=saves><span class=hint>Nothing saved and unsent."
                       "</span></div>")
 
-    # STRANDED SAVES GET THEIR OWN LINE, never folded into the count above. They are real
-    # unsent work, but they live on a lane this page cannot act on, so presenting them as
-    # "changes not sent in yet - do Part 2" pointed at a button that could not clear them.
-    # Named, with their lane, because the only way to send them is to switch to that lane.
-    stranded = stranded_saves()
-    if stranded:
-        n_str = sum(len(v) for v in stranded.values())
-        rows = "".join(
-            f"<tr><td class=swhen>{html.escape(v[0]['when'])}</td>"
-            f"<td><code>{html.escape(lane)}</code></td>"
-            f"<td class=sstate>{len(v)} save(s)</td></tr>"
-            for lane, v in sorted(stranded.items()))
-        saves_html += (
-            "<details class=saves><summary>Saves on other review lanes"
-            f"<span class=hint> &mdash; <b>{n_str}</b> never sent, on "
-            f"{len(stranded)} other lane(s)</span>"
-            "<span class=chev aria-hidden=true></span></summary>"
-            "<table>" + rows + "</table>"
-            "<div class=hint>These are not counted above and nothing on this page can send "
-            "them: every action here works on the lane you are currently on. To send one, "
-            "switch to that lane first. Listed so abandoned work stays visible rather than "
-            "silently disappearing.</div></details>")
     # The change list now lives INSIDE the state bar, collapsed. It was a permanently-open
     # panel between the "Publish your reviews" heading and Part 1, so the first actual step
     # started well down the page - and the list is reference material, not something you act on.
