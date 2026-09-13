@@ -26,6 +26,12 @@ from urllib.parse import unquote
 REPO = Path(__file__).resolve().parent.parent
 TDIR = REPO / "transcripts"
 
+# Hosted-path prefix. Empty by default so an unset/unconfigured environment (the laptop
+# case) emits and matches paths exactly as before this existed. Resolved once at import
+# time, same as ME below and the same reasoning: this process serves one prefix for its
+# whole life, there is no per-request notion of "which base path".
+BASE = os.environ.get("FKB_BASE_PATH", "").rstrip("/")
+
 STATUS = REPO / "scripts" / "review_status.py"
 
 CONTRIB = REPO / "contributors.json"
@@ -2233,7 +2239,7 @@ button.tipclose{padding:3px 10px;font-size:11px}
 # caught because the row counts it appeared to prove are rendered server-side.
 # Keep `node --check` in the test below; it is what found this.
 JS = r"""
-async function post(url,body){const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},
+async function post(url,body){const r=await fetch(FKB_BASE+url,{method:'POST',headers:{'Content-Type':'application/json'},
 body:JSON.stringify(body)});return r.json()}
 // Field help. One open at a time, so the page never fills with overlapping panels.
 function tip(btn){const w=btn.closest('.fld'); if(!w) return;
@@ -2743,7 +2749,7 @@ function runEval(btn){
    out.textContent='Saving work in progress, uploading the candidate files, asking the agents.\n'
      +'This takes a few minutes - two Bedrock syncs plus one question at a time.\n'
      +'Foundry is restored automatically when it finishes.\n\nWorking\u2026';}
- fetch('/git',{method:'POST',headers:{'Content-Type':'application/json'},
+ fetch(FKB_BASE+'/git',{method:'POST',headers:{'Content-Type':'application/json'},
                body:JSON.stringify({action:'eval'})})
   .then(r=>r.json()).then(d=>{
     if(out){out.textContent=d.output||'(no output)';}
@@ -2762,10 +2768,10 @@ function runEval(btn){
         g.innerHTML='<div class="bar bnr-note" style="margin:12px 0 8px">'
           +'<b>The check has run. Now approve it, one transcript at a time.</b> '
           +'Nothing has been sent.</div>'
-          +'<button onclick="location.href=\'/evalreview\'">Go to Eval Review</button>';
+          +'<button onclick="location.href=FKB_BASE+\'/evalreview\'">Go to Eval Review</button>';
         host.appendChild(g);
       }
-      location.href='/evalreview';
+      location.href=FKB_BASE+'/evalreview';
     }
   })
   .catch(e=>{ if(out){out.textContent='The check failed to run: '+e
@@ -3028,7 +3034,7 @@ function evReset(btn){
    ()=>post('/git',{action:'reset-pending'}).then(r=>{
      const o=document.getElementById('gitout');
      if(o){o.style.display='block'; o.textContent=r.output||'(no output)';}
-     setTimeout(()=>{location.href='/save'},900);
+     setTimeout(()=>{location.href=FKB_BASE+'/save'},900);
    }));
 }
 
@@ -3115,7 +3121,7 @@ if(r.refresh){
    if(d&&wasOpen)d.open=true;
  }
  // The nav badge counts the same thing as the status line, so it has to move with it.
- const badge=document.querySelector('nav.side a[href="/save"] .ct');
+ const badge=document.querySelector('nav.side a[href="'+FKB_BASE+'/save"] .ct');
  if(badge){const n=r.refresh.unsent;
    if(n){badge.textContent=n;badge.style.display=''}else{badge.style.display='none'}}
 }
@@ -3340,12 +3346,12 @@ if(es&&em){
    const anyFilter=(f.q||f.dfrom||f.dto||FKEYS.some(k=>f[k]));
    const total=document.querySelectorAll('tr.row').length;
    const seeAll=SHOW_ALL_LINK
-     ? ' &nbsp;<a href="/?all=1">or see All Transcripts</a>' : '';
+     ? ' &nbsp;<a href="'+FKB_BASE+'/?all=1">or see All Transcripts</a>' : '';
    if(mineOnly&&total===0){
      em.textContent='Nothing is assigned \u2014 no transcript is waiting by name '
        +'and none of the owned agents has an open conversation.';
      ea.innerHTML=SHOW_ALL_LINK
-       ? '<a href="/?all=1">Click on All Transcripts to see all transcripts.</a>'
+       ? '<a href="'+FKB_BASE+'/?all=1">Click on All Transcripts to see all transcripts.</a>'
        : '<button class=sec onclick="syncNow()">Sync transcripts</button>';
    } else if(mineOnly&&onlyDefaultStatus){
      em.innerHTML='Nothing assigned is <b>'+dflt.replace(/__/g,'')+'</b>. '
@@ -3441,9 +3447,9 @@ async function autoTick(reason){
    autoBusy=true;
    try{ await syncNow(true) } finally { autoBusy=false }
  } else if(kind==='prs'){
-   location.href='/prs?refresh=1';
+   location.href=FKB_BASE+'/prs?refresh=1';
  } else if(kind==='analytics'){
-   location.href='/analytics?refresh=1';
+   location.href=FKB_BASE+'/analytics?refresh=1';
  }
 }
 
@@ -3466,7 +3472,7 @@ function syncNow(auto){const b=document.getElementById('syncbtn'),m=document.get
  if(!b||b.disabled)return Promise.resolve(); b.disabled=true; b.textContent='Syncing\u2026';
  m.textContent = auto ? 'data was over 30 minutes old \u2014 refreshing'
                       : 'pulling from Foundry, this can take a minute';
- return fetch('/sync',{method:'POST'}).then(r=>r.json()).then(d=>{
+ return fetch(FKB_BASE+'/sync',{method:'POST'}).then(r=>r.json()).then(d=>{
   if(d.ok){
    setAge(typeof d.age==='number' ? d.age : 0);
    paintFreshness();
@@ -3583,10 +3589,10 @@ if(document.getElementById('tbl')) initFilters();
  if(i<0) return;                    // arrived by direct link; leave the server's links alone
  const prev=i>0?order[i-1]:'';
  const next=i<order.length-1?order[i+1]:'';
- const back=snap.view==='all'?'/?all=1':'/';
- const url=r=>r?('/t/'+r):back;
+ const back=FKB_BASE+(snap.view==='all'?'/?all=1':'/');
+ const url=r=>r?(FKB_BASE+'/t/'+r):back;
  // Previous is a link; Next and the two verdict buttons carry the target as an argument.
- const pa=document.querySelector('.nav a[href^="/t/"], .nav a[href="/"]');
+ const pa=document.querySelector('.nav a[href^="'+FKB_BASE+'/t/"], .nav a[href="'+FKB_BASE+'/"]');
  if(pa){ if(prev){pa.setAttribute('href',url(prev))} else {pa.remove()} }
  document.querySelectorAll('[onclick]').forEach(el=>{
    const on=el.getAttribute('onclick')||'';
@@ -3615,7 +3621,7 @@ function bkPost(btn, payload, label){
  const out=document.getElementById('bkout');
  const was=btn.textContent; btn.disabled=true; btn.textContent=label+'…';
  if(out){out.style.display='block'; out.textContent=label+'…';}
- fetch('/bk',{method:'POST',headers:{'Content-Type':'application/json'},
+ fetch(FKB_BASE+'/bk',{method:'POST',headers:{'Content-Type':'application/json'},
               body:JSON.stringify(payload)})
   .then(r=>r.json()).then(d=>{
     if(out){out.style.display='block'; out.textContent=d.output||'(no output)';}
@@ -3651,6 +3657,9 @@ function bkFields(btn, slug, date){
    ()=>bkPost(btn,{action:'fields',slug:slug,date:date,fields:picked},'Rolling back'));
 }
 """
+# Prepended rather than folded into the literal above: check_ui_js.py's raw-string guard
+# greps for `^JS = r"""` verbatim, and a computed prefix on that line would defeat it.
+JS = "const FKB_BASE=" + json.dumps(BASE) + ";\n" + JS
 
 
 # Display theme, built the way ops-tools/forge-shell.js builds it, because that was checked
@@ -3797,7 +3806,7 @@ def page(title, inner, active="", all_view=False, rel="", agent=""):
     def item(href, icon, label, count=None, key=""):
         on = " class=on" if key and key == active else ""
         badge = f"<span class=ct>{count}</span>" if count else ""
-        return (f"<a href=\"{href}\"{on}><span class=ic>{icon}</span>"
+        return (f"<a href=\"{BASE}{href}\"{on}><span class=ic>{icon}</span>"
                 f"<span>{label}</span>{badge}</a>")
 
     who = (f"<span class=who>{avatar(ME, 24)}<span>{html.escape(ME)}</span></span>" if ME
@@ -3858,8 +3867,8 @@ def page(title, inner, active="", all_view=False, rel="", agent=""):
   document.documentElement.dataset.modePref="auto";}}}})();
 </script>
 <link rel=stylesheet href="https://cdn.forge.tylertech.com/v1/css/tyler-font.css">
-<link rel=icon type="image/svg+xml" href="/logo.svg">
-<style>{CSS}{icon_vars()}</style><header><img class=brand src="/logo.svg" alt="Tyler Technologies" width=28 height=28><b>OneTyler Foundry Team Agent Transcript Review</b><div class=hdrright>{MODE_SWITCH}{who}</div></header>
+<link rel=icon type="image/svg+xml" href="{BASE}/logo.svg">
+<style>{CSS}{icon_vars()}</style><header><img class=brand src="{BASE}/logo.svg" alt="Tyler Technologies" width=28 height=28><b>OneTyler Foundry Team Agent Transcript Review</b><div class=hdrright>{MODE_SWITCH}{who}</div></header>
 <body data-default-mine="{'1' if (ME and not all_view) else '0'}" data-default-status="{'pending' if (ME and not all_view) else '__open__'}" data-show-all="{'1' if (is_admin() or not ME) else '0'}" data-rel="{html.escape(rel)}" data-agent="{html.escape(agent)}">
 <div class=shell>{side}<main class=wrap>{inner}</main></div>
 <div class=toast id=toast></div><script>{JS}</script>"""
@@ -3985,7 +3994,7 @@ def list_page(show_all=False):
             f" title=\"{html.escape(r.get('own_basis',''))}\""
             f" data-mine=\"{'awaiting' if r['mine_awaiting'] else ('area' if r['mine_area'] else '')}\""
             f" data-openpr=\"{r['openpr']['number'] if r['openpr'] else ''}\""
-            f" data-href=\"/t/{html.escape(r['rel'])}\">"
+            f" data-href=\"{BASE}/t/{html.escape(r['rel'])}\">"
             # PENDING ROWS ONLY, for every bulk action - marking, export and import alike.
             # A transcript that is already reviewed, pushed or excluded carries a decision, and
             # none of these three actions is a safe thing to do to a decision: marking re-stamps
@@ -4000,7 +4009,7 @@ def list_page(show_all=False):
             "></td>"
             f"<td class=fbcell>{fb_glyph(r['fb'])}</td>"
             f"<td class=qcell title=\"{html.escape(r['qfull'])}\">"
-            f"<a href='/t/{html.escape(r['rel'])}'>{html.escape(r['q'])}</a></td>"
+            f"<a href='{BASE}/t/{html.escape(r['rel'])}'>{html.escape(r['q'])}</a></td>"
             f"<td>{html.escape(r['agent'])}"
             f"{'<div class=deleg>&rarr; '+html.escape(r['deleg'])+'</div>' if r['deleg'] else ''}</td>"
             f"<td class=nowrap>{html.escape(r['date'])}</td>"
@@ -4544,8 +4553,8 @@ def detail_page(rel):
     order = sorted((f.relative_to(TDIR).as_posix() for f in tfiles()),
                    key=lambda r: (r.split("/")[-1][:10], r), reverse=True)
     i = order.index(rel) if rel in order else 0
-    prev_ = f"/t/{order[i-1]}" if i > 0 else ""
-    next_ = f"/t/{order[i+1]}" if i < len(order) - 1 else "/"
+    prev_ = f"{BASE}/t/{order[i-1]}" if i > 0 else ""
+    next_ = f"{BASE}/t/{order[i+1]}" if i < len(order) - 1 else f"{BASE}/"
 
     head = (f"<div class=bar><b>{html.escape(fm.get('answered_by',''))}</b> · "
             f"{html.escape(fm.get('date',''))} · {html.escape(fm.get('exchanges','0'))} exchange(s)"
@@ -6648,7 +6657,7 @@ def pr_diff_page(number, force=False, repo="", full=False):
         return page("Change Requests",
                     "<div class=lg><h2 class=sec>Change Requests</h2>"
                     f"<div class='bar bnr-done'>{html.escape(meta_raw.strip()[:300])}</div>"
-                    "<p><a href='/prs'>Back to change requests</a></p></div>", active="prs")
+                    f"<p><a href='{BASE}/prs'>Back to change requests</a></p></div>", active="prs")
     parts = (meta_raw.strip().split("\t") + [""] * 11)[:11]
     (title, who, base, head, state, adds, dels, nfiles, url,
      merged_at, merged_by) = parts
@@ -6669,10 +6678,10 @@ def pr_diff_page(number, force=False, repo="", full=False):
         f"{html.escape(title[:110])}</h2>"
         # Both flags carried through, or Refresh silently switches repo (fetching the KB request
         # with the same number) and drops back to the capped view.
-        f"<a href='/prs?{qs}{'&full=1' if full else ''}&refresh=1' "
+        f"<a href='{BASE}/prs?{qs}{'&full=1' if full else ''}&refresh=1' "
         "style='margin-left:auto;text-decoration:none'>"
         f"<button class=sec>{icon('refresh', 15)} Refresh</button></a></div>",
-        f"<p class=sub><a href='/prs'>Change requests</a> / <b>#{html.escape(str(number))}</b> "
+        f"<p class=sub><a href='{BASE}/prs'>Change requests</a> / <b>#{html.escape(str(number))}</b> "
         + ("<span class='pill suggested'>Blueprint</span> " if repo == "bp" else "")
         + f"&middot; {html.escape(who)} &middot; <code>{html.escape(head)}</code> &rarr; "
         f"<code>{html.escape(base)}</code> &middot; {stateline} &middot; "
@@ -6685,7 +6694,7 @@ def pr_diff_page(number, force=False, repo="", full=False):
         body.append(f"<div class='bar bnr-done'>{html.escape(err)}</div>")
         return page("Change Requests", "<div class=lg>" + "".join(body) + "</div>", active="prs")
 
-    full_url = f"/prs?{qs}&full=1"
+    full_url = f"{BASE}/prs?{qs}&full=1"
     fcap = len(files) if full else PR_DIFF_MAX_FILES
     shown_files = files[:fcap]
 
@@ -6709,7 +6718,7 @@ def pr_diff_page(number, force=False, repo="", full=False):
                     "rel=noopener>on GitHub &rarr;</a></p>")
     elif full:
         body.append(f"<p class=sub>Complete diff &mdash; {len(files)} file(s), nothing "
-                    f"truncated. <a href='/prs?{qs}'>Back to the short view</a></p>")
+                    f"truncated. <a href='{BASE}/prs?{qs}'>Back to the short view</a></p>")
 
     for f in shown_files:
         name = f.get("filename", "?")
@@ -6797,7 +6806,7 @@ def history_html(force=False):
             f"<td>{html.escape(by)}</td>"
             f"<td style='text-align:right'><span class=dplus>+{pr.get('additions', 0)}</span> "
             f"<span class=dminus>&minus;{pr.get('deletions', 0)}</span></td>"
-            f"<td style='text-align:right'><a href='/prs?diff={pr.get('number')}{qrep}'>"
+            f"<td style='text-align:right'><a href='{BASE}/prs?diff={pr.get('number')}{qrep}'>"
             f"Diff ({pr.get('changedFiles', 0)})</a></td></tr>")
     out.append("</table></div></details>")
     return "".join(out)
@@ -6833,7 +6842,7 @@ def pr_page(force=False):
     body = ["<div style='display:flex;align-items:center;gap:12px;flex-wrap:wrap;"
             "margin-bottom:22px'>"
             "<h2 class=sec style='margin:0'>Change Requests</h2>"
-            "<a href='/prs?refresh=1' style='margin-left:auto;text-decoration:none' "
+            f"<a href='{BASE}/prs?refresh=1' style='margin-left:auto;text-decoration:none' "
             "title='Runs by itself when this is more than 30 minutes old'>"
             "<button class=sec>" + icon("refresh", 15) + " Refresh PRs</button></a>"
             f"<span class=fresh id=freshness data-age='{prs_age}' data-kind=prs></span></div>"
@@ -6877,7 +6886,7 @@ def pr_page(force=False):
             "<b>Merge when checks pass</b> queues GitHub's auto-merge rather than waiting "
             "here.</div>"
             f"<div class=stepacts>"
-            f"<a href=\"/prs?diff={pr['number']}&repo=bp\">"
+            f"<a href=\"{BASE}/prs?diff={pr['number']}&repo=bp\">"
             f"<button class=sec>Files changed ({n_files})</button></a>"
             f"<button onclick=\"bpMerge(this,{pr['number']},"
             f"'{html.escape(pr['title'][:60])}')\">Merge when checks pass</button>"
@@ -7016,7 +7025,7 @@ def pr_page(force=False):
             f"<div class=stepacts>{''.join(acts)}"
             # Files changed sits BEFORE "Open on GitHub" on purpose: reading the diff is what
             # you do before merging, and it should not require leaving the app to do it.
-            f"<a href=\"/prs?diff={pr['number']}\">"
+            f"<a href=\"{BASE}/prs?diff={pr['number']}\">"
             f"<button class=sec>Files changed ({pr['changedFiles']})</button></a>"
             f"<a href=\"{html.escape(pr['url'])}\" target=_blank rel=noopener>"
             "<button class=sec>Open on GitHub</button></a></div>"
@@ -7483,7 +7492,7 @@ def bk_head():
     return ("<div style='display:flex;align-items:center;gap:12px;flex-wrap:wrap;"
             "margin-bottom:6px'>"
             "<h2 class=sec style='margin:0'>Backups</h2>"
-            "<a href='/backups?refresh=1' style='margin-left:auto;text-decoration:none'>"
+            f"<a href='{BASE}/backups?refresh=1' style='margin-left:auto;text-decoration:none'>"
             "<button class=sec>" + icon("refresh", 15) + " Refresh</button></a></div>")
 
 
@@ -7499,12 +7508,12 @@ def bk_compare_view(spec):
     if col not in BK_COLLECTION_FOLDER or not name:
         return page("Backups", "<div class=lg>" + bk_head()
                     + "<div class='bar bnr-done'>Not a file in a known collection.</div>"
-                    "<p><a href='/backups'>Back to backups</a></p></div>", active="backups")
+                    f"<p><a href='{BASE}/backups'>Back to backups</a></p></div>", active="backups")
     info, err = bk_compare_file(col, name)
     if err:
         return page("Backups", "<div class=lg>" + bk_head()
                     + "<div class='bar bnr-done'>" + html.escape(err) + "</div>"
-                    "<p><a href='/backups'>Back to backups</a></p></div>", active="backups")
+                    f"<p><a href='{BASE}/backups'>Back to backups</a></p></div>", active="backups")
 
     same = info["same"]
     if same:
@@ -7528,7 +7537,7 @@ def bk_compare_view(spec):
                     "<td><code>" + info["local_sha"][:32] + "</code></td></tr>")
 
     body = [bk_head(),
-            "<p class=sub><a href='/backups'>Backups</a> / compare / <b>"
+            f"<p class=sub><a href='{BASE}/backups'>Backups</a> / compare / <b>"
             + html.escape(col) + "/" + html.escape(name) + "</b></p>",
             banner,
             "<div class=tblcard><table>" + "".join(rows) + "</table></div>"]
@@ -7590,12 +7599,12 @@ def bk_agent_view(slug, date):
     if slug not in BK_AGENT_ID:
         return page("Backups", "<div class=lg>" + bk_head()
                     + "<div class='bar bnr-done'>Unknown agent.</div>"
-                    "<p><a href='/backups'>Back to backups</a></p></div>", active="backups")
+                    f"<p><a href='{BASE}/backups'>Back to backups</a></p></div>", active="backups")
 
     rows, err = bk_agent_field_diff(slug, date)
     body = [bk_head(),
-            "<p class=sub><a href='/backups'>Backups</a> / "
-            "<a href='/backups?browse=snapshots/" + html.escape(date) + "'>"
+            f"<p class=sub><a href='{BASE}/backups'>Backups</a> / "
+            f"<a href='{BASE}/backups?browse=snapshots/" + html.escape(date) + "'>"
             + html.escape(date) + "</a> / <b>" + html.escape(slug) + "</b></p>"]
     if err:
         body.append("<div class='bar bnr-done'>" + html.escape(err) + "</div>")
@@ -7687,12 +7696,12 @@ def backups_page(force=False, browse="", compare="", agent="", date=""):
         if ".." in browse or not browse.startswith(BK_ROOTS):
             return page("Backups", "<div class=lg>" + head
                         + "<div class='bar bnr-done'>That path is outside the snapshots.</div>"
-                        "<p><a href='/backups'>Back to backups</a></p></div>", active="backups")
+                        f"<p><a href='{BASE}/backups'>Back to backups</a></p></div>", active="backups")
         crumbs, acc = [], ""
         for part in browse.split("/"):
             acc = f"{acc}/{part}" if acc else part
-            crumbs.append(f"<a href='/backups?browse={html.escape(acc)}'>{html.escape(part)}</a>")
-        bar = ("<p class=sub><a href='/backups'>Backups</a> / " + " / ".join(crumbs) + "</p>")
+            crumbs.append(f"<a href='{BASE}/backups?browse={html.escape(acc)}'>{html.escape(part)}</a>")
+        bar = (f"<p class=sub><a href='{BASE}/backups'>Backups</a> / " + " / ".join(crumbs) + "</p>")
 
         if browse.endswith(".json") or browse.endswith(".md") or browse.endswith("LAST_RUN"):
             txt, ferr = _bk_file(browse)
@@ -7712,7 +7721,7 @@ def backups_page(force=False, browse="", compare="", agent="", date=""):
         body = ["<div class=tblcard><table><tr><th>Name</th><th>Type</th>"
                 "<th style='text-align:right'>Size</th></tr>"]
         for name, ty, size in sorted(rows, key=lambda r: (r[1] != "dir", r[0])):
-            link = f"/backups?browse={html.escape(browse)}/{html.escape(name)}"
+            link = f"{BASE}/backups?browse={html.escape(browse)}/{html.escape(name)}"
             glyph = icon("folder", 17) if ty == "dir" else icon("file_document_outline", 17)
             sz = "" if ty == "dir" else f"{int(size):,} B"
             body.append(f"<tr><td>{glyph} <a href=\"{link}\">{html.escape(name)}</a></td>"
@@ -7876,7 +7885,7 @@ def backups_page(force=False, browse="", compare="", agent="", date=""):
                     "<th>Foundry</th><th>Repo</th><th></th></tr>")
         for col, name, same, rb, lb in (bad + orphan):
             body.append("<tr><td>" + html.escape(col) + "</td>"
-                        "<td><a href='/backups?compare=" + html.escape(col) + "/"
+                        f"<td><a href='{BASE}/backups?compare=" + html.escape(col) + "/"
                         + html.escape(name) + "'>" + html.escape(name) + "</a></td>"
                         "<td>" + (format(rb, ",") + " B" if rb else "?") + "</td>"
                         "<td>" + (format(lb, ",") + " B" if lb else "&mdash;") + "</td>"
@@ -7904,7 +7913,7 @@ def backups_page(force=False, browse="", compare="", agent="", date=""):
                     else "<span class='pill warn'>none yet</span>")
             body.append("<tr><td><code>" + html.escape(slug) + "</code></td>"
                         "<td>" + pill + "</td>"
-                        "<td><a href='/backups?agent=" + html.escape(slug) + "&date="
+                        f"<td><a href='{BASE}/backups?agent=" + html.escape(slug) + "&date="
                         + html.escape(newest) + "'>Compare &amp; restore &rarr;</a></td></tr>")
         body.append("</table></div>"
                     "<p class=sub>Restore points are Foundry's own agent versions, which are "
@@ -7914,7 +7923,7 @@ def backups_page(force=False, browse="", compare="", agent="", date=""):
                 "<p class=sub style='margin:0 0 8px'>Every file, read-only. Newest first.</p>"
                 "<div class=tblcard><table><tr><th>Snapshot</th><th></th></tr>")
     for date in d["dates"][:20]:
-        body.append(f"<tr><td>{icon('folder', 17)} <a href='/backups?browse=snapshots/{html.escape(date)}'>"
+        body.append(f"<tr><td>{icon('folder', 17)} <a href='{BASE}/backups?browse=snapshots/{html.escape(date)}'>"
                     f"{html.escape(date)}</a></td><td class=sub>"
                     f"team &middot; 5 agents &middot; 5 collections</td></tr>")
     body.append("</table></div>")
@@ -7966,7 +7975,7 @@ def analytics_page(force=False):
     head = ("<div style='display:flex;align-items:center;gap:12px;flex-wrap:wrap;"
             "margin-bottom:6px'>"
             "<h2 class=sec style='margin:0'>OT Analytics</h2>"
-            "<a href='/analytics?refresh=1' style='margin-left:auto;text-decoration:none'>"
+            f"<a href='{BASE}/analytics?refresh=1' style='margin-left:auto;text-decoration:none'>"
             "<button class=sec>" + icon("refresh", 15) + " Refresh</button></a>"
             f"<span class=fresh id=freshness data-age='{age if age is not None else -1}' "
             "data-kind=analytics></span></div>"
@@ -8032,7 +8041,7 @@ def analytics_page(force=False):
     srows = "".join(
         f"<tr><td class=swhen>{html.escape(s['date'])}</td>"
         f"<td><code>{html.escape(s['id'][:8])}</code></td>"
-        f"<td><a href='/?all=1'>{s['messages']}</a></td></tr>"
+        f"<td><a href='{BASE}/?all=1'>{s['messages']}</a></td></tr>"
         for s in d["top_sessions"])
     body.append(
         "<div class=antables>"
@@ -8827,12 +8836,12 @@ def eval_review_page():
         # mistaken for one, because its answers describe content that no longer exists.
         if d is None:
             body = ("<div class='bar bnr-note'><b>No check has run yet.</b> Run it from "
-                    "<a href='/publish'><b>Publish</b></a>. Answers land "
+                    f"<a href='{BASE}/publish'><b>Publish</b></a>. Answers land "
                     "here to approve.</div>")
         else:
             body = ("<div class='bar bnr-router'><b>The last check is out of date</b> &mdash; a knowledge "
                     "file changed since it ran. Run it again from "
-                    "<a href='/publish'><b>Publish</b></a>.</div>")
+                    f"<a href='{BASE}/publish'><b>Publish</b></a>.</div>")
         return page("Eval Review", "<h2 class=sec>Eval Review</h2>" + body, active="evalrev")
 
     all_ok, n_ok, n_tot = eval_all_approved()
@@ -8910,7 +8919,7 @@ def eval_review_page():
         # A plain link, not a fetch-and-blob: the browser's own download handling gets the
         # filename and the save dialog right. The title carries what a whole caption line used
         # to say underneath.
-        + "<a class='btn sec' href='/evalreview.txt' download "
+        + f"<a class='btn sec' href='{BASE}/evalreview.txt' download "
           "title='Every exchange, demarcated — for passing back to an assistant'>"
           "Download as .txt</a>"
         # Lives here rather than in a banner that only existed while something was live, which
@@ -8931,8 +8940,8 @@ def eval_review_page():
         seq = [{"at": run_clock(d), "question": q, "answer": after, "scripted": True}]
         seq += (allvars.get(key) or [])
         latest, earlier = seq[-1], seq[:-1]
-        loc = f"/t/{rel.split('/', 1)[1].rsplit('/', 1)[0]}/{Path(rel).name}" \
-            if rel.startswith("transcripts/") and rel.count("/") >= 2 else "/"
+        loc = f"{BASE}/t/{rel.split('/', 1)[1].rsplit('/', 1)[0]}/{Path(rel).name}" \
+            if rel.startswith("transcripts/") and rel.count("/") >= 2 else f"{BASE}/"
         # The reviewer's own ideal response, quoted back. They wrote it hours or days ago and it is
         # the only statement of what "right" means for this exchange.
         corr = ""
@@ -9365,7 +9374,7 @@ def git_page(which="save"):
              # request that already exists, not steps in submitting one, and they live on the
              # PRs tab where the request can be seen next to its checks.
              + ("<div class=handoff>Merging and the Foundry upload are on "
-                "<a href='/prs'><b>PRs</b></a>."
+                f"<a href='{BASE}/prs'><b>PRs</b></a>."
                 if is_admin() else
                 "<div class=handoff>An admin merges it from there. Nothing further is needed.")
              + "</div>")
@@ -9391,6 +9400,22 @@ def git_page(which="save"):
 
 
 # ---------------------------------------------------------------- server
+def _strip_base(path):
+    """Remove BASE from an inbound request path so every route comparison below stays
+    written against the un-prefixed path. Returns None for anything outside BASE, which
+    the caller turns into a bare 404 - a request that missed the prefix should get no
+    reaction at all. A no-op (returns path unchanged) when BASE is "" - the default."""
+    if not BASE:
+        return path
+    if path == BASE:
+        return "/"
+    if path.startswith(BASE + "/"):
+        return path[len(BASE):]
+    if path.startswith(BASE + "?"):
+        return "/" + path[len(BASE):]
+    return None
+
+
 class H(BaseHTTPRequestHandler):
     server_version = "TranscriptReview/1.0"
 
@@ -9406,6 +9431,11 @@ class H(BaseHTTPRequestHandler):
         self.wfile.write(b)
 
     def do_GET(self):
+        if BASE:
+            stripped = _strip_base(self.path)
+            if stripped is None:
+                return self._send(404, page("404", "Not found"))
+            self.path = stripped
         if self.path == "/" or self.path.startswith("/?"):
             # Honour the same rule as the nav: a hand-typed ?all=1 from a contributor
             # lands on their own view rather than silently working. Not a security control
@@ -9455,7 +9485,7 @@ class H(BaseHTTPRequestHandler):
                 return self._send(200, page("Change Requests",
                     "<div class=lg><h2 class=sec>Change Requests</h2>"
                     "<div class='bar bnr-done'>Not a change-request number.</div>"
-                    "<p><a href='/prs'>Back</a></p></div>", active="prs"))
+                    f"<p><a href='{BASE}/prs'>Back</a></p></div>", active="prs"))
             rep = "bp" if "repo=bp" in self.path else ""
             return self._send(200, pr_diff_page(num, force="refresh=1" in self.path, repo=rep,
                                                 full="full=1" in self.path))
@@ -9493,6 +9523,11 @@ class H(BaseHTTPRequestHandler):
         self._send(404, page("404", "Not found"))
 
     def do_POST(self):
+        if BASE:
+            stripped = _strip_base(self.path)
+            if stripped is None:
+                return self._send(404, page("404", "Not found"))
+            self.path = stripped
         n = int(self.headers.get("Content-Length") or 0)
         try:
             data = json.loads(self.rfile.read(n) or b"{}")
@@ -10215,7 +10250,7 @@ def main():
         print(f"identified as: {ME}", flush=True)
     if not TDIR.is_dir() or not tfiles():
         sys.exit("No transcripts found. Run: python3 scripts/fetch_transcripts.py")
-    url = f"http://127.0.0.1:{a.port}/"
+    url = f"http://127.0.0.1:{a.port}{BASE}/"
     print(f"Transcript review UI  →  {url}")
     print(f"  {len(tfiles())} transcripts in {TDIR.relative_to(REPO)}/   (Ctrl-C to stop)")
     if not a.no_browser:
