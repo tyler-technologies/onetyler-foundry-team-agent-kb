@@ -10668,8 +10668,15 @@ def main():
         except Exception:
             pass
     try:
-        # loopback only: never expose review data on the network
-        ThreadingHTTPServer(("127.0.0.1", a.port), H).serve_forever()
+        # Loopback-only is the property that matters; the laptop default (bind 127.0.0.1
+        # directly) is how it holds there. Containerized, "loopback" has to mean the HOST's
+        # loopback, enforced by `docker run -p 127.0.0.1:PORT:PORT` - a container's own
+        # 127.0.0.1 is a different address in a different network namespace, unreachable by
+        # Docker's own port-publishing (measured 2026-09-13: healthy per Docker's in-container
+        # healthcheck, connection-reset from the host on the published port - not an app bug).
+        # FKB_BIND_HOST lets the hosting Dockerfile opt into binding the container's bridge
+        # interface instead, while the laptop/CLI default is unchanged.
+        ThreadingHTTPServer((os.environ.get("FKB_BIND_HOST", "127.0.0.1"), a.port), H).serve_forever()
     except KeyboardInterrupt:
         print("\nstopped")
     except OSError as e:
