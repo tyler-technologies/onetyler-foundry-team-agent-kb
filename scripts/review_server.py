@@ -32,6 +32,21 @@ TDIR = REPO / "transcripts"
 # whole life, there is no per-request notion of "which base path".
 BASE = os.environ.get("FKB_BASE_PATH", "").rstrip("/")
 
+# Every route that changes something on disk, in git, on GitHub, or in Foundry - the whole
+# POST surface except pure reads. Declared in ONE place and checked in do_POST before
+# dispatch, rather than per-handler, on purpose: ops-tools has a documented incident (#602)
+# where a route was removed from its admin set while the handler still gated inline, leaving
+# a visible control that could only ever 403. A single source here cannot drift that way.
+WRITE_ROUTES = frozenset({
+    "/save", "/publish", "/sync", "/csvimport", "/bulk", "/evalapprove", "/bk", "/pr", "/git",
+})
+
+# Off by default - an unset/unconfigured environment (the laptop case) is unaffected. Any
+# other value ("1", "true", etc.) turns it on. Distinct status from a role failure: this is
+# "right request, wrong host" (409), never 403 ("your role is wrong") - ops-tools' own
+# distinction, worth keeping because the two mean different things to whoever hits it.
+FKB_READ_ONLY = os.environ.get("FKB_READ_ONLY", "").strip().lower() not in ("", "0", "false")
+
 STATUS = REPO / "scripts" / "review_status.py"
 
 CONTRIB = REPO / "contributors.json"
@@ -9528,6 +9543,11 @@ class H(BaseHTTPRequestHandler):
             if stripped is None:
                 return self._send(404, page("404", "Not found"))
             self.path = stripped
+        if FKB_READ_ONLY and self.path in WRITE_ROUTES:
+            return self._send(409, json.dumps({
+                "ok": False,
+                "error": "This copy is read-only. No route in WRITE_ROUTES is reachable here.",
+            }), "application/json")
         n = int(self.headers.get("Content-Length") or 0)
         try:
             data = json.loads(self.rfile.read(n) or b"{}")
