@@ -7215,7 +7215,7 @@ def pr_page(force=False):
         # owner, so requiring a human to notice "this is/isn't my own PR" to pick between two
         # buttons that do almost the same thing was exactly the kind of state-tracking that
         # got the old two-button version wrong twice on 2026-08-28 - see git history on this
-        # block. approve_and_merge() (below) does everything mechanical: brings the branch up
+        # block. merge_pr() (below) does everything mechanical: brings the branch up
         # to date if behind, and for a REAL conflict, rebases in an isolated worktree and
         # resolves it automatically if the only file in the way is the generated
         # transcripts/INDEX.md - never anything with human judgment in it. Anything it cannot
