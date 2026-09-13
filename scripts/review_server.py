@@ -58,7 +58,12 @@ FKB_READ_ONLY = os.environ.get("FKB_READ_ONLY", "").strip().lower() not in ("", 
 # unconfigured/laptop run, so that case is unaffected by any of this.
 AUTH_ENABLED = bool(os.environ.get("FKB_OIDC_CLIENT_ID"))
 FKB_LOGIN_ENV = os.environ.get("FKB_LOGIN_ENV", "tcpprod")
-LOGIN_ORG = "tylerportico"  # fixed in code, not env-derived - same reasoning as ops-tools' LOGIN_ORG
+LOGIN_ORG = "tylertechnologiestx"  # fixed in code, not env-derived - copied EXACTLY from
+# ops-tools' own LOGIN_ORG (tcp-cli/ops-tools/server.py), not re-guessed. An earlier
+# guess ("tylerportico" - confusable with the gateway hostname, idgw.tylerportico.com,
+# which is a different string) got "Invalid login context parameters" from the real
+# gateway on first live verification - a good reminder to copy the value, not infer it
+# from an adjacent-looking string.
 TCP_IDGW_HOST = {
     "tcpprod": "idgw.tylerportico.com",
     "tcpqa": "idgw.tcpqa.com",
