@@ -2819,18 +2819,24 @@ async function prDo(btn,action,number,extra){
    if(r.ok) setTimeout(()=>location.reload(),1500);
  } finally { btn.disabled=false; btn.textContent=label; }
 }
-// Merge is outward-facing and awkward to walk back, so it goes through the same gate as the
-// destructive actions - and the gate names the checks state, because "merge anyway" on a
-// failing build is exactly the mistake worth interrupting.
-function prMerge(btn,number,title,checks){
+// Approve & Merge is outward-facing and awkward to walk back, so it goes through the same
+// gate as the destructive actions - and the gate names the checks state, because shipping a
+// failing build is exactly the mistake worth interrupting. ONE button now regardless of
+// whose request it is or what mergeStateStatus says - see the server-side comment above
+// where this button is rendered for why two buttons tracking that was a recurring bug.
+function prApproveMerge(btn,number,title,checks){
  const warn = checks==='failing' ? '<b>Checks are failing on this one.</b><br>'
             : checks==='running' ? 'Checks are still running.<br>' : '';
- confirmThen(btn,'Merge #'+number+'?',
-   warn+'<code>'+title+'</code><br><br>Rebases onto main and deletes the branch; if the '
-   +'branch is behind main it is brought up to date first.<br><br><b>Any knowledge files in '
-   +'this request are then uploaded to Foundry and verified.</b> This is the whole make-it-live '
-   +'action, so the agents change as soon as it finishes.',
-   ()=>prDo(btn,'merge',number));
+ confirmThen(btn,'Approve and merge #'+number+'?',
+   warn+'<code>'+title+'</code><br><br>Ships it now as the admin — skips the required '
+   +'approval (GitHub refuses self-approval anyway, and this repo has one code owner). '
+   +'Brings the branch up to date with main first if it is behind, and if it has a real '
+   +'conflict, rebases in an isolated worktree and resolves it automatically when '
+   +'<code>transcripts/INDEX.md</code> is the only file in the way — anything else is '
+   +'reported after the click, not guessed at.<br><br><b>Any knowledge files in this request '
+   +'are then uploaded to Foundry and verified.</b> This is the whole make-it-live action, so '
+   +'the agents change as soon as it finishes.',
+   ()=>prDo(btn,'approve-merge',number));
 }
 // Blueprint merges via GitHub's auto-merge, not by waiting here: its CI takes minutes and a
 // plain merge would be refused for being behind the checks.
@@ -2841,17 +2847,6 @@ function bpMerge(btn,number,title){
    +'request as well</b> \u2014 most indexed knowledge is derived from Blueprint, so shipping '
    +'one without the other leaves a fix the next reconciliation undoes.',
    ()=>prDo(btn,'bp-merge',number));
-}
-function prOverride(btn,number,title,checks){
- const warn = checks==='failing' ? '<b>Checks are failing on this one.</b><br>'
-            : checks==='running' ? 'Checks are still running.<br>' : '';
- confirmThen(btn,'Merge #'+number+' bypassing review?',
-   warn+'<code>'+title+'</code><br><br>This skips the required approval \u2014 the one action '
-   +'here that removes a safety gate rather than passing through it, and reasonable only on '
-   +'own work.<br><br>Rebases onto main and deletes the branch, brings it up to date '
-   +'first if needed, then <b>uploads any knowledge files to Foundry and verifies them</b>. '
-   +'The agents change as soon as it finishes.',
-   ()=>prDo(btn,'merge-override',number));
 }
 // Sending in is where the batch leaves this machine, and the assistant step sits BEFORE it in
 // Part 2 for a reason: the knowledge edits and the verdicts belong in the same change request.
@@ -6101,29 +6096,118 @@ def _is_behind(out):
 
     Worth its own test because the phrase "not mergeable" also appears on genuine conflicts,
     and the two need opposite handling - this one is fixed by updating the branch, that one
-    needs a human in an editor. `_needs_override` used to lump them together and return False
-    for both, so a behind-main refusal produced the raw gh error with no guidance attached.
-    Observed 2026-08-28 on #31.
+    by try_autorebase_dirty() below. Observed 2026-08-28 on #31.
     """
     low = (out or "").lower()
     return "not up to date with the base branch" in low or "head branch is not up to date" in low
 
 
-def _needs_override(out):
-    """Did GitHub refuse purely for a missing approval, as opposed to a real problem?
-
-    Matters because the two need different answers: a missing approval is something an admin
-    may legitimately override on their own work, while failing checks or a conflict are not.
-
-    Note the behind-main case is deliberately NOT here - it is handled before this is called,
-    by updating the branch. Leaving it to fall through to "conflict" wording was the bug.
-    """
+def _is_dirty_conflict(out):
+    """Did GitHub refuse because of a REAL, unresolved merge conflict - as opposed to being
+    behind main (handled separately, by updating the branch) or missing an approval (handled
+    separately, by the admin override)? Check those two first; this catches what's left."""
     low = (out or "").lower()
     if _is_behind(out):
         return False
-    if any(k in low for k in ("conflict", "not mergeable", "check", "failing")):
-        return False
-    return any(k in low for k in ("review", "approv", "protected", "required"))
+    return any(k in low for k in ("conflict", "cannot be cleanly created", "not mergeable"))
+
+
+# The one file in this repo a rebase conflict can be resolved on WITHOUT a human: it is
+# entirely DERIVED from the other files already part of the rebase (scripts/review_status.py
+# rebuilds it from the transcripts' own frontmatter), so regenerating it after a rebase IS the
+# correct resolution, not a guess. Every other file conflict means two people's judgment calls
+# collided, or a review verdict conflicts with content that changed - a human has to look.
+AUTO_RESOLVABLE_CONFLICT_FILES = {"transcripts/INDEX.md"}
+
+
+def _git_in(cwd, *args, timeout=60):
+    """Same as git(), but against a caller-supplied working directory rather than REPO.
+
+    Exists only for the isolated-worktree rebase repair below. Every other git() call in this
+    file runs against REPO on purpose - that shared checkout is what a human reviewer's own
+    session also uses, and a real `git rebase` checks out a different ref, which would disturb
+    whatever that human currently has in progress. The worktree this is used against is a
+    second, throwaway checkout that shares the same object database but nothing else.
+    """
+    r = subprocess.run(["git", *args], cwd=str(cwd), capture_output=True, text=True,
+                       timeout=timeout)
+    return r.returncode, (r.stdout + r.stderr).strip()
+
+
+def try_autorebase_dirty(head_ref):
+    """Attempt to mechanically clear a real (DIRTY) merge conflict by rebasing the change
+    request's branch onto main, in an ISOLATED worktree.
+
+    Returns (ok, message). ok=True means the remote branch was force-pushed and the caller
+    should retry the merge; ok=False means nothing changed and `message` explains why, for a
+    human to read - never a silent partial rebase left dangling on the remote branch.
+
+    Isolated worktree, not REPO: see _git_in's docstring. `git worktree` shares the object
+    database with REPO but gives this its own working directory and its own HEAD, so a human's
+    in-progress save in the main checkout is never touched by this.
+    """
+    wt_root = REPO.parent / ".fkb-merge-worktrees"
+    wt_root.mkdir(exist_ok=True)
+    wt = wt_root / re.sub(r"[^A-Za-z0-9._-]", "_", head_ref)
+
+    # A worktree left over from an earlier, aborted attempt makes `git worktree add` refuse
+    # outright - clear it first rather than fail on that unrelated-looking error.
+    git("worktree", "remove", "--force", str(wt))
+    shutil.rmtree(wt, ignore_errors=True)
+
+    # Two SEPARATE fetches, not one `git fetch origin main head_ref` - fetching multiple refs
+    # in one call leaves FETCH_HEAD ambiguous about which one it means, and a worktree built
+    # from the wrong one silently rebases nothing (0 commits to replay looks exactly like
+    # success) and then force-pushes main's own content over the PR branch. Measured while
+    # writing check_pr_autorebase.py, 2026-09-13 - caught by the test, not by inspection.
+    rc, out = git("fetch", "origin", "main")
+    if rc != 0:
+        return False, f"Could not fetch main for the rebase attempt:\n\n{out}"
+    rc, out = git("fetch", "origin", head_ref)
+    if rc != 0:
+        return False, f"Could not fetch {head_ref} for the rebase attempt:\n\n{out}"
+
+    rc, out = git("worktree", "add", "--detach", str(wt), "FETCH_HEAD")
+    if rc != 0:
+        return False, f"Could not create a worktree for the rebase attempt:\n\n{out}"
+
+    try:
+        rc, out = _git_in(wt, "rebase", "origin/main")
+        steps = 0
+        while rc != 0 and steps < 20:          # bounded - one PR does not have 20 commits
+            steps += 1
+            _, unmerged = _git_in(wt, "diff", "--name-only", "--diff-filter=U")
+            files = {f for f in unmerged.splitlines() if f.strip()}
+            if not files or not files <= AUTO_RESOLVABLE_CONFLICT_FILES:
+                _git_in(wt, "rebase", "--abort")
+                offenders = ", ".join(sorted(files)) or "(rebase refused for a different reason)"
+                return False, ("Real conflict outside transcripts/INDEX.md - needs a human in "
+                               f"the branch:\n\n{offenders}\n\n{out}")
+            regen = subprocess.run([sys.executable, "scripts/review_status.py"], cwd=str(wt),
+                                   capture_output=True, text=True, timeout=60)
+            if regen.returncode != 0:
+                _git_in(wt, "rebase", "--abort")
+                return False, ("transcripts/INDEX.md conflicted, but regenerating it failed:\n\n"
+                               + (regen.stdout + regen.stderr).strip())
+            _git_in(wt, "add", "transcripts/INDEX.md")
+            rc, out = _git_in(wt, "rebase", "--continue")
+        if rc != 0:
+            _git_in(wt, "rebase", "--abort")
+            return False, f"Rebase did not finish cleanly after {steps} step(s):\n\n{out}"
+
+        rc, out = _git_in(wt, "push", "--force-with-lease", "origin", f"HEAD:{head_ref}")
+        if rc != 0:
+            return False, f"Rebase succeeded locally, but the push failed:\n\n{out}"
+        return True, "Rebased onto main" + (
+            " and regenerated transcripts/INDEX.md" if steps else "") + "."
+    finally:
+        git("worktree", "remove", "--force", str(wt))
+        shutil.rmtree(wt, ignore_errors=True)
+
+
+def _pr_head_ref(num):
+    rc, out = gh("pr", "view", num, "--json", "headRefName", "-q", ".headRefName")
+    return out.strip() if rc == 0 else ""
 
 
 def behind_main():
@@ -6363,37 +6447,52 @@ def publish_after_merge(files):
     return True, tail
 
 
-def merge_pr(num, override):
-    """Merge a change request, bringing the branch up to date first if that is what is needed.
+def merge_pr(num, head_ref):
+    """Merge a change request, resolving whatever GitHub refuses it for that has a mechanical
+    fix, then retrying - once per fix, not a loop. Always uses the admin override: this button
+    is the admin's decision to ship it, not a technical GitHub operation, and GitHub refuses
+    self-approval regardless, so the override is what makes the repo workable with one code
+    owner (operator, 2026-09-13 - collapsed the former separate "Merge"/"Merge anyway" buttons
+    into this one for exactly that reason).
 
-    Why the retry rather than a separate "Update branch" button. The reviewer asked for the
-    merge action to handle this itself, and the state machine cannot reliably decide up front:
-    `mergeStateStatus` holds ONE value, so when a request both needs an approval and is behind
-    main, GitHub reports only one of them. #31 on 2026-08-28 was BLOCKED, then #30 merged, then
-    it was BEHIND - and the card had been rendered from data where the field was empty
-    altogether, which is how a plain Merge button appeared on a request that needed an
-    override. Attempting the merge and reacting to the actual refusal is the only version of
-    this that cannot be wrong about the state, because it asks GitHub instead of guessing.
+    Why retry-and-react rather than deciding up front from mergeStateStatus. That field holds
+    ONE value, so when a request both needs an approval and is behind main, GitHub reports
+    only one of them. #31 on 2026-08-28 was BLOCKED, then #30 merged, then it was BEHIND - and
+    the card had been rendered from data where the field was empty altogether. Attempting the
+    merge and reacting to the actual refusal is the only version of this that cannot be wrong
+    about the state, because it asks GitHub instead of guessing.
 
-    One retry, not a loop: if it is still refused after being brought up to date, the reason is
-    something else and repeating will not help.
+    Two independent fixes, each retried once: BEHIND is resolved with `gh pr update-branch`;
+    a DIRTY real conflict is resolved with try_autorebase_dirty() IF the only file in the way
+    is the generated transcripts/INDEX.md - see that function for why that specific file is
+    the one safe thing to fix without a human. Anything else it cannot fix mechanically comes
+    back as a clear refusal, not a silent retry loop.
     """
-    args = ["pr", "merge", num, "--rebase", "--delete-branch"]
-    if override:
-        args.insert(3, "--admin")
+    args = ["pr", "merge", num, "--rebase", "--delete-branch", "--admin"]
     rc, out = gh(*args)
-    if rc == 0 or not _is_behind(out):
+    if rc == 0:
         return rc, out, False
 
-    rcu, outu = gh("pr", "update-branch", num, "--rebase")
-    if rcu != 0:
-        return rcu, ("The branch is behind main, and bringing it up to date failed, so nothing "
-                     "was merged:\n\n" + outu), True
-    # GitHub recomputes mergeability asynchronously after a rebase; without this the retry
-    # races the recompute and reports the same "not up to date" it just fixed.
-    time.sleep(4)
-    rc, out = gh(*args)
-    return rc, ("Brought the branch up to date with main first (rebased).\n\n" + out), True
+    if _is_behind(out):
+        rcu, outu = gh("pr", "update-branch", num, "--rebase")
+        if rcu != 0:
+            return rcu, ("The branch is behind main, and bringing it up to date failed, so "
+                         "nothing was merged:\n\n" + outu), True
+        # GitHub recomputes mergeability asynchronously after a rebase; without this the retry
+        # races the recompute and reports the same "not up to date" it just fixed.
+        time.sleep(4)
+        rc, out = gh(*args)
+        return rc, ("Brought the branch up to date with main first (rebased).\n\n" + out), True
+
+    if _is_dirty_conflict(out) and head_ref:
+        ok, msg = try_autorebase_dirty(head_ref)
+        if not ok:
+            return 1, ("Could not merge - real conflict:\n\n" + out + "\n\n" + msg), False
+        time.sleep(4)
+        rc, out = gh(*args)
+        return rc, (msg + "\n\n" + out), True
+
+    return rc, out, False
 
 
 PR_FIELDS = ("number,title,author,isDraft,headRefName,reviewDecision,mergeable,"
@@ -7106,72 +7205,51 @@ def pr_page(force=False):
                         "title='Sanction it and leave the merge to the author — use this on a "
                         "contributor&#39;s request'>Approve, they merge</button>")
 
-        # EXACTLY ONE merge button, and WHOSE REQUEST IT IS decides which one - not
-        # mergeStateStatus. That was the original ask ("show either Merge or Merge anyway
-        # depending on if it is my PR"), and keying off the state got it wrong twice on
-        # 2026-08-28:
+        # EXACTLY ONE button for "ship this", regardless of whose request it is or what
+        # mergeStateStatus says (operator, 2026-09-13: "Merge"/"Merge anyway" is a LOGICAL
+        # operation in this app - the admin's decision to ship it - not meant to reflect a
+        # technical GitHub operation. Rename to make that explicit, and automate the mechanics
+        # underneath so the decision is the only thing left for a human).
         #
-        #   * The field holds ONE value. #31 needed an approval AND was behind main; GitHub
-        #     reported only BEHIND, so the "needs approval" fact vanished and with it the
-        #     override button.
-        #   * When the field came back EMPTY, state fell to UNKNOWN and dropped through to the
-        #     else-branch, putting a plain "Merge" on a request that could only ever merge with
-        #     the override. It failed, and the label had silently changed under the reviewer.
-        #     GitHub computes mergeability ASYNCHRONOUSLY and reports the field empty until it
-        #     finishes - and it restarts that work on every push to the base. So the blank
-        #     window opens the moment another request merges, which is exactly when someone is
-        #     looking at the next one. Any button chosen from this field is racing a recompute.
-        #
-        # Author identity does not fluctuate, so the label no longer moves around. Being behind
-        # main is handled inside the merge action now, so it needs no button of its own.
-        if state == "DIRTY":
-            pass                       # conflicts need a human in a editor, not a button here
-        elif mine:
-            acts.append(f"<button onclick=\"prOverride(this,{pr['number']},"
-                        f"'{html.escape(pr['title'][:60])}','{cls}')\" "
-                        "title='Merge using the admin override, which skips the required "
-                        "approval an author cannot give themselves'>Merge anyway</button>")
-        else:
-            acts.append(f"<button onclick=\"prMerge(this,{pr['number']},"
-                        f"'{html.escape(pr['title'][:60])}','{cls}')\">Merge</button>")
+        # Always uses the admin override now (enforce_admins is false; this repo has one code
+        # owner, so requiring a human to notice "this is/isn't my own PR" to pick between two
+        # buttons that do almost the same thing was exactly the kind of state-tracking that
+        # got the old two-button version wrong twice on 2026-08-28 - see git history on this
+        # block. approve_and_merge() (below) does everything mechanical: brings the branch up
+        # to date if behind, and for a REAL conflict, rebases in an isolated worktree and
+        # resolves it automatically if the only file in the way is the generated
+        # transcripts/INDEX.md - never anything with human judgment in it. Anything it cannot
+        # fix mechanically is reported after the click, not guessed at or hidden behind no
+        # button at all.
+        acts.append(f"<button onclick=\"prApproveMerge(this,{pr['number']},"
+                    f"'{html.escape(pr['title'][:60])}','{cls}')\" "
+                    "title='Ship it now as the admin — rebases onto main and resolves an "
+                    "INDEX.md-only conflict automatically; anything else is reported, not "
+                    "guessed at'>Approve &amp; Merge</button>")
 
-        # Why Approve is missing on your own change request. GitHub refuses it outright, so a
-        # button here would only ever produce an error - saying so is more use than hiding it
-        # silently. Admins can merge without an approval anyway, which is what makes the repo
-        # workable with one code owner.
-        #
-        # ⚠ state == "DIRTY" MUST BE CHECKED BEFORE `mine`, matching the button logic above -
-        # they were two independent if/elif chains that agreed on every state except this one.
-        # `mine` was checked first here, so an own request with real conflicts got the "Merge
-        # anyway unblocks your own work" explanation while the button logic (correctly) showed
-        # no button at all - text pointing at a control that was never rendered. Measured
-        # 2026-09-13 on a real PR (#106): own request, DIRTY, exactly this mismatch.
-        if state == "DIRTY":
-            selfnote = ("<div class=hint style='margin-top:8px'>Real conflicts with main. They "
-                        "have to be resolved in the branch &mdash; there is no button for "
-                        "that.</div>")
-        elif mine:
-            behind = (" Main has also moved since this branch was cut; the merge brings it up "
-                      "to date first, so there is nothing to do by hand."
-                      if state == "BEHIND" else "")
-            selfnote = ("<div class=hint style='margin-top:8px'>This is the current user's change "
-                        "request, so a plain merge is refused: an approval is required and "
-                        "GitHub does not let anyone approve their own. <b>Merge anyway</b> "
-                        "uses the admin override, which skips that gate &mdash; reasonable on "
-                        "own work, and the only way through on a repo with one code "
-                        f"owner.{behind}</div>")
+        if mine:
+            selfnote = ("<div class=hint style='margin-top:8px'>This is the current user's "
+                        "change request. GitHub does not let anyone approve their own work, so "
+                        "<b>Approve &amp; Merge</b> ships it with the admin override &mdash; "
+                        "reasonable on own work, and the only way through on a repo with one "
+                        "code owner.</div>")
         elif state == "BLOCKED":
             selfnote = ("<div class=hint style='margin-top:8px'>Somebody else's request. Two "
-                        "different options: <b>Approve, they merge</b> unblocks it and "
-                        "leaves the last step with them &mdash; right for a contributor's work. "
-                        "<b>Merge</b> puts it in directly, which is quicker but closes their "
-                        "change for them.</div>")
+                        "different options: <b>Approve, they merge</b> unblocks it and leaves "
+                        "the last step with them &mdash; right for a contributor's work. "
+                        "<b>Approve &amp; Merge</b> ships it directly, which is quicker but "
+                        "closes their change for them.</div>")
         elif state == "BEHIND":
             selfnote = ("<div class=hint style='margin-top:8px'>Main has moved and this repo "
-                        "requires branches to be up to date. <b>Merge</b> brings it up to date "
-                        "first, so there is nothing to do by hand &mdash; but the required "
-                        "checks re-run after that, so it may need a second press once they "
-                        "are green.</div>")
+                        "requires branches to be up to date. <b>Approve &amp; Merge</b> brings "
+                        "it up to date first automatically, so there is nothing to do by hand.</div>")
+        elif state == "DIRTY":
+            selfnote = ("<div class=hint style='margin-top:8px'>Real conflicts with main. "
+                        "<b>Approve &amp; Merge</b> will rebase and resolve them automatically "
+                        "if <code>transcripts/INDEX.md</code> is the only file in the way "
+                        "&mdash; it always is for a stale-index conflict. Anything else in the "
+                        "conflict is reported after the click rather than fixed silently, and "
+                        "needs a human in the branch.</div>")
         else:
             selfnote = ""
 
@@ -10316,16 +10394,15 @@ class H(BaseHTTPRequestHandler):
                                "there is no need to wait here.\n\n" + out
                                + "\n\nMerge the knowledge request too, or the fix ships without "
                                  "the documentation it was derived from.")
-                elif act in ("merge", "merge-override"):
+                elif act == "approve-merge":
                     # Rebase, matching how this repo has been merged throughout - a merge
                     # commit per review batch would bury the actual content in the history.
-                    # merge_pr() brings the branch up to date first if GitHub refuses for that
-                    # reason, so being behind main is not something to click through by hand.
-                    override = act == "merge-override"
-                    rc, out, updated = merge_pr(num, override)
+                    # merge_pr() now resolves both mechanical refusals itself (behind main; a
+                    # real conflict limited to the generated transcripts/INDEX.md) - see its
+                    # own docstring - so neither is something to click through by hand.
+                    head_ref = _pr_head_ref(num)
+                    rc, out, fixed = merge_pr(num, head_ref)
                     if rc == 0:
-                        head = ("Merged WITH the review gate bypassed (admin override).\n\n"
-                                if override else "Merged.\n\n")
                         # Merging only moved the REMOTE. Without this the app is stale because
                         # of its own action, and merged transcripts come back as pending.
                         okp, msgp = pull_main()
@@ -10338,7 +10415,7 @@ class H(BaseHTTPRequestHandler):
                         if not okpub:
                             rc = 1        # a merge that did not reach the agents is not done
 
-                        parts = [head + out]
+                        parts = ["Merged (admin override).\n\n" + out]
                         if msgp:
                             parts.append(msgp)
                         if kbf:
@@ -10350,22 +10427,18 @@ class H(BaseHTTPRequestHandler):
                                          "transcripts with:\n"
                                          "  python3 scripts/mark_pushed.py --all")
                         out = "\n\n".join(parts)
-                    elif not override and _needs_override(out):
-                        out += ("\n\nGitHub refused because the required approval is missing. "
-                                "It can be merged anyway as an admin — that BYPASSES the review "
-                                "gate, so only do it on own work:\n"
-                                "  press Merge anyway on an own change request")
-                    elif updated:
-                        out += ("\n\nThe branch WAS brought up to date, so that part is done "
-                                "— the refusal above is a different reason. Required checks "
-                                "re-run after a rebase, so if they are still queued, give them "
-                                "a moment and try again.")
+                    elif fixed:
+                        out += ("\n\nA mechanical fix WAS applied (branch brought up to date, "
+                                "or a transcripts/INDEX.md conflict resolved), so that part is "
+                                "done — the refusal above is a different reason. Required "
+                                "checks re-run after a rebase, so if they are still queued, "
+                                "give them a moment and try again.")
                 else:
                     rc, out = 1, "unknown action"
                 # A merge from here is the only thing that ADDS to the history, so it drops that
                 # cache itself. Otherwise the request just merged is missing from the list for up
                 # to five minutes on the very page where it was merged.
-                if rc == 0 and act in ("merge", "merge-override", "bp-merge"):
+                if rc == 0 and act in ("approve-merge", "bp-merge"):
                     drop_merged_cache()
             except Exception as e:                                    # noqa: BLE001
                 rc, out = 1, str(e)
