@@ -7139,7 +7139,18 @@ def pr_page(force=False):
         # button here would only ever produce an error - saying so is more use than hiding it
         # silently. Admins can merge without an approval anyway, which is what makes the repo
         # workable with one code owner.
-        if mine:
+        #
+        # ⚠ state == "DIRTY" MUST BE CHECKED BEFORE `mine`, matching the button logic above -
+        # they were two independent if/elif chains that agreed on every state except this one.
+        # `mine` was checked first here, so an own request with real conflicts got the "Merge
+        # anyway unblocks your own work" explanation while the button logic (correctly) showed
+        # no button at all - text pointing at a control that was never rendered. Measured
+        # 2026-09-13 on a real PR (#106): own request, DIRTY, exactly this mismatch.
+        if state == "DIRTY":
+            selfnote = ("<div class=hint style='margin-top:8px'>Real conflicts with main. They "
+                        "have to be resolved in the branch &mdash; there is no button for "
+                        "that.</div>")
+        elif mine:
             behind = (" Main has also moved since this branch was cut; the merge brings it up "
                       "to date first, so there is nothing to do by hand."
                       if state == "BEHIND" else "")
@@ -7161,10 +7172,6 @@ def pr_page(force=False):
                         "first, so there is nothing to do by hand &mdash; but the required "
                         "checks re-run after that, so it may need a second press once they "
                         "are green.</div>")
-        elif state == "DIRTY":
-            selfnote = ("<div class=hint style='margin-top:8px'>Real conflicts with main. They "
-                        "have to be resolved in the branch &mdash; there is no button for "
-                        "that.</div>")
         else:
             selfnote = ""
 
