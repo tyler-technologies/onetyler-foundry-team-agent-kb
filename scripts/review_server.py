@@ -251,6 +251,12 @@ ASSETS = Path(__file__).resolve().parent / "assets"
 # on every page otherwise, and as a separate file the browser caches it once.
 LOGO = ASSETS / "tyler-brand-dark-theme.svg"   # white — the app bar is dark
 
+# The bookmark/tab icon — deliberately separate from LOGO above. LOGO is the in-header Tyler
+# brand mark (shared with Ops Center, kept byte-identical on purpose); FAVICON is this app's
+# own identity in a browser's tab strip and bookmarks bar, operator-supplied, unrelated to
+# the Tyler brand asset conventions in assets/README.md.
+FAVICON = ASSETS / "fart-favicon.png"
+
 
 OWNERS = REPO / "agent-owners.json"
 
@@ -4019,7 +4025,7 @@ def page(title, inner, active="", all_view=False, rel="", agent=""):
   document.documentElement.dataset.modePref="auto";}}}})();
 </script>
 <link rel=stylesheet href="https://cdn.forge.tylertech.com/v1/css/tyler-font.css">
-<link rel=icon type="image/svg+xml" href="{BASE}/logo.svg">
+<link rel=icon type="image/png" href="{BASE}/favicon.png">
 <style>{CSS}{icon_vars()}</style><header><img class=brand src="{BASE}/logo.svg" alt="Tyler Technologies" width=28 height=28><b>OneTyler Foundry Team Agent Transcript Review</b><div class=hdrright>{MODE_SWITCH}{who}</div></header>
 <body data-default-mine="{'1' if (current_login() and not all_view) else '0'}" data-default-status="{'pending' if (current_login() and not all_view) else '__open__'}" data-show-all="{'1' if (is_admin() or not current_login()) else '0'}" data-rel="{html.escape(rel)}" data-agent="{html.escape(agent)}">
 <div class=shell>{side}<main class=wrap>{inner}</main></div>
@@ -9745,6 +9751,7 @@ class H(BaseHTTPRequestHandler):
         html_body = (
             "<!doctype html><html lang=en><head><meta charset=utf-8>"
             "<title>Not authorized</title>"
+            f'<link rel=icon type="image/png" href="{BASE}/favicon.png">'
             "<style>body{font-family:-apple-system,Helvetica,Arial,sans-serif;"
             "display:flex;flex-direction:column;align-items:center;justify-content:center;"
             "height:100vh;margin:0;text-align:center;color:#333}"
@@ -9777,6 +9784,7 @@ class H(BaseHTTPRequestHandler):
         html_body = (
             "<!doctype html><html lang=en><head><meta charset=utf-8>"
             "<title>OneTyler Foundry Team Agent Transcript Review</title>"
+            f'<link rel=icon type="image/png" href="{BASE}/favicon.png">'
             "<style>body{font-family:-apple-system,Helvetica,Arial,sans-serif;"
             "display:flex;flex-direction:column;align-items:center;justify-content:center;"
             "height:100vh;margin:0;text-align:center;color:#333}"
@@ -9822,6 +9830,20 @@ class H(BaseHTTPRequestHandler):
             # Answered before auth, on purpose - same reasoning as ops-tools' own /healthz
             # and the geo-check route: an off-host uptime check has no session to send.
             return self._healthz()
+        if self.path == "/favicon.png":
+            # Also before auth, on purpose: a browser requests this on the pre-auth welcome
+            # page too (that's usually where a bookmark actually gets saved from), and it
+            # must render the real icon there, not the welcome page's own HTML.
+            try:
+                body = FAVICON.read_bytes()
+            except OSError:
+                return self._send(404, page("404", "Not found"))
+            self.send_response(200)
+            self.send_header("Content-Type", "image/png")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Cache-Control", "public, max-age=86400")
+            self.end_headers()
+            return self.wfile.write(body)
         if AUTH_ENABLED:
             if self.path == "/auth/login" or self.path.startswith("/auth/login?"):
                 return self._auth_login()
