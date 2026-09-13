@@ -15,7 +15,7 @@ Everything it writes lands in transcripts/*.md. Commit and open a PR as normal,
 or use the Git panel in the UI.
 """
 import argparse, base64, csv, hashlib, hmac, html, io, json, os, re, secrets, shutil
-import subprocess, sys, threading, time, urllib.request, webbrowser
+import subprocess, sys, tempfile, threading, time, urllib.request, webbrowser
 from collections import Counter
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -6146,7 +6146,11 @@ def try_autorebase_dirty(head_ref):
     database with REPO but gives this its own working directory and its own HEAD, so a human's
     in-progress save in the main checkout is never touched by this.
     """
-    wt_root = REPO.parent / ".fkb-merge-worktrees"
+    # tempfile.gettempdir(), NOT REPO.parent - REPO.parent is a normal writable directory on
+    # the laptop, but hosted, REPO is /app and REPO.parent is /, which the container's
+    # non-root user cannot write to (measured directly against the live container,
+    # 2026-09-13: `mkdir /...` -> Permission denied). /tmp is world-writable in both places.
+    wt_root = Path(tempfile.gettempdir()) / "fkb-merge-worktrees"
     wt_root.mkdir(exist_ok=True)
     wt = wt_root / re.sub(r"[^A-Za-z0-9._-]", "_", head_ref)
 
