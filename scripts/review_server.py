@@ -14,14 +14,15 @@ Stdlib only — no pip install, no build step. Binds to loopback only.
 Everything it writes lands in transcripts/*.md. Commit and open a PR as normal,
 or use the Git panel in the UI.
 """
-import argparse, csv, html, io, json, os, re, shutil, subprocess, sys, time, webbrowser
+import argparse, base64, csv, hashlib, hmac, html, io, json, os, re, secrets, shutil
+import subprocess, sys, threading, time, urllib.request, webbrowser
 from collections import Counter
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from golive import GO_LIVE, EXCLUDE_NOTE, is_pre_go_live
 from reviewtext import has_feedback, needs_triage, PLACEHOLDERS
-from urllib.parse import unquote
+from urllib.parse import quote, unquote, urlencode
 
 REPO = Path(__file__).resolve().parent.parent
 TDIR = REPO / "transcripts"
@@ -46,6 +47,103 @@ WRITE_ROUTES = frozenset({
 # "right request, wrong host" (409), never 403 ("your role is wrong") - ops-tools' own
 # distinction, worth keeping because the two mean different things to whoever hits it.
 FKB_READ_ONLY = os.environ.get("FKB_READ_ONLY", "").strip().lower() not in ("", "0", "false")
+
+# --- P3: authentication (OIDC, hosted only) ------------------------------------------------
+#
+# Mirrors ops-tools' own login gate deliberately (operator's instruction, and its own
+# CLAUDE.md "Authentication & authorization" section is the reference): Authorization Code +
+# PKCE against the Tyler identity gateway, an httpOnly+Secure+SameSite session cookie over an
+# in-memory store, a signed (HMAC) cookie rather than a JWT of our own. Entirely OFF unless
+# FKB_OIDC_CLIENT_ID is set - no session code runs and no cookie is ever set or checked on an
+# unconfigured/laptop run, so that case is unaffected by any of this.
+AUTH_ENABLED = bool(os.environ.get("FKB_OIDC_CLIENT_ID"))
+FKB_LOGIN_ENV = os.environ.get("FKB_LOGIN_ENV", "tcpprod")
+LOGIN_ORG = "tylerportico"  # fixed in code, not env-derived - same reasoning as ops-tools' LOGIN_ORG
+TCP_IDGW_HOST = {
+    "tcpprod": "idgw.tylerportico.com",
+    "tcpqa": "idgw.tcpqa.com",
+    "tcpci": "idgw.tcpci.com",
+}
+LOGIN_SCOPES = "openid profile email"
+SESSION_TTL = 8 * 3600
+
+_sessions = {}       # sid -> {"login": <github username>, "email": ..., "name": ..., "exp": ...}
+_login_flight = {}   # oauth `state` -> {"verifier", "nonce", "ts", "next"}
+_oidc_cache = {}      # login env -> discovery doc
+
+
+def _identity_map():
+    """email (casefolded) -> GitHub login, from the host-side file FKB_IDENTITY_MAP points at.
+
+    Deliberately outside this repo and outside git (FART-Hosting-Instructions.md §3):
+    contributors.json is GENERATED from GitHub team membership and has no email field, and
+    deriving one from the `gravatar` hash already there was measured and RULED OUT - two of
+    the three contributors have an empty gravatar field, and the one populated hash matches
+    no plausible email form. A hand-maintained map, held on the host, is what's left.
+
+    Read fresh each call, same convention as contributors(). An unmapped or missing file
+    means every hosted login is unmapped - see _resolve_login, which refuses rather than
+    falling back to an admin/default identity in that case.
+    """
+    p = os.environ.get("FKB_IDENTITY_MAP")
+    if not p:
+        return {}
+    try:
+        raw = json.loads(Path(p).read_text(encoding="utf-8"))
+        return {(k or "").strip().lower(): v for k, v in raw.items()}
+    except Exception:
+        return {}
+
+
+def _gravatar(email):
+    h = hashlib.md5((email or "").strip().lower().encode()).hexdigest()
+    return f"https://www.gravatar.com/avatar/{h}?d=identicon&s=64"
+
+
+def _b64url(raw):
+    return base64.urlsafe_b64encode(raw).rstrip(b"=").decode()
+
+
+def _oidc(env):
+    """OIDC discovery doc for the login env's gateway (cached for the process's life)."""
+    if env not in _oidc_cache:
+        url = f"https://{TCP_IDGW_HOST[env]}/tg/.well-known/openid-configuration"
+        with urllib.request.urlopen(url, timeout=30) as r:
+            _oidc_cache[env] = json.loads(r.read().decode("utf-8"))
+    return _oidc_cache[env]
+
+
+def _sign(val):
+    key = os.environ.get("FKB_SESSION_SECRET", "dev-secret").encode()
+    return hmac.new(key, val.encode(), hashlib.sha256).hexdigest()[:32]
+
+
+def _new_session(profile):
+    now = time.time()
+    for k in [s for s, v in _sessions.items() if v.get("exp", 0) < now]:
+        _sessions.pop(k, None)
+    sid = secrets.token_urlsafe(24)
+    _sessions[sid] = {**profile, "exp": now + SESSION_TTL}
+    return sid
+
+
+def _decode_jwt(token):
+    """Decode a JWT payload with no signature check - the token arrives over the
+    confidential TLS back-channel and is nonce/issuer/exp-validated; the profile is
+    cross-checked against the userinfo endpoint separately."""
+    try:
+        p = token.split(".")[1]
+        p += "=" * (-len(p) % 4)
+        return json.loads(base64.urlsafe_b64decode(p).decode("utf-8"))
+    except Exception:
+        return {}
+
+
+def _http_json(url, data=None, headers=None, method="GET", timeout=30):
+    req = urllib.request.Request(url, data=data, method=method, headers=headers or {})
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        return json.loads(r.read().decode("utf-8"))
+
 
 STATUS = REPO / "scripts" / "review_status.py"
 
@@ -340,12 +438,24 @@ def admins():
 def is_admin(login=None):
     """Admins see across every agent; contributors see their own patch.
 
-    This scopes the UI, and that is ALL it does - it is not an access control. A contributor
-    has every transcript on disk in their own git checkout, so hiding the view does not hide
-    the data and must never be described as if it did. What it buys is a queue that shows a
-    contributor their own work instead of 59 rows that are mostly somebody else's.
+    This scopes the UI, and that is ALL it does - it gates no write route (see WRITE_ROUTES/
+    FKB_READ_ONLY in do_POST, which are the real boundary) and no read route except /prs's
+    own "admins only" notice, which reveals nothing `gh` would not. What it buys is a queue
+    that shows a contributor their own work instead of 59 rows that are mostly somebody
+    else's.
+
+    ⚠ THE OLD JUSTIFICATION FOR THIS BEING HARMLESS WAS LAPTOP-ONLY, AND IT WAS CORRECTED
+    HERE FOR THAT REASON (FART-Hosting-Instructions.md §0): "a contributor has every
+    transcript on disk in their own git checkout, so hiding the view does not hide the
+    data" is true on a laptop, where everyone already has the whole repo, and FALSE for a
+    hosted visitor, whose only access to the data IS this app. Hosted, "is_admin() gates no
+    write route" is still accurate - the actual gate is per-request session identity (P2)
+    plus WRITE_ROUTES/FKB_READ_ONLY (P4) - but do not extend that into "so nothing here is
+    an access control" the way the pre-hosting version of this docstring did. Read/write
+    access, hosted, comes from being authenticated and mapped in FKB_IDENTITY_MAP at all;
+    is_admin() is what happens after that, and remains view-scoping only.
     """
-    return (login or ME) in admins()
+    return (login or current_login()) in admins()
 
 
 def effective_agents(fm):
@@ -394,7 +504,29 @@ def git_cmd(*args):
         return 1, ""
 
 
-ME = None          # resolved once at startup; see main()
+# P2 - per-request identity, not a module-level constant. On the laptop/CLI (AUTH_ENABLED
+# off) there is one identity for the process's whole life, resolved once at startup into
+# _STARTUP_ME (see main()) - that part is unchanged from before this existed. Hosted
+# (AUTH_ENABLED on), ThreadingHTTPServer runs each request on its own OS thread, and every
+# visitor shares this one process: a module-level ME would be one identity for every
+# concurrent visitor, and whoever's request set it last wins for everyone still mid-request
+# - silent mis-attribution into a git commit, the exact failure this replaces.
+# threading.local() gives each request thread its own slot; do_GET/do_POST set it once at
+# the top of every request (_set_current_login), and current_login() is the only reader
+# anywhere else in this file. There must be no other module-level read of an identity global.
+_LOCAL = threading.local()
+_STARTUP_ME = None          # resolved once at startup; see main() - the laptop/CLI identity
+
+
+def current_login():
+    """The identity for THIS request/thread. See _LOCAL's comment above for why this is
+    not a plain module global. Falls back to _STARTUP_ME only because _set_current_login
+    always sets one of {session login, _STARTUP_ME, None} explicitly - this getattr default
+    is defensive, not a real fallback path, for any code that ever runs outside a request
+    (there is none today, but a silent AttributeError here would be worse than a wrong None)."""
+    return getattr(_LOCAL, "login", None)
+
+
 # Avatars are the one thing on this page that talks to the internet. Off-switch provided
 # so "loopback-only, nothing leaves the machine" stays literally true when it matters.
 NO_AVATARS = False
@@ -520,12 +652,12 @@ def knowledge_files(scoped=True):
     about to name.
     """
     mine = None
-    if scoped and ME and not is_admin():
+    if scoped and current_login() and not is_admin():
         by, default = agent_owners()
         owned = {AGENT_FOLDER_NAME[s] for s, who in by.items()
-                 if ME in (who if isinstance(who, (list, set, tuple)) else [who])
+                 if current_login() in (who if isinstance(who, (list, set, tuple)) else [who])
                  and s in AGENT_FOLDER_NAME}
-        if default == ME:
+        if default == current_login():
             owned |= {AGENT_FOLDER_NAME[s] for s in AGENT_FOLDER_NAME if s not in by}
         mine = owned
     out = {}
@@ -3744,8 +3876,8 @@ def nav_counts():
         st = fm.get("review_status", "pending") or "pending"
         if st in ("pending", "suggested"):
             open_n += 1
-            if ME and (fm.get("suggested_to") == ME or fm.get("awaiting") == ME
-                       or ME in {o for a in effective_agents(fm) for o in owners_of(a)}):
+            if current_login() and (fm.get("suggested_to") == current_login() or fm.get("awaiting") == current_login()
+                       or current_login() in {o for a in effective_agents(fm) for o in owners_of(a)}):
                 mine_n += 1
     # review_scope() EXACTLY, which is what the status line and the Change list count. This was
     # scoped to `transcripts` alone, so four edited knowledge files were missing from the badge -
@@ -3824,17 +3956,17 @@ def page(title, inner, active="", all_view=False, rel="", agent=""):
         return (f"<a href=\"{BASE}{href}\"{on}><span class=ic>{icon}</span>"
                 f"<span>{label}</span>{badge}</a>")
 
-    who = (f"<span class=who>{avatar(ME, 24)}<span>{html.escape(ME)}</span></span>" if ME
+    who = (f"<span class=who>{avatar(current_login(), 24)}<span>{html.escape(current_login())}</span></span>" if current_login()
            else "<span class=who>not identified</span>")
     side = (
         "<nav class=side>"
         "<div class=grp>Review</div>"
-        + (item("/", icon("flag", 19, "ic-mine"), "My Transcripts", mine_n or None, "mine") if ME else "")
+        + (item("/", icon("flag", 19, "ic-mine"), "My Transcripts", mine_n or None, "mine") if current_login() else "")
         # Admins only. For a contributor the item would be a link to other people's work they
         # cannot push to - an invitation to a dead end. An unidentified user gets it too,
         # because with no `me` there is no "mine" to fall back to and an empty app is worse.
         + (item("/?all=1", icon("clipboard_list", 19, "ic-all"), "All Transcripts", open_n or None, "all")
-           if (is_admin() or not ME) else "")
+           if (is_admin() or not current_login()) else "")
         + "<div class=grp>Save &amp; Publish</div>"
         # TWO ITEMS, NOT ONE. "Save & Share" named two jobs with nothing in common: a local
         # checkpoint that shares nothing, and the publish sequence. The badges differ too -
@@ -3884,7 +4016,7 @@ def page(title, inner, active="", all_view=False, rel="", agent=""):
 <link rel=stylesheet href="https://cdn.forge.tylertech.com/v1/css/tyler-font.css">
 <link rel=icon type="image/svg+xml" href="{BASE}/logo.svg">
 <style>{CSS}{icon_vars()}</style><header><img class=brand src="{BASE}/logo.svg" alt="Tyler Technologies" width=28 height=28><b>OneTyler Foundry Team Agent Transcript Review</b><div class=hdrright>{MODE_SWITCH}{who}</div></header>
-<body data-default-mine="{'1' if (ME and not all_view) else '0'}" data-default-status="{'pending' if (ME and not all_view) else '__open__'}" data-show-all="{'1' if (is_admin() or not ME) else '0'}" data-rel="{html.escape(rel)}" data-agent="{html.escape(agent)}">
+<body data-default-mine="{'1' if (current_login() and not all_view) else '0'}" data-default-status="{'pending' if (current_login() and not all_view) else '__open__'}" data-show-all="{'1' if (is_admin() or not current_login()) else '0'}" data-rel="{html.escape(rel)}" data-agent="{html.escape(agent)}">
 <div class=shell>{side}<main class=wrap>{inner}</main></div>
 <div class=toast id=toast></div><script>{JS}</script>"""
 
@@ -3956,13 +4088,13 @@ def list_page(show_all=False):
             v = (r.get(key) or "").strip()
             if not v:
                 continue
-            if ME and v == ME:
+            if current_login() and v == current_login():
                 handed.append(key)
-            elif ME and ME in owners_of_agent(v):
+            elif current_login() and current_login() in owners_of_agent(v):
                 handed.append(key)
         r["handed_to_me"] = handed
         r["mine_awaiting"] = bool(handed)
-        r["mine_area"] = bool(ME and ME in owners and not r["mine_awaiting"])
+        r["mine_area"] = bool(current_login() and current_login() in owners and not r["mine_awaiting"])
 
     # My Transcripts is a HARD filter, applied here rather than by a checkbox in the browser.
     # The nav item IS the filter: two views that differ only by a tickbox you have to find are
@@ -3971,7 +4103,7 @@ def list_page(show_all=False):
     # the view within your own rows and never reveals someone else's.
     # Everything owed to me: handed to me by name, plus everything my agents own - which for
     # an admin includes every routing-level row, since those belong to all admins.
-    mine_only = bool(ME) and not show_all
+    mine_only = bool(current_login()) and not show_all
     total_all = len(recs)
     if mine_only:
         recs = [r for r in recs if r["mine_awaiting"] or r["mine_area"]]
@@ -4061,7 +4193,7 @@ def list_page(show_all=False):
     # four jobs at once. The counts moved into the tiles; the legend is the only thing left
     # that has to be said in words.
     youline = ""
-    if ME:
+    if current_login():
         bits = []
         if mine_a:
             bits.append(f"<a href='#' onclick='showStatus(\"\");return false'>"
@@ -4179,7 +4311,7 @@ def list_page(show_all=False):
     # Sync sits at the top of both list views: it is the first thing you want when you sit
     # down, and burying it behind the terminal defeats the point of a UI.
     age = last_sync_age()
-    title = "My Transcripts" if (ME and not show_all) else "All Transcripts"
+    title = "My Transcripts" if (current_login() and not show_all) else "All Transcripts"
     head = ("<div style='display:flex;align-items:center;gap:12px;flex-wrap:wrap;"
             "margin-bottom:var(--forge-spacing-medium)'>"
             f"<h2 class=sec style='margin:0'>{title}</h2>"
@@ -4354,7 +4486,7 @@ def field(k, val):
         # `reviewer` is forced to the current user rather than shown blank: for a contributor it
         # is not a choice, and an empty locked field looks broken.
         if k == "reviewer":
-            val = ME or val
+            val = current_login() or val
         shown = html.escape(val) if val else "&mdash;"
         why = {"review_status": "set by the buttons below",
                "reviewer": "you", "action_status": "follows KB action"}[k]
@@ -4371,8 +4503,8 @@ def field(k, val):
         # ONLY when blank, so it never overwrites a name already recorded, and only for
         # `reviewer` - a routing field is a deliberate choice about someone else and must stay
         # empty until a reviewer makes it.
-        if k == "reviewer" and not val and ME and ME in contributors():
-            val = ME
+        if k == "reviewer" and not val and current_login() and current_login() in contributors():
+            val = current_login()
         people = contributors()
         if not people:
             return (f"<div class=fld>{lab}<input data-fm={k} value=\"{html.escape(val)}\" "
@@ -4425,7 +4557,7 @@ def field(k, val):
             rows.append("<div class=kbgroup>No longer in the repo</div>")
             rows += [f"<label class=kbrow><input type=checkbox value=\"{html.escape(g)}\" checked>"
                      f"<span>{html.escape(g)}</span></label>" for g in gone]
-        scope = ("" if is_admin() or not ME else
+        scope = ("" if is_admin() or not current_login() else
                  "<div class=hint style='margin-bottom:8px'>Showing the owned corpora. "
                  "An admin can name any file.</div>")
         # The BUTTON carries the state - "Select…" or "Selected (5)". A separate summary line
@@ -4755,7 +4887,7 @@ def lane_name():
     refuses rather than overwriting. Hence the timestamp: the username alone collides the
     second time the same person sits down.
     """
-    who = ME or "batch"
+    who = current_login() or "batch"
     return f"review/{who}/{datetime.now().strftime('%m%d%Y-%H%M%S')}"
 
 
@@ -5010,11 +5142,17 @@ def auto_commit_message():
     generic title makes a list of open requests from several reviewers unreadable, and the
     timestamp separates one sitting from the same person's next one.
 
-    Prefers git's configured name over the GitHub login, since that is the identity actually
-    recorded on the commit; falls back to the login, then to something rather than nothing.
+    Prefers the per-request identity over git's configured name. On the laptop those are
+    normally the same person; hosted, `git config user.name` is a fixed container-wide bot
+    identity (deliberately, so it never collides with the `reviewer:` field - see the
+    Dockerfile), and using it here would make every hosted reviewer's PR title identical,
+    defeating the "list of open requests from several reviewers" this function exists for.
+    Falls back to git's name, then to something rather than nothing.
     """
-    _, who = git("config", "user.name")
-    who = who.strip() or ME or "unknown reviewer"
+    who = current_login()
+    if not who:
+        _, cfg_name = git("config", "user.name")
+        who = cfg_name.strip() or "unknown reviewer"
     return f"Reviews by {who} — {datetime.now().strftime('%m%d%Y-%H%M%S')}"
 
 
@@ -6913,7 +7051,7 @@ def pr_page(force=False):
     for pr in prs:
         cls, why = pr_checks(pr)
         kind = pr_kind(pr)
-        mine = pr["author"]["login"] == (ME or "")
+        mine = pr["author"]["login"] == (current_login() or "")
         draft = pr.get("isDraft")
         decision = pr.get("reviewDecision") or ""
         mergeable = (pr.get("mergeable") or "").upper()
@@ -9445,18 +9583,256 @@ class H(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(b)
 
+    def _redirect(self, location, cookie=None):
+        self.send_response(302)
+        self.send_header("Location", location)
+        if cookie:
+            self.send_header("Set-Cookie", cookie)
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
+    def _qs(self):
+        """The handful of query params these auth routes need, parsed the same lightweight
+        way the rest of this file already does (split on &/=, unquote) rather than adding
+        a parse_qs import for one small corner."""
+        q = {}
+        if "?" not in self.path:
+            return q
+        for kv in self.path.split("?", 1)[1].split("&"):
+            k, _, v = kv.partition("=")
+            if k:
+                q[k] = unquote(v)
+        return q
+
+    def _cookie(self, name):
+        raw = self.headers.get("Cookie", "")
+        for part in raw.split(";"):
+            k, _, v = part.strip().partition("=")
+            if k == name:
+                return v
+        return None
+
+    def _current_user(self):
+        """The session for THIS request, or None. Validates the HMAC signature and expiry -
+        a cookie is just a client-supplied string otherwise."""
+        cv = self._cookie("fkb_session")
+        if not cv or "." not in cv:
+            return None
+        sid, _, sig = cv.partition(".")
+        if not hmac.compare_digest(_sign(sid), sig):
+            return None
+        sess = _sessions.get(sid)
+        if not sess or sess.get("exp", 0) < time.time():
+            _sessions.pop(sid, None)
+            return None
+        return sess
+
+    def _resolve_login(self):
+        """The identity for THIS request. Hosted: the session's GitHub login, or None if
+        there is no valid session (never a fallback identity - see P2's whole reason for
+        being). Laptop/CLI: the identity main() resolved once at startup, unchanged."""
+        if not AUTH_ENABLED:
+            return _STARTUP_ME
+        u = self._current_user()
+        return u["login"] if u else None
+
+    def _set_current_login(self):
+        _LOCAL.login = self._resolve_login()
+
+    def _safe_next(self, raw):
+        """Same-origin-only post-login return path - never an open redirect. Must start
+        with '/', not '//', carry no scheme/backslash/control character, and (when BASE is
+        configured) sit under it."""
+        if not raw:
+            return None
+        raw = raw.strip()
+        if not raw.startswith("/") or raw.startswith("//"):
+            return None
+        if "://" in raw or "\\" in raw or any(ord(c) < 0x20 for c in raw):
+            return None
+        if BASE and not (raw == BASE or raw.startswith(BASE + "/")):
+            return None
+        return raw
+
+    def _auth_login(self):
+        cid = os.environ.get("FKB_OIDC_CLIENT_ID", "")
+        redirect_uri = os.environ.get("FKB_REDIRECT_URI", "")
+        if not cid or not redirect_uri:
+            return self._send(500, json.dumps({"error": "login not configured"}),
+                              "application/json")
+        verifier = secrets.token_urlsafe(64)
+        challenge = _b64url(hashlib.sha256(verifier.encode()).digest())
+        state = secrets.token_urlsafe(24)
+        nonce = secrets.token_urlsafe(24)
+        now = time.time()
+        for s in [s for s, v in _login_flight.items() if now - v["ts"] > 600]:
+            _login_flight.pop(s, None)
+        nxt = self._safe_next(self._qs().get("next", ""))
+        _login_flight[state] = {"verifier": verifier, "nonce": nonce, "ts": now, "next": nxt}
+        params = {
+            "response_type": "code", "client_id": cid, "redirect_uri": redirect_uri,
+            "scope": LOGIN_SCOPES, "state": state, "nonce": nonce,
+            "code_challenge": challenge, "code_challenge_method": "S256",
+            "organizationKey": LOGIN_ORG,
+        }
+        pr = self._qs().get("prompt", "").strip()
+        if pr in ("login", "select_account", "consent"):
+            params["prompt"] = pr
+        self._redirect(_oidc(FKB_LOGIN_ENV)["authorization_endpoint"] + "?" + urlencode(params))
+
+    def _auth_callback(self):
+        qs = self._qs()
+        flight = _login_flight.pop(qs.get("state", ""), None)
+        code = qs.get("code", "")
+        if not flight or not code:
+            return self._redirect(BASE + "/auth/login")   # stale/expired -> restart
+        oidc = _oidc(FKB_LOGIN_ENV)
+        try:
+            body = urlencode({
+                "grant_type": "authorization_code", "code": code,
+                "redirect_uri": os.environ.get("FKB_REDIRECT_URI", ""),
+                "client_id": os.environ.get("FKB_OIDC_CLIENT_ID", ""),
+                "client_secret": os.environ.get("FKB_OIDC_CLIENT_SECRET", ""),
+                "code_verifier": flight["verifier"],
+            }).encode()
+            tok = _http_json(oidc["token_endpoint"], data=body, method="POST",
+                             headers={"Content-Type": "application/x-www-form-urlencoded"})
+        except Exception as e:
+            return self._send(502, json.dumps({"error": f"token exchange failed: {e}"}),
+                              "application/json")
+        claims = _decode_jwt(tok.get("id_token", ""))
+        if (claims.get("nonce") != flight["nonce"] or claims.get("iss") != oidc.get("issuer")
+                or float(claims.get("exp", 0)) < time.time()):
+            return self._send(400, json.dumps({"error": "token validation failed"}),
+                              "application/json")
+        try:
+            ui = _http_json(oidc["userinfo_endpoint"],
+                            headers={"Authorization": "Bearer " + tok["access_token"]})
+        except Exception:
+            ui = claims
+        email = ((ui.get("email") or claims.get("email")
+                 or ui.get("preferred_username") or claims.get("preferred_username") or "")
+                 .strip().lower())
+        login = _identity_map().get(email)
+        # ⚠ An unmapped authenticated user is NOT an admin and NOT an owner, and is told so -
+        # never falls back to "no highlighting" (today's benign laptop behaviour), because
+        # combined with per-request identity that would mean writes under a blank identity.
+        # Same rule for a mapped login that isn't (or is no longer) a real contributor.
+        if not email or not login or login not in contributors():
+            return self._serve_not_authorized()
+        name = (ui.get("name") or (ui.get("given_name", "") + " " + ui.get("family_name", "")).strip()
+                or login)
+        sid = _new_session({"login": login, "email": email, "name": name,
+                            "gravatar": _gravatar(email)})
+        cookie = (f"fkb_session={sid}.{_sign(sid)}; Path={BASE or '/'}; "
+                  f"HttpOnly; Secure; SameSite=Lax; Max-Age={SESSION_TTL}")
+        dest = self._safe_next(flight.get("next")) or (BASE or "") + "/"
+        self._redirect(dest, cookie=cookie)
+
+    def _auth_logout(self):
+        cv = self._cookie("fkb_session")
+        if cv and "." in cv:
+            _sessions.pop(cv.partition(".")[0], None)
+        clear = f"fkb_session=; Path={BASE or '/'}; HttpOnly; Secure; SameSite=Lax; Max-Age=0"
+        self._serve_welcome(prompt_login=True, cookie=clear)
+
+    def _serve_not_authorized(self):
+        html_body = (
+            "<!doctype html><html lang=en><head><meta charset=utf-8>"
+            "<title>Not authorized</title>"
+            "<style>body{font-family:-apple-system,Helvetica,Arial,sans-serif;"
+            "display:flex;flex-direction:column;align-items:center;justify-content:center;"
+            "height:100vh;margin:0;text-align:center;color:#333}"
+            "a{color:#3f51b5;margin-top:16px}</style></head><body>"
+            "<h2>Not authorized</h2>"
+            "<p>Your account isn't set up for this tool. Ask an admin to add you.</p>"
+            f'<a href="{BASE}/auth/logout">Sign in as a different user</a>'
+            "</body></html>"
+        )
+        cv = self._cookie("fkb_session")
+        if cv and "." in cv:
+            _sessions.pop(cv.partition(".")[0], None)
+        clear = f"fkb_session=; Path={BASE or '/'}; HttpOnly; Secure; SameSite=Lax; Max-Age=0"
+        self.send_response(403)
+        self.send_header("Set-Cookie", clear)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        b = html_body.encode()
+        self.send_header("Content-Length", str(len(b)))
+        self.end_headers()
+        self.wfile.write(b)
+
+    def _serve_welcome(self, prompt_login=False, cookie=None, return_to=None):
+        params = []
+        if prompt_login:
+            params.append("prompt=login")
+        nxt = self._safe_next(return_to)
+        if nxt:
+            params.append("next=" + quote(nxt, safe=""))
+        login_url = BASE + "/auth/login" + (("?" + "&".join(params)) if params else "")
+        html_body = (
+            "<!doctype html><html lang=en><head><meta charset=utf-8>"
+            "<title>OneTyler Foundry Team Agent Transcript Review</title>"
+            "<style>body{font-family:-apple-system,Helvetica,Arial,sans-serif;"
+            "display:flex;flex-direction:column;align-items:center;justify-content:center;"
+            "height:100vh;margin:0;text-align:center;color:#333}"
+            "a.btn{display:inline-block;margin-top:16px;padding:10px 24px;background:#3f51b5;"
+            "color:#fff;text-decoration:none;border-radius:4px}</style>"
+            f'<script>setTimeout(function(){{location.href="{login_url}";}},400)</script>'
+            "</head><body>"
+            "<h2>OneTyler Foundry Team Agent Transcript Review</h2>"
+            f'<a class=btn href="{login_url}">Sign in</a>'
+            "</body></html>"
+        )
+        b = html_body.encode()
+        self.send_response(200)
+        if cookie:
+            self.send_header("Set-Cookie", cookie)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(b)))
+        self.end_headers()
+        self.wfile.write(b)
+
+    def _healthz(self):
+        """The one deliberately unauthenticated data endpoint - reachable with no session,
+        for an off-host uptime check, same reasoning and same minimum-surface rule as
+        ops-tools' own /healthz. `ok` is a constant; the endpoint ANSWERING is the signal.
+        `lastTranscriptSync`: epoch seconds from .last-transcript-sync, or null. Do not add
+        a version, hostname, env name, or anything about a user - each turns a liveness
+        probe into reconnaissance, and none of it is needed by the only consumer."""
+        sync_file = REPO / ".last-transcript-sync"
+        try:
+            last = float(sync_file.read_text().strip())
+        except Exception:
+            last = None
+        self._send(200, json.dumps({"ok": True, "lastTranscriptSync": last}),
+                   "application/json")
+
     def do_GET(self):
         if BASE:
             stripped = _strip_base(self.path)
             if stripped is None:
                 return self._send(404, page("404", "Not found"))
             self.path = stripped
+        if self.path == "/healthz":
+            # Answered before auth, on purpose - same reasoning as ops-tools' own /healthz
+            # and the geo-check route: an off-host uptime check has no session to send.
+            return self._healthz()
+        if AUTH_ENABLED:
+            if self.path == "/auth/login" or self.path.startswith("/auth/login?"):
+                return self._auth_login()
+            if self.path == "/auth/callback" or self.path.startswith("/auth/callback?"):
+                return self._auth_callback()
+            if self.path == "/auth/logout":
+                return self._auth_logout()
+            if not self._current_user():
+                return self._serve_welcome(return_to=self.path)
+        self._set_current_login()
         if self.path == "/" or self.path.startswith("/?"):
             # Honour the same rule as the nav: a hand-typed ?all=1 from a contributor
             # lands on their own view rather than silently working. Not a security control
             # (see is_admin) - just refusing to have two answers to the same question.
             want_all = "all=1" in self.path
-            return self._send(200, list_page(show_all=want_all and (is_admin() or not ME)))
+            return self._send(200, list_page(show_all=want_all and (is_admin() or not current_login())))
         if self.path == "/logo.svg":
             # Cache hard: it is a brand mark that changes when Tyler rebrands, and it is on
             # every page. An immutable response keeps it out of the request log entirely.
@@ -9543,6 +9919,12 @@ class H(BaseHTTPRequestHandler):
             if stripped is None:
                 return self._send(404, page("404", "Not found"))
             self.path = stripped
+        if AUTH_ENABLED and not self._current_user():
+            # No redirect on POST - there is no navigation to follow. A write attempted
+            # with no valid session gets a plain 401, same as ops-tools' /api/* pattern.
+            return self._send(401, json.dumps({"ok": False, "error": "authentication required"}),
+                              "application/json")
+        self._set_current_login()
         if FKB_READ_ONLY and self.path in WRITE_ROUTES:
             return self._send(409, json.dumps({
                 "ok": False,
@@ -10238,7 +10620,7 @@ class H(BaseHTTPRequestHandler):
 
 
 def main():
-    global ME
+    global _STARTUP_ME
     ap = argparse.ArgumentParser()
     ap.add_argument("--port", type=int, default=7777)
     ap.add_argument("--me", help="the GitHub username to highlight rows for; "
@@ -10250,15 +10632,22 @@ def main():
     a = ap.parse_args()
     global NO_AVATARS
     NO_AVATARS = a.no_avatars
-    ME = whoami(a.me)
+    # AUTH_ENABLED (hosted) resolves identity per-request from the session instead - see
+    # _set_current_login(). This startup resolution is the laptop/CLI path's identity for
+    # the process's whole life, same as before P2 existed.
+    _STARTUP_ME = whoami(a.me)
     known = contributors()
-    if ME and known and ME not in known:
+    if _STARTUP_ME and known and _STARTUP_ME not in known:
         # flush=True throughout: stdout is block-buffered when redirected to a file, and
         # serve_forever() never returns, so an unflushed diagnostic is never seen at all.
-        print(f"note: '{ME}' is not in contributors.json, so no rows will be marked "
+        print(f"note: '{_STARTUP_ME}' is not in contributors.json, so no rows will be marked "
               f"as the reviewer. Pass --me with a registered name if that is wrong.", flush=True)
-        ME = None
-    if not ME:
+        _STARTUP_ME = None
+    if AUTH_ENABLED:
+        print("note: FKB_OIDC_CLIENT_ID is set - per-request session identity (P2/P3) is "
+              "active, and --me / the startup gh identity above is only the CLI-mode "
+              "fallback for any request with no session.", flush=True)
+    elif not _STARTUP_ME:
         print("note: no reviewer identified, so no rows are highlighted. "
               "Pass --me <github-username>, or check `gh auth status`.", flush=True)
     else:
@@ -10267,7 +10656,7 @@ def main():
             print("note: agent-owners.json is missing or unreadable — no ownership "
                   "highlighting. Row colouring is a convenience; everything else works.",
                   flush=True)
-        print(f"identified as: {ME}", flush=True)
+        print(f"identified as: {_STARTUP_ME}", flush=True)
     if not TDIR.is_dir() or not tfiles():
         sys.exit("No transcripts found. Run: python3 scripts/fetch_transcripts.py")
     url = f"http://127.0.0.1:{a.port}{BASE}/"
