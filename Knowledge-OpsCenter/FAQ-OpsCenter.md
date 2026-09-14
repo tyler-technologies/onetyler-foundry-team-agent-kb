@@ -126,18 +126,22 @@ of people asking this question can already self-serve and do not know it. **Chec
 user has the permission before routing them anywhere** — if the menu action is there, that is
 the whole answer.
 
-Please also **remove your own Org Admin rights when you no longer need them**. Tyler-staff Org
-Admins can self-remove from the same screen, and cleaning up is expected rather than optional.
-Permission changes take a little time to propagate.
+Please also **remove your own Org Admin rights when you no longer need them**, using the
+**- Remove me as admin** action on that same screen. Tyler-staff Org Admins can self-remove
+this way, and cleaning up is expected rather than optional. Permission changes take a little
+time to propagate.
 
 **Frequent access, and you do NOT yet have that permission** — this is the only case that
 needs the **Manager's Guide**: *Tyler Cloud Platform (TCP) | Org Admin promotions (Admin Center
 access) - a Manager's guide* (`/wiki/spaces/TTI/pages/386629479/`)
 
-It is a manager-driven workflow — the team's manager delegates the self-promotion permission —
-and there is **no single ticket URL** for it. Prerequisites: the user already has Ops Center
-access, and does not already have self-promotion rights. Once granted, they are in the case
-above permanently and never need this route again.
+It is a manager-driven workflow, and there is **no single ticket URL** for it — a manager
+requests it directly, and it covers two distinct capabilities: **(a)** adding a customer's user
+as an Org Admin themselves, and **(b)** granting their own direct reports the self-promotion
+permission described above, so those reports can add themselves going forward without going
+through their manager each time. Prerequisites: the user already has Ops Center access, and
+does not already have self-promotion rights. Once (b) is granted, they are in the case above
+permanently and never need this route again.
 
 None of the three paths uses the generic "Ops Center additional permissions" form (`4133`).
 
@@ -156,11 +160,14 @@ have" and "obtain the permission" into one branch is what made the answer incomp
 them as separate outcomes.
 
 - **Source:** Vijay Venkataraman, reviewing transcript `team/2026-08-24--53d51e27`, and again
-  on `team/2026-09-08--4125fbd2` for the three-path split. Ticket numbers and prerequisites
-  cross-checked against `Knowledge-Shared/Conf-OneTylerTickets.md` (*Client Admin Center access
-  request*, and *Add an Org Admin, or self-promote as Org Admin*), and the in-product
-  self-promote screen against `Docusaurus-OpsCenter.md` -> *Organization Details - Admins*.
-- **Added:** 2026-08-24, three-path split added 2026-09-09, by vijay-tylertech
+  on `team/2026-09-08--4125fbd2` for the three-path split, and again on `team/2026-09-11--5893b8c0`
+  for the explicit "- Remove me as admin" button name and the manager's-guide (a)/(b) split.
+  Ticket numbers and prerequisites cross-checked against `Knowledge-Shared/Conf-OneTylerTickets.md`
+  (*Client Admin Center access request*, and *Add an Org Admin, or self-promote as Org Admin*),
+  and the in-product self-promote screen against `Docusaurus-OpsCenter.md` -> *Organization
+  Details - Admins*.
+- **Added:** 2026-08-24, three-path split added 2026-09-09, button name and manager (a)/(b)
+  split added 2026-09-13, by vijay-tylertech
 - **Confidence:** confirmed by owner
 - **Added:** 2026-08-25 by vijay-tylertech
 - **Confidence:** confirmed by owner
