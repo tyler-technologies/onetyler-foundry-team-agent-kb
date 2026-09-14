@@ -4882,7 +4882,30 @@ def detail_page(rel):
 # someone sits down to review ("get me set up for reviewing") and every save in that session
 # should land on one branch, not one branch per click. A sitting resumed after a restart is
 # recognised by already BEING on a review/ branch.
-SITTING_LANE = None
+#
+# threading.local(), not a plain module global - same reasoning as current_login() (P2): on
+# ThreadingHTTPServer, a bare global is one value for every concurrent request, and reading it
+# from the wrong thread would report the wrong reviewer's lane name.
+#
+# ⚠⚠ THREAD-LOCAL STATE FIXES *READING* THE WRONG LANE NAME. IT DOES NOT FIX THE DEEPER PROBLEM:
+# ensure_lane() calls `git switch`, which changes out the ONE shared working tree at /app for
+# EVERY concurrent request, reviewer or not. Two hosted reviewers saving at close to the same
+# moment can still have one person's `git switch` land while the other's uncommitted edits are
+# on disk, on a REPO-WIDE basis - not a per-thread one. This was never a problem on the laptop
+# (one person, one checkout) and is a real, unresolved risk the moment a second hosted reviewer
+# is actually concurrent with a first. Flagged rather than fixed here (2026-09-13): the correct
+# fix is almost certainly a separate git worktree per reviewer (same pattern as
+# try_autorebase_dirty's isolated worktree), which is a real design change, not a quick patch -
+# deliberately left for a conscious decision rather than an overnight one.
+_SITTING_LANE_LOCAL = threading.local()
+
+
+def _get_sitting_lane():
+    return getattr(_SITTING_LANE_LOCAL, "value", None)
+
+
+def _set_sitting_lane(name):
+    _SITTING_LANE_LOCAL.value = name
 
 
 def lane_name():
@@ -4907,8 +4930,9 @@ def current_lane():
     cur = cur.strip()
     if cur.startswith("review/"):
         return cur, False
-    if SITTING_LANE:
-        return SITTING_LANE, False
+    remembered = _get_sitting_lane()
+    if remembered:
+        return remembered, False
     return cur, True
 
 
@@ -4918,14 +4942,13 @@ def ensure_lane():
     Called from the save action rather than from a button. Idempotent: once a sitting has a
     lane, every later save in that sitting goes to the same one.
     """
-    global SITTING_LANE
     name, shared = current_lane()
     if not shared:
         # Already on the right branch, or on a remembered lane we have drifted off.
         _, cur = git("rev-parse", "--abbrev-ref", "HEAD")
         if cur.strip() != name:
             git("switch", name)
-        SITTING_LANE = name
+        _set_sitting_lane(name)
         return name, False
     name = lane_name()
     # Branch from origin/main, NOT from wherever HEAD happens to be. `git switch -c <name>`
@@ -4946,10 +4969,54 @@ def ensure_lane():
         rc2, out2 = git("switch", "-c", name)
         if rc2 != 0:
             raise RuntimeError(f"could not set the work aside: {out}\n{out2}")
-        SITTING_LANE = name
+        _set_sitting_lane(name)
         return name, True
-    SITTING_LANE = name
+    _set_sitting_lane(name)
     return name, True
+
+
+def push_lane_for_processing():
+    """Push the current review lane to origin, hosted only. Returns a one-line status, or ""
+    if there was nothing to do.
+
+    THE GAP THIS CLOSES: save_reviews() only commits LOCALLY - it never pushes (see its own
+    docstring). Locally that's correct: the assistant that turns a reviewer's feedback into a
+    knowledge-file edit runs on the SAME machine/checkout, so the branch is already right
+    there. Hosted, there is no assistant inside the container - the only way feedback can
+    reach one is by existing on GitHub, so the lane has to be pushed BEFORE an assistant can
+    fetch it. Measured 2026-09-13: a real hosted review sat committed-only inside the
+    container with no way for an external assistant to see it at all, until someone with SSH
+    access pushed it by hand.
+
+    Called from the Publish page (git_page) the moment there is something for an assistant to
+    process (n_ai > 0) - the same hand-off moment the "Copy the prompt for my assistant" button
+    already represents, not a background timer or every keystroke. Idempotent: skips the push
+    entirely if the lane's remote tracking branch is already up to date, so viewing the page
+    repeatedly does not spam pushes.
+    """
+    if not AUTH_ENABLED:
+        return ""
+    # SAME "SAVE FIRST" DISCIPLINE AS THE EVAL CHECK ABOVE (search this file for "SAVE THE
+    # REVIEWER'S WORK FIRST"): reviewing happens through direct frontmatter edits in the
+    # browser, so it is normal - not a mistake - for that work to still be uncommitted when
+    # this page is viewed. An assistant needs the reviewer's ACTUAL feedback, not whatever
+    # happened to be committed last.
+    if git("status", "--porcelain", "--", *review_scope())[1].strip():
+        rc0, out0 = save_reviews(auto_commit_message())
+        if rc0 not in (0, NOTHING_TO_SAVE):
+            return f"Could not save the work in progress, so nothing was pushed: {out0[:300]}"
+    name, shared = current_lane()
+    if shared:
+        return ""       # nothing has ever been saved into a lane - genuinely nothing to push
+    rc_remote, _ = git("rev-parse", "--verify", "--quiet", f"origin/{name}")
+    if rc_remote == 0:
+        _, ahead = git("rev-list", "--count", f"origin/{name}..{name}")
+        if ahead.strip() in ("", "0"):
+            return ""   # already up to date, most page views land here
+    rc, out = git("push", "-u", "origin", name)
+    if rc != 0:
+        return f"Could not push {name} for an assistant to pick up: {out.strip()[:300]}"
+    return f"Pushed {name} to GitHub, so an assistant with no filesystem access here can fetch it."
 
 
 # `git commit` returns 1 both for "nothing to commit" and for a real failure. They need
@@ -5743,16 +5810,56 @@ def analysis_prompt(n):
     assistant needs are already in CLAUDE.md, which it reads on its own; repeating them here
     would create a second copy to drift. What it cannot know is that a batch is ready and what
     the human wants out of it.
+
+    HOSTED VS LOCAL, AND WHY THEY NEED DIFFERENT WORDS (operator, 2026-09-13). The laptop
+    wording - "sync main, do not disturb my in-progress branch" - quietly assumes the assistant
+    is ALREADY running on the same machine as the review, with the branch already checked out
+    locally. That is true on a laptop (one person, one checkout) and false hosted: nobody
+    except the operator has any access to the VM at all, so the branch exists ONLY as whatever
+    push_lane_for_processing() put on GitHub, and an assistant processing it necessarily runs
+    on a completely different machine that has never seen this branch before. It also has
+    nobody sitting at a hosted browser session to run Eval Review / Send afterward the way the
+    laptop flow expects, so the hosted assistant's job is bigger: it does the whole remaining
+    pipeline itself, not just the file edits.
     """
-    base = (f"I have finished reviewing {n} transcript(s) in this repo. "
-            "Sync this repo to the latest main first (`git fetch origin` and bring main up to "
-            "date; do not disturb my in-progress branch), so you are editing current content "
-            "and not reintroducing something already fixed. "
+    if AUTH_ENABLED:
+        name, shared = current_lane()
+        if shared:
+            # Should not happen in practice - git_page() calls push_lane_for_processing() (which
+            # saves first) before this is ever rendered with n>0 - but an assistant told to
+            # fetch a branch that does not exist yet is a worse failure than one line here.
+            branch_clause = ("My review has not been saved to a branch yet - tell me to press "
+                             "Save on the hosted app, then ask for this prompt again")
+        else:
+            branch_clause = (
+                f"My review is on the branch `{name}` on GitHub - not checked out anywhere "
+                "yet, and nobody else has any access to where it was reviewed, so this is the "
+                f"only way to reach it. Fetch and check it out (`git fetch origin {name}` then "
+                f"`git switch {name}`), then bring it up to date with `origin/main` if it is "
+                "behind")
+        base = (
+            f"I have finished reviewing {n} transcript(s) using the HOSTED copy of this app. "
+            f"{branch_clause}. "
             "Read all of my feedback as one body before changing anything, then update the "
             "knowledge files so the agents stop giving those answers. Summarise what you "
             "changed, per transcript, so I can follow my own feedback through. "
             "Do not change my verdicts, and ask me rather than guessing if any of my feedback "
-            "is ambiguous.")
+            "is ambiguous.\n\n"
+            "There is no browser session on this machine to finish the job afterward, so also: "
+            "run `python3 scripts/eval_batch.py --yes --keep` yourself to check the fix against "
+            "Foundry, then commit, push to that SAME branch, and open a pull request "
+            "(`gh pr create`) so I can review and merge it from wherever I next check GitHub."
+        )
+    else:
+        base = (f"I have finished reviewing {n} transcript(s) in this repo. "
+                "Sync this repo to the latest main first (`git fetch origin` and bring main up "
+                "to date; do not disturb my in-progress branch), so you are editing current "
+                "content and not reintroducing something already fixed. "
+                "Read all of my feedback as one body before changing anything, then update the "
+                "knowledge files so the agents stop giving those answers. Summarise what you "
+                "changed, per transcript, so I can follow my own feedback through. "
+                "Do not change my verdicts, and ask me rather than guessing if any of my "
+                "feedback is ambiguous.")
     bp = bp_batch()
     if not bp:
         return base
@@ -8666,16 +8773,30 @@ def eval_improve_prompt(key, edited):
     # as an aside. This is also an ITERATIVE loop: re-upload, ask again, mark up again. Saying so
     # stops the assistant treating one pass as final and rewriting more than the evidence
     # supports.
+    if AUTH_ENABLED:
+        # Same reasoning as analysis_prompt() - hosted, nobody but the operator has any access
+        # to where this was reviewed, so the branch has to be named and fetched rather than
+        # assumed already local. See that function's docstring for the full explanation.
+        name, shared = current_lane()
+        sync_line = (
+            f"Fetch and check out `{name}` (`git fetch origin {name}` then `git switch "
+            f"{name}`), then bring it up to date with `origin/main` if it is behind - nobody "
+            "but the operator has any access to where this was reviewed, so that branch is the "
+            "only way to reach it."
+            if not shared else
+            "My review has not been saved to a branch yet - tell me to press Save on the "
+            "hosted app, then ask for this prompt again.")
+    else:
+        sync_line = ("Sync this repo to the latest main first (`git fetch origin` and bring "
+                     "main up to date; do not disturb my in-progress branch).")
     L = [
         f"The `{agent}` agent is still not answering this the way I asked. This is one round of "
         "an iterative loop: you edit the knowledge files, I re-upload them to Foundry, ask the "
         "question again, and mark up whatever is still wrong. Your job this round is to close "
         "the gap between the two texts below.",
         "",
-        "Sync this repo to the latest main first (`git fetch origin` and bring main up to date; "
-        "do not disturb my in-progress branch). Read everything below as one body before "
-        "changing anything. Do not change my verdicts, and ask me rather than guessing if "
-        "anything here is ambiguous.",
+        f"{sync_line} Read everything below as one body before changing anything. Do not "
+        "change my verdicts, and ask me rather than guessing if anything here is ambiguous.",
         "",
         f"Transcript: {rel} (exchange {xnum})",
         "",
@@ -9488,10 +9609,18 @@ def git_page(which="save"):
         # something the page can do. The prompt is a copy button rather than text to retype:
         # the words matter (read all the feedback as one body, ask rather than guess) and
         # nobody should have to remember them.
+        #
+        # Hosted only: push the lane NOW, at this exact hand-off moment, so an assistant with
+        # no filesystem access to this container can actually fetch what it is about to be
+        # asked to process. See push_lane_for_processing()'s own docstring for the gap this
+        # closes. Only on the Publish tab, not Save - pushing on every Save-tab view would
+        # push work nobody has asked to hand off yet.
+        push_note = push_lane_for_processing() if which == "publish" else ""
         ai_stage = (
             f"<li data-stage=ai class='{st['ai']}'><b>Update the knowledge files</b>"
             f"<span><b>{n_ai}</b> transcript(s) waiting. Needs an assistant.<br>"
-            "<button type=button class=sec id=aiprompt onclick='copyPrompt(this)' "
+            + (f"<span class=hint>{html.escape(push_note)}</span><br>" if push_note else "")
+            + "<button type=button class=sec id=aiprompt onclick='copyPrompt(this)' "
             "style='margin-top:8px'>Copy the prompt for my assistant</button>"
             "</span></li>")
     else:
