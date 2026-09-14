@@ -1358,8 +1358,52 @@ def csv_import(text):
             "ignored": ignored, "skipped": skipped, "delimiter": delim}
 
 
+def _github_token_for(login):
+    """The right GitHub token for THIS login, hosted only.
+
+    Per-user, not one shared token, because a shared token authenticates every hosted
+    action as whoever the token belongs to, regardless of who is actually reviewing - the
+    `reviewer:` field says jon-olson-tylertech, but every commit gets pushed and every PR
+    gets opened as vijay-tylertech underneath, silently running every contributor's work
+    with an admin's GitHub permissions (operator, 2026-09-13).
+
+    fkb-recreate resolves one Key Vault secret per contributor it finds a token for
+    (FOUNDRY-KB-GITHUB-TOKEN-<LOGIN>) and passes each as its own env var
+    (GH_TOKEN_FOR_<LOGIN>, dashes to underscores - env var names cannot contain dashes).
+    Falls back to the original shared GH_TOKEN/GITHUB_TOKEN for anyone who has not added
+    their own yet, so nothing breaks mid-rollout - see the contributor instructions for how
+    someone gets their own token in.
+    """
+    if login:
+        key = "GH_TOKEN_FOR_" + re.sub(r"[^A-Za-z0-9]", "_", login).upper()
+        v = os.environ.get(key)
+        if v:
+            return v
+    return os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN") or ""
+
+
+def _subprocess_env_for_login():
+    """A copy of the environment with GH_TOKEN/GITHUB_TOKEN swapped to the CURRENT REQUEST's
+    login's own token, or None (inherit the environment unchanged) if there is nothing to
+    override - the laptop/CLI case, where neither a per-user nor a shared token env var is
+    ever set and gh's own stored credentials do the work instead.
+
+    Never mutates os.environ itself. That would be one value shared across every concurrent
+    hosted request - exactly the class of bug current_login() (P2) exists to prevent, just
+    for a credential this time instead of an identity string.
+    """
+    tok = _github_token_for(current_login())
+    if not tok:
+        return None
+    env = os.environ.copy()
+    env["GH_TOKEN"] = tok
+    env["GITHUB_TOKEN"] = tok
+    return env
+
+
 def git(*args, timeout=60):
-    r = subprocess.run(["git", *args], cwd=REPO, capture_output=True, text=True, timeout=timeout)
+    r = subprocess.run(["git", *args], cwd=REPO, capture_output=True, text=True,
+                       timeout=timeout, env=_subprocess_env_for_login())
     return r.returncode, (r.stdout + r.stderr).strip()
 
 
@@ -6185,10 +6229,13 @@ def git_fragments():
 
 
 def gh(*args, timeout=180):
-    """Run gh with the admin's own credentials. There is deliberately no shared token in this
-    repo: a PAT in a repo secret is readable by any write-access contributor's PR."""
+    """Run gh with the CURRENT REQUEST's own credentials where one exists (see
+    _github_token_for), falling back to the shared token otherwise. On the laptop this is
+    just the admin's own `gh auth` session, unchanged - there is deliberately no shared
+    token IN THIS REPO for that case: a PAT in a repo secret is readable by any
+    write-access contributor's PR."""
     r = subprocess.run(["gh", *args], cwd=REPO, capture_output=True, text=True,
-                       timeout=timeout)
+                       timeout=timeout, env=_subprocess_env_for_login())
     return r.returncode, (r.stdout + r.stderr).strip()
 
 
@@ -6235,9 +6282,14 @@ def _git_in(cwd, *args, timeout=60):
     session also uses, and a real `git rebase` checks out a different ref, which would disturb
     whatever that human currently has in progress. The worktree this is used against is a
     second, throwaway checkout that shares the same object database but nothing else.
+
+    Also uses the CURRENT REQUEST's own token (same _subprocess_env_for_login() as git()):
+    the force-push this backs is "Approve & Merge", always an admin action, performed by
+    whoever clicked it - correctly attributing that push to the admin doing the merge, not
+    to whoever originally opened the conflicted PR.
     """
     r = subprocess.run(["git", *args], cwd=str(cwd), capture_output=True, text=True,
-                       timeout=timeout)
+                       timeout=timeout, env=_subprocess_env_for_login())
     return r.returncode, (r.stdout + r.stderr).strip()
 
 
