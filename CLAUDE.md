@@ -37,6 +37,19 @@ depth, but never assume they are present.)
    users that the repo has not accepted, and then the next drift check tries to undo it. This
    has happened once — a 6.5-hour window on 2026-08-25 — which is why the check exists.
 
+   **THE REVIEW UI ALREADY PUBLISHES ON MERGE — do not describe the upload as a manual step.**
+   **Approve & Merge** on the Change Requests page merges, fast-forwards the checkout, uploads
+   every `Knowledge-*` file the request touched, syncs once and verifies by retrieval; it
+   reports the whole action as failed if the upload does not land. An admin's periodic sync
+   additionally publishes anything `main` has that Foundry does not, which covers a merge done
+   on github.com. The merge button IS the confirmation this rule asks for — the click is the
+   admin's decision to ship. So `publish_to_foundry.py` at a terminal is the FALLBACK (no key
+   in the server's environment, or a merge nobody clicked through here), not the route. It also
+   writes the **team routing prompt** when the request changed it, with the full guardrail
+   chain — see *Changing the team router prompt*. The one thing it does not do is **close out
+   transcripts** (`mark_pushed.py`), because `main` is protected. Read `DAILY-WORKFLOW.md`
+   §*Admins* before answering any question about when Foundry gets updated.
+
    **After EVERY PR merge, run `python3 scripts/check_foundry_drift.py`.** A merge is the
    moment `main` gets ahead of the live agents, and nothing else notices: a knowledge file
    only reaches an agent when someone uploads it, so an unshipped change leaves the agent
@@ -742,19 +755,48 @@ model you must internalize"), so ordinary content updates need no deletion. Only
 
 ## Changing the team router prompt — ADMINS ONLY
 
-**You can do this yourself. Do not hand it back to the user as manual work.** It is the
-highest-blast-radius object in the system, so it needs a procedure — not avoidance. Everything
-below was verified end to end on 2026-08-27.
+**APPROVE & MERGE NOW DOES THIS. Do not perform the steps below by hand unless the button
+cannot.** As of 2026-09-16 a merged change to `team-config/team-routing-prompt.md` is written
+to the live team object by the merge itself (`publish_router_after_merge` in
+`scripts/review_server.py`), running the whole chain: merged-first check, angle-bracket refusal,
+already-live no-op, committed-backup check, native version snapshot, full-object PUT, re-read,
+and a field-by-field diff that fails loudly if anything but `system_prompt` moved.
+
+**Your job when changing routing is therefore:**
+
+1. Edit the fenced block under `## Current` in `team-config/team-routing-prompt.md`. **That
+   block is the live prompt** — the file is a 263-line document whose change log quotes older
+   prompts and contains the literal text `<product>` and `->`, so only the first
+   ` ```text ` block under `## Current` is published. Verified byte-identical to the live
+   `system_prompt` on 2026-09-16 (8,465 chars).
+2. **Commit the pre-change team object in the same request** —
+   `team-config/backups/team-backup-<YYYYMMDD-HHMMSS>.json`, the full GET response verbatim,
+   scanned for credentials. Without it the merge refuses to publish the router and says so on
+   the card before it is clicked. It is also the tripwire for a UI edit: if the live prompt no
+   longer matches it, the prompt in the request was written against a baseline that is gone.
+3. Keep `<` and `>` out of the prompt entirely (see step 4 below for why).
+4. After the merge reports it live, run the **behavioural test** — the merge verifies the TEXT
+   landed, which is not the same as routing changing. Ask the question that was misrouted, plus
+   a control that must still go elsewhere.
+
+Everything below is the manual fallback, for when the button cannot run it — no key in the
+server's environment, an unparseable mirror, or a restore. It is the same sequence the button
+performs. Verified end to end on 2026-08-27.
 
 **Who:** repo admins only. `team-config/` is admin-only (hard rule 6), and this is a
-production config change (hard rule 5), so **confirm the change with the user first** and
-never do it as a side effect of another task. If you are running for a contributor, stop and
-say the change needs an admin.
+production config change (hard rule 5), so **confirm the change with the user first** and never
+run the manual PUT as a side effect of another task. If you are running for a contributor, stop
+and say the change needs an admin.
 
-**Why it is worth doing rather than deferring:** editing
-`team-config/team-routing-prompt.md` changes *nothing* at runtime — it is only a mirror. Until
-the live prompt changes, routing behaves exactly as before, so a repo-only "fix" to a routing
-bug is not a fix at all.
+Note where the confirmation now sits for the automated path: **Approve & Merge is the
+confirmation.** An admin clicking it, through a gate that names the routing change explicitly,
+is the decision to ship — which is not the same as an agent PUTting a config object mid-task.
+Writing the prompt into the mirror and opening a request is still reviewable, still not live,
+and still needs the user's say-so before you open it.
+
+**Why editing the mirror is not itself a fix:** `team-config/team-routing-prompt.md` changes
+*nothing* at runtime on its own — until the live prompt changes, routing behaves exactly as
+before. What makes it live is the **merge**, not the edit.
 
 ### The procedure
 
@@ -795,10 +837,24 @@ curl -s -X PUT -A "$UA" -H "X-API-Key: $FOUNDRY_API_KEY" -H "Content-Type: appli
 ```
 
 The spec documents **no request body** for this endpoint, so the semantics are not knowable
-from the docs. Measured: it is a **full replace**, and sending the whole 18-field object back
-loses nothing. Sending only `{"system_prompt": ...}` risks wiping `agent_ids`,
-`orchestrator_config`, `routing_rules` and `chatExperience` — which would take the team down.
-Send everything.
+from the docs. Measured: it is a **full replace**, and sending the whole object back loses
+nothing. Sending only `{"system_prompt": ...}` risks wiping `agent_ids`, `orchestrator_config`,
+`routing_rules` and `chatExperience` — which would take the team down. Send everything.
+
+Two corrections to what this used to say, both from 2026-09-16:
+
+- The object has **22 top-level fields**, not 18 (`agent_ids`, `chatExperience`, `created_at`,
+  `description`, `id`, `implementation_controls`, `is_active`, `metadata`, `name`,
+  `orchestrator_config`, `origin`, `package_generation_digest`, `package_graph_role`,
+  `package_lineage_id`, `package_root_team_id`, `project_id`, `routing_rules`, `source_id`,
+  `system_prompt`, `tenant_id`, `updated_at`, `user_id`). Don't assert a count; fetch and count.
+- **Whether the body is the bare object or `{"team": {...}}` is not recorded anywhere.** This
+  file says "the full object" while `team-config/README.md` says a backup holds "the full GET
+  response verbatim" — the wrapped form — and "to restore: PUT the backup body back". Nobody
+  wrote down which one the successful 2026-08-27 write used.
+  `publish_router_after_merge` therefore tries bare, and retries **once** wrapped on a
+  400/415/422 only — a rejection means nothing was written, so the retry cannot double-apply.
+  It reports which shape was accepted; **when you next see that line, record the answer here.**
 
 **6. Verify — three checks, all of them.**
 

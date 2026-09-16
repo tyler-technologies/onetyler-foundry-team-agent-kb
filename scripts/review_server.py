@@ -2868,9 +2868,21 @@ async function prDo(btn,action,number,extra){
 // failing build is exactly the mistake worth interrupting. ONE button now regardless of
 // whose request it is or what mergeStateStatus says - see the server-side comment above
 // where this button is rendered for why two buttons tracking that was a recurring bug.
-function prApproveMerge(btn,number,title,checks){
+function prApproveMerge(btn,number,title,checks,router){
  const warn = checks==='failing' ? '<b>Checks are failing on this one.</b><br>'
             : checks==='running' ? 'Checks are still running.<br>' : '';
+ // The router is named IN THE GATE, not only on the card. Everything else this button
+ // publishes changes one agent's answers; this changes WHICH agent answers at all, for every
+ // conversation - so it belongs in the sentence read with a finger on the trigger.
+ const rt = router==='live'
+   ? '<br><br><b>It also writes the team routing prompt live.</b> Restore point first, '
+     +'full-object PUT with only <code>system_prompt</code> changed, then re-read and diffed '
+     +'field by field. Routing changes for every conversation as soon as it finishes.'
+   : router==='nobackup'
+   ? '<br><br><b>The routing prompt will NOT be published</b> — this request carries no '
+     +'<code>team-config/backups/team-backup-*.json</code>, and a config object has no undo '
+     +'without one. Everything else still ships.'
+   : '';
  confirmThen(btn,'Approve and merge #'+number+'?',
    warn+'<code>'+title+'</code><br><br>Ships it now as the admin — skips the required '
    +'approval (GitHub refuses self-approval anyway, and this repo has one code owner). '
@@ -2879,7 +2891,7 @@ function prApproveMerge(btn,number,title,checks){
    +'<code>transcripts/INDEX.md</code> is the only file in the way — anything else is '
    +'reported after the click, not guessed at.<br><br><b>Any knowledge files in this request '
    +'are then uploaded to Foundry and verified.</b> This is the whole make-it-live action, so '
-   +'the agents change as soon as it finishes.',
+   +'the agents change as soon as it finishes.'+rt,
    ()=>prDo(btn,'approve-merge',number));
 }
 // Blueprint merges via GitHub's auto-merge, not by waiting here: its CI takes minutes and a
@@ -6573,6 +6585,19 @@ def merged_knowledge_files(number):
     return sorted(set(out))
 
 
+def merged_touched_router(number):
+    """Did this change request touch the team routing prompt mirror?
+
+    Separate from merged_knowledge_files() because the two lead to different places: that list
+    gets published, this one cannot be. Asking GitHub for the same reason it gives - a rebase
+    merge leaves no merge commit to diff against.
+    """
+    files, err = pr_files(number, force=True)
+    if err or not files:
+        return False
+    return any((f.get("filename") or "") == ROUTER_MIRROR for f in files)
+
+
 def publish_after_merge(files):
     """Upload the merged knowledge files to Foundry. Returns (ok, message).
 
@@ -6608,6 +6633,289 @@ def publish_after_merge(files):
         return False, ("Merged, but the Foundry upload FAILED. The repo is ahead of the live "
                        "agents until this is fixed:\n\n" + tail)
     return True, tail
+
+
+# ---------------------------------------------------------------------------------------------
+# The team routing prompt, published on merge
+#
+# The router used to be the one merged change this button could not finish: a knowledge file
+# reaches an agent through a collection, and the router has no collection - its only live copy
+# is `system_prompt` on the team object. So merging a change to ROUTER_MIRROR moved `main` and
+# altered nothing at runtime, which is the same silent gap publish-on-merge exists to close,
+# one object to the left (operator, 2026-09-16: "Approve & Merge is the final step that does it
+# all", and the router was explicitly in scope).
+#
+# It is also the highest-blast-radius object in the system - a bad prompt misroutes EVERY
+# conversation - so it is automated with the whole guardrail chain from CLAUDE.md
+# ("Changing the team router prompt"), not just the PUT:
+#
+#   merged                  refuses anything whose bytes differ from origin/main (hard rule 5)
+#   extractable             the prompt is one fenced block in a document; see below
+#   no angle brackets       Foundry HTML-escapes '>' and strips <tag>-shaped text
+#   already-live check      idempotent, so a re-run or a second click writes nothing
+#   backup committed        hard rule 8, and it doubles as UI-edit detection
+#   native version          a real restore point, created BEFORE the write
+#   PUT the FULL object     a partial body risks wiping agent_ids / routing_rules
+#   verify by re-reading    exact text, no escaping artefacts
+#   field-by-field diff     only system_prompt and timestamps may move, or it FAILS LOUDLY
+#
+# THE MIRROR IS A DOCUMENT, NOT A COPY OF THE PROMPT. This is the thing that makes a naive
+# implementation dangerous: team-routing-prompt.md is 263 lines, of which the live prompt is
+# 118 - the rest is a change log that itself quotes older prompts and discusses the escaping
+# incident, so it contains the literal text `<product>` and `->`. PUTting the file would ship
+# the commentary as the routing prompt AND get it mangled on the way in. The live copy is the
+# first fenced block under `## Current`, which was verified byte-identical to the live
+# `system_prompt` (8,465 chars, zero angle brackets) on 2026-09-16.
+#
+# check_foundry_drift.py compares with CONTAINMENT (`norm(live) in norm(mirror)`) for exactly
+# this reason. It is the weaker test and it is right for a one-way check; a WRITE has to know
+# precisely which bytes are the prompt, which is what the extractor below is for.
+ROUTER_FENCE = "```text"
+ROUTER_CURRENT_HEADING = "## Current"
+
+
+def router_prompt_from_mirror(text):
+    """The live routing prompt as held in the mirror document. Returns (prompt, err).
+
+    Deliberately strict: an unparseable mirror returns an error and nothing is written. The
+    alternative - falling back to "the whole file" - is the failure this function exists to
+    prevent, and it would be silent.
+    """
+    lines = text.splitlines()
+    heads = [i for i, l in enumerate(lines) if l.strip() == ROUTER_CURRENT_HEADING]
+    if not heads:
+        return "", (f"{ROUTER_MIRROR} has no `{ROUTER_CURRENT_HEADING}` heading, so which part "
+                    "of it is the live prompt is not knowable. Nothing was written.")
+    if len(heads) > 1:
+        return "", (f"{ROUTER_MIRROR} has {len(heads)} `{ROUTER_CURRENT_HEADING}` headings. "
+                    "Exactly one must mark the live prompt. Nothing was written.")
+    start = next((i for i in range(heads[0], len(lines))
+                  if lines[i].strip() == ROUTER_FENCE), None)
+    if start is None:
+        return "", (f"no `{ROUTER_FENCE}` block after `{ROUTER_CURRENT_HEADING}` in "
+                    f"{ROUTER_MIRROR}. Nothing was written.")
+    end = next((i for i in range(start + 1, len(lines))
+                if lines[i].strip() == "```"), None)
+    if end is None:
+        return "", (f"the `{ROUTER_FENCE}` block after `{ROUTER_CURRENT_HEADING}` in "
+                    f"{ROUTER_MIRROR} is never closed. Nothing was written.")
+    prompt = "\n".join(lines[start + 1:end])
+    if not prompt.strip():
+        return "", (f"the `{ROUTER_CURRENT_HEADING}` block in {ROUTER_MIRROR} is empty. "
+                    "Refusing to publish an empty routing prompt.")
+    return prompt, ""
+
+
+def _team_obj(payload):
+    """Unwrap `{"team": {...}}`, which is what both the API and the committed backups hold."""
+    if isinstance(payload, dict) and isinstance(payload.get("team"), dict):
+        return payload["team"]
+    return payload if isinstance(payload, dict) else {}
+
+
+def router_backup_in_pr(num, live):
+    """Is a pre-change team backup committed as part of this request? Returns (ok, message).
+
+    REQUIRED, not optional - hard rule 8 is "back up before changing anything in Foundry, AND
+    commit the backup", and a config object has no other copy and no git history of its own.
+    The backup is required IN THE REQUEST rather than written here on the way past, for two
+    reasons that both turned out to matter more than the convenience:
+
+      * `main` is protected (hard rule 4), so this process cannot commit one. Writing it to the
+        working tree instead leaves an untracked file in a checkout a reviewer is also using,
+        and "commit this later" is precisely the kind of remembering the merge button exists to
+        abolish. Auto-opening a second request would land an UNREVIEWED backup and move main
+        twice for one change.
+      * The committed backup doubles as a TRIPWIRE. CLAUDE.md's procedure captures it just
+        before the change, so if it no longer matches the live prompt, somebody edited the
+        router in the Foundry UI after this request was prepared - which means the prompt in
+        the request was written against a baseline that no longer exists. That is exactly the
+        case hard rule 1 warns about, and it is invisible in the diff.
+    """
+    files, err = pr_files(num, force=True)
+    if err:
+        return False, f"could not list the files in #{num}, so the backup cannot be checked: {err}"
+    backups = sorted(f.get("filename") or "" for f in (files or [])
+                     if re.match(r"^team-config/backups/team-backup-[\w.-]+\.json$",
+                                 f.get("filename") or "")
+                     and f.get("status") != "removed")
+    if not backups:
+        return False, (
+            "no team backup is committed in this request, so the router was NOT published.\n"
+            "  Hard rule 8: back up before changing anything in Foundry, and commit the backup "
+            "- a config\n  object has no other copy and no undo.\n\n"
+            "  Add the pre-change object to the request and merge again:\n"
+            "    curl -s -A 'claude-code-foundry-kb/1.0' -H \"X-API-Key: $FOUNDRY_API_KEY\" \\\n"
+            f"      https://foundry.tylertechai.com/api/teams/{TEAM_ID} \\\n"
+            "      > team-config/backups/team-backup-$(date +%Y%m%d-%H%M%S).json\n"
+            "  Scan it for credentials before committing it.")
+    rel = backups[-1]
+    rc, raw = git_cmd("git", "show", f"origin/main:{rel}")     # stdout only; see the note above
+    if rc != 0:
+        return False, f"the committed backup {rel} could not be read from origin/main."
+    try:
+        saved = _team_obj(json.loads(raw))
+    except json.JSONDecodeError as e:
+        return False, f"the committed backup {rel} is not valid JSON ({e}), so it is not a backup"
+    if not saved.get("system_prompt"):
+        return False, (f"the committed backup {rel} carries no `system_prompt`, so it cannot "
+                       "serve as a restore point for a routing change")
+    if saved.get("system_prompt") != live.get("system_prompt"):
+        return False, (
+            f"the live routing prompt does not match the backup committed in this request "
+            f"({rel}).\n  Somebody has changed the router in the Foundry UI since this request "
+            "was prepared, so the prompt\n  in it was written against a baseline that no longer "
+            "exists (hard rule 1). NOTHING was written.\n\n"
+            "  Re-derive the change from the CURRENT live prompt, commit a fresh backup, and "
+            "merge again.")
+    return True, f"backup verified against the live object: {rel}"
+
+
+def publish_router_after_merge(num):
+    """Write the merged routing prompt to the live team object. Returns (ok, message).
+
+    Only called when the request actually touched ROUTER_MIRROR. Every refusal below leaves
+    Foundry untouched, which is why they are refusals rather than warnings.
+    """
+    mirror = REPO / ROUTER_MIRROR
+    if not mirror.is_file():
+        return False, f"{ROUTER_MIRROR} is not in the checkout, so nothing was written."
+    if not os.environ.get("FOUNDRY_API_KEY"):
+        return False, ("the routing prompt was NOT published: FOUNDRY_API_KEY is not set in the "
+                       "environment this server was started from. Routing behaves exactly as it "
+                       "did before this merge.")
+
+    local = mirror.read_text(encoding="utf-8")
+
+    # MERGED FIRST, same rule the knowledge upload runs on (hard rule 5). Compared through the
+    # extractor rather than on raw bytes: a change log edit in the same file is not a change to
+    # the prompt, and refusing on it would block a merge for no live difference.
+    # git_cmd, not git(): git() folds stderr into stdout, and any git warning would land inside
+    # the blob and be parsed as part of the prompt. Reading a file's exact bytes is the one case
+    # where the combined stream is wrong.
+    rc, blob = git_cmd("git", "show", f"origin/main:{ROUTER_MIRROR}")
+    if rc != 0:
+        return False, (f"could not read {ROUTER_MIRROR} from origin/main (git show failed), so "
+                       "it cannot be shown to be merged. Nothing was written.")
+    on_main, err_main = router_prompt_from_mirror(blob)
+    want, err = router_prompt_from_mirror(local)
+    if err:
+        return False, err
+    if err_main:
+        return False, "origin/main's copy of the mirror does not parse: " + err_main
+    if want != on_main:
+        return False, (f"the {ROUTER_MIRROR} in this checkout does not match origin/main, so it "
+                       "is not merged. Nothing reaches Foundry until it is (hard rule 5).")
+
+    # Foundry HTML-escapes '>' and strips <tag>-shaped text, so these characters cannot survive
+    # the round trip. Caught BEFORE the write: the alternative is a mangled live prompt and a
+    # restore to undo it.
+    bad = [c for c in ("<", ">") if c in want]
+    if bad:
+        return False, (f"the routing prompt contains {' and '.join(bad)}, which Foundry escapes "
+                       "or strips - it cannot be written unaltered. Use hyphens for dashes and "
+                       "reword any <tag>-shaped text. Nothing was written.")
+
+    try:
+        before = _team_obj(_foundry_get(f"/api/teams/{TEAM_ID}"))
+    except Exception as e:                                            # noqa: BLE001
+        return False, f"could not read the live team object, so nothing was written: {e}"
+    if not before:
+        return False, "the live team object came back empty, so nothing was written."
+
+    if before.get("system_prompt") == want:
+        return True, ("The routing prompt is already live and matches the repo — nothing to "
+                      "write. (A change log edit in the mirror does not change the prompt.)")
+
+    okb, whyb = router_backup_in_pr(num, before)
+    if not okb:
+        return False, whyb
+
+    stamp = time.strftime("%Y%m%d-%H%M%S")
+    code, out = _foundry_write("POST", f"/api/teams/{TEAM_ID}/versions",
+                               {"type": "full", "name": f"pre-merge-pr{num}-{stamp}"[:80]})
+    if code not in (200, 201):
+        return False, ("could not create a restore point on the team object, so the routing "
+                       f"prompt was NOT written (HTTP {code}): {str(out)[:200]}")
+    vnum = out.get("version_number") if isinstance(out, dict) else "?"
+    vid = out.get("id") if isinstance(out, dict) else ""
+    restore = (f"  Restore it with:\n    curl -s -X POST -A 'claude-code-foundry-kb/1.0' "
+               f"-H \"X-API-Key: $FOUNDRY_API_KEY\" \\\n      -H 'Content-Type: application/json' "
+               f"\\\n      https://foundry.tylertechai.com/api/teams/{TEAM_ID}/versions/{vid}/restore"
+               if vid else "  (no version id came back — restore from the Foundry UI)")
+
+    # THE FULL OBJECT, with one field swapped. Measured for teams and written down in CLAUDE.md:
+    # a partial body risks wiping agent_ids, orchestrator_config, routing_rules and
+    # chatExperience, which would take the team down. Built from the object fetched seconds ago,
+    # never from the committed backup - that would revert anything legitimately changed since.
+    payload = dict(before)
+    payload["system_prompt"] = want
+
+    # WHICH BODY SHAPE? The repo's own two accounts disagree, and the OpenAPI spec documents no
+    # request body at all for this endpoint, so it is not knowable from the docs. CLAUDE.md says
+    # "PUT the FULL object" (the bare team), while team-config/README.md says a backup holds
+    # "the full GET response verbatim" - `{"team": {...}}` - and "to restore: PUT the backup body
+    # back", which is the wrapped form.
+    #
+    # Resolved by trying, not by guessing: bare first (a REST PUT takes the resource), and on a
+    # body-shape REJECTION only, once more wrapped. A 4xx means the request was refused, so
+    # nothing was written and the retry cannot double-apply anything. A 5xx is NOT retried - it
+    # may have been applied - and neither shape is retried more than once.
+    code, out = _foundry_write("PUT", f"/api/teams/{TEAM_ID}", payload)
+    shape = "bare"
+    if code in (400, 415, 422):
+        code2, out2 = _foundry_write("PUT", f"/api/teams/{TEAM_ID}", {"team": payload})
+        if code2 == 200:
+            code, out, shape = code2, out2, "wrapped in {\"team\": ...}"
+        else:
+            return False, (f"the routing-prompt PUT was refused in both body shapes "
+                           f"(bare: HTTP {code} {str(out)[:150]}; wrapped: HTTP {code2} "
+                           f"{str(out2)[:150]}).\n  Nothing was written. Restore point v{vnum} "
+                           "was created and is unused.\n" + restore)
+    if code != 200:
+        return False, (f"the routing-prompt PUT failed (HTTP {code}): {str(out)[:300]}\n"
+                       f"  Restore point v{vnum} was created first and nothing else ran.\n"
+                       + restore)
+
+    try:
+        after = _team_obj(_foundry_get(f"/api/teams/{TEAM_ID}"))
+    except Exception as e:                                            # noqa: BLE001
+        return False, (f"the PUT returned 200 but the object could not be re-read, so the write "
+                       f"is UNVERIFIED: {e}\n  Check it by hand.\n" + restore)
+
+    got = after.get("system_prompt") or ""
+    if got != want:
+        return False, ("the PUT returned 200 but the live prompt does not match what was sent "
+                       f"({len(got)} chars live, {len(want)} expected).\n  Treat the router as "
+                       "in an unknown state and restore it.\n" + restore)
+    arte = [m for m in ("&gt;", "&lt;", "&amp;") if m in got]
+    if arte:
+        return False, ("the live prompt came back with escaping artefacts "
+                       f"({', '.join(arte)}), so Foundry altered the text.\n" + restore)
+
+    # FIELD-BY-FIELD, and the check that would catch a bad payload contract: if the PUT semantics
+    # are not what CLAUDE.md measured, something other than the prompt moved and the team may be
+    # degraded in a way no behavioural test of routing would show.
+    moved = []
+    for k in sorted(set(before) | set(after)):
+        if k == "system_prompt" or k in BK_TIMESTAMPS:
+            continue
+        if (json.dumps(before.get(k), sort_keys=True, default=str)
+                != json.dumps(after.get(k), sort_keys=True, default=str)):
+            moved.append(k)
+    if moved:
+        return False, ("the routing prompt was written, but SO WERE OTHER FIELDS: "
+                       f"{', '.join(moved)}.\n  That is a broken payload contract, not a routing "
+                       "change - restore the team and do not merge another router change until "
+                       "it is understood.\n" + restore)
+
+    return True, (f"Team routing prompt published and verified ({len(want)} chars) — "
+                  f"restore point v{vnum} taken first.\n"
+                  f"  {whyb}\n"
+                  f"  PUT body shape accepted: {shape}.\n"
+                  "  Field-by-field diff: only system_prompt moved.\n"
+                  "  Routing has changed NOW. Ask the team a question that was misrouted, plus a "
+                  "control that must still go elsewhere.")
 
 
 def merge_pr(num, head_ref):
@@ -6911,6 +7219,18 @@ def transcript_pr_map(force=False):
     return out
 
 
+# The repo's MIRROR of the live team routing prompt. Called out separately from every other
+# path because it is the one file in the repo whose merge Approve & Merge cannot finish:
+# publish_to_foundry.py maps Knowledge-* folders to collections and the router is not a
+# collection file at all - the only live copy is `system_prompt` on the team object, written
+# with a full-object PUT (CLAUDE.md, "Changing the team router prompt").
+#
+# So merging a change to it moves `main` and changes NOTHING at runtime, which is the same
+# silent gap publish-on-merge was built to close, one object to the left. Detected here so the
+# card and the merge output can both say so; see the render site and the approve-merge handler.
+ROUTER_MIRROR = "team-config/team-routing-prompt.md"
+
+
 def pr_kind(pr):
     """What a change request is MADE of, and therefore what merging it obliges.
 
@@ -6920,13 +7240,24 @@ def pr_kind(pr):
     text while the repo looks correct, and an unnecessary one is a production write for no
     reason.
 
+    `router` is the third case and it is NOT covered by the upload: see ROUTER_MIRROR.
+
     `files` comes back in the same `gh pr list` call as everything else, so this costs no extra
     network round-trip.
     """
     paths = [f.get("path", "") for f in (pr.get("files") or [])]
     kb = sorted({x.split("/")[0] for x in paths if x.startswith("Knowledge-")})
     tr = [x for x in paths if x.startswith("transcripts/")]
-    other = [x for x in paths if not x.startswith(("Knowledge-", "transcripts/"))]
+    router = ROUTER_MIRROR in paths
+    # Does the request carry its own pre-change team backup? Required before the router can be
+    # published - see router_backup_in_pr - and knowable from the file list alone, so the card
+    # can say it BEFORE the merge rather than the output panel saying it after.
+    router_backup = any(re.match(r"^team-config/backups/team-backup-[\w.-]+\.json$", x)
+                        for x in paths)
+    # The router is counted on its own line below, so it must come OUT of `other` - otherwise
+    # one file is reported twice ("the team routing prompt - 1 tooling/doc file(s)").
+    other = [x for x in paths
+             if not x.startswith(("Knowledge-", "transcripts/")) and x != ROUTER_MIRROR]
     cols = []
     for folder in kb:
         for c in FOLDER_COLLECTION.get(folder, []):
@@ -6938,10 +7269,12 @@ def pr_kind(pr):
                     "knowledge file(s)")
     if tr:
         bits.append(f"<b>{len(tr)}</b> transcript(s)")
+    if router:
+        bits.append("the <b>team routing prompt</b>")
     if other:
         bits.append(f"<b>{len(other)}</b> tooling/doc file(s)")
     return {"cols": cols, "summary": " &middot; ".join(bits) or "no files",
-            "kb": bool(kb)}
+            "kb": bool(kb), "router": router, "router_backup": router_backup}
 
 
 def pr_checks(pr):
@@ -7384,8 +7717,10 @@ def pr_page(force=False):
         # transcripts/INDEX.md - never anything with human judgment in it. Anything it cannot
         # fix mechanically is reported after the click, not guessed at or hidden behind no
         # button at all.
+        router_arg = ("live" if kind["router"] and kind["router_backup"]
+                      else "nobackup" if kind["router"] else "")
         acts.append(f"<button onclick=\"prApproveMerge(this,{pr['number']},"
-                    f"'{html.escape(pr['title'][:60])}','{cls}')\" "
+                    f"'{html.escape(pr['title'][:60])}','{cls}','{router_arg}')\" "
                     "title='Ship it now as the admin — rebases onto main and resolves an "
                     "INDEX.md-only conflict automatically; anything else is reported, not "
                     "guessed at'>Approve &amp; Merge</button>")
@@ -7416,6 +7751,45 @@ def pr_page(force=False):
         else:
             selfnote = ""
 
+        # CAN THIS SERVER ACTUALLY PUBLISH? Asked before the merge, because the answer is a
+        # property of the PROCESS, not of the request - and on the hosted copy it is the one
+        # that differs from a laptop. `publish_after_merge` reports a missing key clearly, but
+        # only AFTER the merge has moved main, which is exactly the "repo ahead of the agents"
+        # state the button exists to prevent. Told here instead, while not merging is still an
+        # option. Same env var the publish path reads, so the two cannot disagree.
+        nokey_note = ""
+        if (kind["kb"] or kind["router"]) and not os.environ.get("FOUNDRY_API_KEY"):
+            nokey_note = (
+                "<div class=hint style='margin-top:8px'><b>This server cannot publish to "
+                "Foundry &mdash; <code>FOUNDRY_API_KEY</code> is not set in the environment it "
+                "was started from.</b> Approve &amp; Merge will still merge, but the upload "
+                "will not run, and <code>main</code> will be ahead of the live agents until "
+                "somebody uploads by hand. Restart this server with the key present, or merge "
+                "from a copy that has it.</div>")
+
+        # The router is published by the merge too, but it is the highest-blast-radius object
+        # here and it is the one publish that can REFUSE on a condition visible up front - so
+        # say which of the two situations this request is in before it is clicked.
+        router_note = ""
+        if kind["router"] and kind["router_backup"]:
+            router_note = (
+                "<div class='hint fdrynote' style='margin-top:8px'>This request changes the "
+                "<b>team routing prompt</b>, and merging <b>writes it live</b> &mdash; a "
+                "restore point is taken first, the full team object is PUT with only "
+                "<code>system_prompt</code> changed, and the result is re-read and diffed "
+                "field by field. <b>Routing changes for every conversation the moment this "
+                "finishes</b>, so have a misrouted question and a control question ready to "
+                "try.</div>")
+        elif kind["router"]:
+            router_note = (
+                "<div class=hint style='margin-top:8px'><b>This request changes the team "
+                "routing prompt but carries no backup, so the router will NOT be "
+                "published.</b> A config object has no other copy and no undo (hard rule 8), "
+                "so the pre-change team object has to be committed in the same request: "
+                "<code>team-config/backups/team-backup-&lt;YYYYMMDD-HHMMSS&gt;.json</code>, "
+                "the full GET response verbatim. Add it and merge, or merge now and the "
+                "knowledge files still ship &mdash; routing simply stays as it is.</div>")
+
         body.append(
             "<div class=card>"
             f"<h3><a href=\"{html.escape(pr['url'])}\" target=_blank rel=noopener>"
@@ -7431,8 +7805,16 @@ def pr_page(force=False):
                f"<b>{html.escape(', '.join(kind['cols']))}</b> and verifies it by retrieval. "
                "One button, one outcome &mdash; there is nothing to remember afterwards.</div>"
                if kind["kb"] else
+               # A router-only request publishes something too, so this line cannot be the
+               # blanket "nothing to publish" - that sat directly above the note saying the
+               # merge writes the live routing prompt, and one of the two had to be wrong.
+               "" if kind["router"] else
                "<div class=hint>Nothing to publish — this one does not touch knowledge "
                "files.</div>")
+            # BEFORE the click, not after. Both of these are things the merge cannot do, and
+            # both are only discoverable from the output panel once main has already moved -
+            # at which point the repo is ahead of the live agents and the fix needs a shell.
+            + (f"{nokey_note}{router_note}")
             + f"{selfnote}"
             f"<div class=stepacts>{''.join(acts)}"
             # Files changed sits BEFORE "Open on GitHub" on purpose: reading the diff is what
@@ -10607,6 +10989,17 @@ class H(BaseHTTPRequestHandler):
                             parts.append(f"Publishing {len(kbf)} knowledge file(s) to Foundry:\n"
                                          + "\n".join("  " + f for f in kbf))
                         parts.append(msgpub)
+                        # THE ROUTER SHIPS HERE TOO. Last, and after the knowledge upload, on
+                        # purpose: routing decides which agent answers, so pointing traffic at
+                        # a corpus before the corpus is live is the one ordering that can make
+                        # things worse than not merging. Every refusal inside it is a no-op
+                        # against Foundry - see publish_router_after_merge.
+                        if merged_touched_router(num):
+                            okrt, msgrt = publish_router_after_merge(num)
+                            if not okrt:
+                                rc = 1    # same rule as the upload: not live is not done
+                            parts.append(("Team routing prompt: " if okrt
+                                          else "TEAM ROUTING PROMPT NOT PUBLISHED - ") + msgrt)
                         if okpub and kbf:
                             parts.append("Live and verified by retrieval. Close out the "
                                          "transcripts with:\n"

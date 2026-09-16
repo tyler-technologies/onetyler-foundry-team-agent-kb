@@ -50,8 +50,20 @@ against the mirror after a write, not just the field list.
 
 ## Pushing a change to Foundry
 
-`PUT /api/teams/{teamId}` is a **full-object replace**: GET the team, change only the field
-you mean to change, PUT the whole object back, then re-fetch and diff to confirm.
+**Approve & Merge does this.** Since 2026-09-16, merging a request that changes
+`team-routing-prompt.md` writes the live prompt as part of the merge — provided the request
+also commits a `backups/team-backup-*.json`, which is both the undo and the tripwire for a UI
+edit made since the request was prepared. The merge takes a native version snapshot first,
+PUTs the full object with only `system_prompt` changed, re-reads it, and diffs field by field.
+See *Changing the team router prompt* in the root `CLAUDE.md`.
+
+**Only the first fenced ` ```text ` block under `## Current` is published.** The rest of
+`team-routing-prompt.md` is a change log that quotes older prompts, so the file as a whole is
+not the prompt. Keep that structure intact or the publish refuses.
+
+By hand, when the button cannot: `PUT /api/teams/{teamId}` is a **full-object replace** — GET
+the team, change only the field you mean to change, PUT the whole object back, then re-fetch
+and diff to confirm.
 
 Team id: `e92bd437-cb84-4e18-88e6-757370b39c90`
 
