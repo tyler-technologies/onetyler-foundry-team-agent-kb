@@ -14,8 +14,8 @@ So the split is:
 |---|---|
 | Start the tool, review, save, send in | You. No assistant. |
 | **Update the knowledge files from your feedback** | **An assistant.** This is the job. |
-| Merge the change request | A reviewer, on GitHub. |
-| Upload to Foundry, close out the transcripts | You, one command each. |
+| Approve &amp; Merge the change request — which also publishes it to Foundry | An admin, one button, in this tool. |
+| Close out the transcripts | An admin, one command. |
 
 This page covers everything except the assistant step, which is one copy-and-paste — the Save &
 Publish page generates the prompt for you.
@@ -98,24 +98,85 @@ uploading — they are not agent knowledge.**
 
 ---
 
-## Admins: the rest of the loop
+## Admins: Approve &amp; Merge is the whole make-it-live step
 
-Only needed when a review led to an actual knowledge-file change, and only after the change
-request has been **merged**.
+**Publishing to Foundry is not a separate thing you have to remember.** On the **Change
+Requests** page, **Approve &amp; Merge** does all of it in one click:
+
+1. Merges the request (rebase, admin override), bringing the branch up to date first if it is
+   behind and resolving a `transcripts/INDEX.md`-only conflict by itself.
+2. Fast-forwards this checkout, so the app is not stale because of its own action.
+3. **Uploads every `Knowledge-*` file the request touched to its collection(s)** — including a
+   `Knowledge-Shared/` file to all five — then triggers ONE ingestion job and **verifies the
+   content by retrieval**, not by the status field.
+4. **Writes the team routing prompt live**, if the request changed it. See below — this one has
+   a condition.
+5. Reports failure as failure. If either publish does not land, the action is reported as
+   failed, because a merge that did not reach the agents is not done.
+
+Underneath it runs `scripts/publish_to_foundry.py`, so the guarantees are the same ones the
+command line has: it refuses any file whose bytes differ from `origin/main` (nothing unmerged
+can ship), uploads everything before syncing once, and proves retrievability rather than
+trusting `ingestionStatus`.
+
+**A merge made on github.com does not publish itself.** GitHub has no idea this tool exists. The
+periodic sync covers it — every 30 minutes and on tab focus, an admin's session compares the five
+collections against `main` and publishes anything missing — but it is a safety net, not the
+route. Merge here.
+
+### A routing-prompt change needs a backup in the same request
+
+`team-config/team-routing-prompt.md` is a **mirror**. The live copy is `system_prompt` on the
+team object, and Approve &amp; Merge now writes it — but only with an undo in place, because a
+config object has no other copy and no git history of its own (hard rule 8). So the request
+that changes the prompt must also carry the pre-change object:
 
 ```bash
-python3 scripts/publish_to_foundry.py --dry-run   # what would go, and where
-python3 scripts/publish_to_foundry.py             # asks before writing anything
-python3 scripts/check_foundry_drift.py            # confirm repo and Foundry agree
-python3 scripts/mark_pushed.py                    # close out the transcripts
+T=e92bd437-cb84-4e18-88e6-757370b39c90
+curl -s -A "claude-code-foundry-kb/1.0" -H "X-API-Key: $FOUNDRY_API_KEY" \
+  "https://foundry.tylertechai.com/api/teams/$T" \
+  -o "team-config/backups/team-backup-$(date +%Y%m%d-%H%M%S).json"
+```
+
+Scan it for credentials, commit it alongside the prompt change, and the merge does the rest:
+
+- refuses unless the mirror is byte-identical to `origin/main` (nothing unmerged ships)
+- refuses a prompt containing `<` or `>` — Foundry escapes and strips those, so the text could
+  not survive the write
+- refuses if the live prompt no longer matches the committed backup, which means **somebody
+  edited the router in the Foundry UI** after this request was prepared and the new prompt was
+  written against a baseline that is gone
+- takes a native version snapshot, PUTs the **full** team object with only `system_prompt`
+  changed, re-reads it, and diffs field by field — if anything but the prompt moved, it fails
+  loudly and prints the restore command
+
+The card says which of these applies **before** you click. Without a backup the merge still
+happens and the knowledge files still ship; routing simply stays as it was.
+
+**Routing changes for every conversation the moment this finishes**, so have the question that
+was misrouted — and a control question that must still go elsewhere — ready to try.
+
+### What Approve &amp; Merge still does NOT do
+
+**Close out the transcripts.** `main` is protected, so the merge cannot commit this itself:
+
+```bash
+python3 scripts/mark_pushed.py --all      # after the merge output says it is live
 ```
 
 On Windows use `python` instead of `python3`.
 
-`publish_to_foundry.py` refuses any file that is not byte-identical to `origin/main`, so it
-cannot ship something unmerged. It uploads everything before triggering a single ingestion job,
-and then confirms the content is **retrievable** rather than trusting the status field — a file
-can report "ingested" and hold no searchable text.
+### If the button says it cannot publish
+
+`FOUNDRY_API_KEY` has to be present in the environment **the server was started from** — the
+upload runs server-side, not in your browser. A copy started without it will still merge and
+will say plainly that the upload did not run, leaving `main` ahead of the live agents. The
+request's card warns about this before you click. Restart the server with the key, or merge from
+a copy that has it, then:
+
+```bash
+python3 scripts/check_foundry_drift.py    # confirm repo and Foundry agree, either way
+```
 
 ### Adding someone to the team
 
