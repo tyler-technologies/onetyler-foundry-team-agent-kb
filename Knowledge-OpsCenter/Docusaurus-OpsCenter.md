@@ -26,7 +26,7 @@ This document covers the Ops Center tool: how to get access, what is on the dash
 | Self-promote teammates in non-prod (TCPCI / TCPQA / localdev) | **Access — promote teammates** |
 | Understand what's on the landing dashboard | **Dashboard** |
 | Find / search an organization | **Organizations — list & search** |
-| Understand identity tiers (WD / WM / Delegated) | **Organizations — Identity Workforce product tiers** |
+| Understand identity tiers (WD / WM / Delegated / Global) | **Organizations — Identity Workforce product tiers** |
 | Create a customer org (Workforce Direct) | **Organizations — Import an organization** |
 | Create a customer org (Workforce Managed) | **Organizations — file a ticket** (see `Knowledge-Shared/Conf-OneTylerTickets.md`) |
 | Create an internal org | **Organizations — Create internal organization** |
@@ -84,7 +84,7 @@ See `Knowledge-Shared/Conf-OneTylerTickets.md` → *Client Admin Center access r
 
 Open Ops Center for the relevant environment, search for the customer's Organization (by name or CRM Customer Identifier) on the Organizations list, and click into it. A customer's **Identity Configuration** is reflected across three places on the Organization Details page:
 
-1. **Org Details — Basic details + Manage workspaces.** The basic details panel at the top shows the **Identity Tier** (Workforce Managed / Workforce Direct / Workforce Delegated). The **OnPrem Target** (Okta / Gateway) is a per-workspace property — reach it from the same Org Details page under **Manage workspaces** → *OnPrem target* column.
+1. **Org Details — Basic details + Manage workspaces.** The basic details panel at the top shows the **Identity Tier** (Workforce Managed / Workforce Direct / Workforce Delegated / **Workforce Global**, the last for organizations routed to the global user domain). The **OnPrem Target** (Okta / Gateway) is a per-workspace property — reach it from the same Org Details page under **Manage workspaces** → *OnPrem target* column.
 2. **Identity Workforce** (the *Identity Workforce* menu item / section in Org Details) — the tier-specific identity setup deep dive:
    - **Workforce Managed** — Administration URL, default authority, IdP federations, **Okta AD Agent pool info / Add/Reset AD Agent account / history**, **Reestablish federation** (with history).
    - **Workforce Direct** — IdP federations, **Establish new federation** (with history).
@@ -196,6 +196,17 @@ For full ticket details and exact URLs, see `Knowledge-Shared/Conf-OneTylerTicke
 
 ---
 
+## AI assistant (in-app, Foundry-powered)
+
+**Added 8/21/26.** An **AI assistant is available throughout Ops Center**. Open it from the
+control in the **lower-right corner of any page** to ask questions without leaving the page you
+are on. It is **powered by Tyler Foundry**.
+
+⚠ **This is the assistant answering — you are it.** If a user asks "is there an assistant in Ops
+Center", "where is the AI help", or "can I ask questions inside Ops Center", the answer is yes,
+and the control is the lower-right corner of any page. Do not describe it as a planned or
+upcoming feature.
+
 ## Organizations — list & search
 
 When you first land on Ops Center, you see a list of Organizations. You can also reach this view from Ops Center → Hamburger menu → **Manage organizations**. Search by **Customer ID** to find a specific client, then drill down for additional details.
@@ -207,6 +218,7 @@ Each organization is configured with one of these Identity Tiers. **This cannot 
 - **Workforce Managed** — Provisioned an Okta user store. The org can federate to its IdP and add users outside the IdP.
 - **Workforce Direct** — Directly federated into the organization's IdP. All users must reside in the org's IdP unless the user is part of a global (B2B) domain.
 - **Workforce Delegated** — A special variant of Workforce Direct that delegates identity and user setup to another org (the "Super") it depends on. Orgs using this setup are called "Sub" orgs. Only the Super can set up federations and add users. Sub orgs can only add users that already exist in the Super. Both Super and Sub orgs can have their own solutions and grant access independently. Deleting a user in the Super removes them from all Sub orgs; deleting in a Sub only affects that Sub.
+- **Workforce Global** — **In Private Preview as of 8/28/26** (it first appeared in Ops Center on 8/21/26); **GA anticipated Q4 2026.** Expands on Workforce Direct/Delegated by letting an org **own domains that can be shared across several other orgs** wanting to add users of that domain, while **also supporting non-federated users the way Workforce Managed does**. It **supersedes all three tiers above** and is expected to become the **default starting Q4 2026**. In Ops Center it appears as the Identity Tier on **Organization Details** and on the **Create Organization review step** for orgs routed to the global user domain. ⚠ Blueprint's coverage is **intentionally minimal** while the feature matures — **ticket/request specifics for Workforce Global are not yet documented**, so do not infer them from the Direct/Delegated flows. For setup steps, surface the **Workforce Global Setup Workflow** guide: https://tylertech.atlassian.net/wiki/spaces/TTI/pages/1812041041/Tyler+Cloud+Platform+TCP+Workforce+Global+Setup+Workflow
 
 ## Organizations — when OneTyler needs to create the org (vs self-service)
 
@@ -317,6 +329,11 @@ The organization-details view shows details about an org and lets you perform se
 - For managers of product ops teams, OneTyler provides elevated permissions to **add customer Org Admins** and to promote their direct reports to **self-promote** as Org Admins, provided (a) the user already has Ops Center access and (b) doesn't already have self-promotion permissions.
 - When adding an Org Admin, the **"Use as technical contact"** option simultaneously sets that admin as the org's technical contact. Especially relevant for orgs auto-created from sales-enabled CRM records (which lack contact info).
 - For **Workforce Delegated** orgs, adding an Org Admin to a Sub org auto-adds the user to the Super if not already present.
+- ⚠ **Workforce Delegated orgs — a non-Tyler admin's email domain must be BOTH allow-listed AND federated (as of 8/21/26).** The domain has to be on the delegated authority (Super) org's **allowed domain list** *and* **tied to an identity provider in that org**. Previously only the allowed list was checked, so an admin with an allowed-but-unfederated domain passed validation and was created as a **user who could never sign in** — this is the failure the change prevents, and the likely explanation if a user reports an Org Admin who exists but cannot log in.
+  - **Where it applies:** the **Add an Org Admin** dialog on an existing org's Admins tab, and the **Create Organization**, **Create Internal Organization**, and **Import Organization** wizards.
+  - **Net-new users only.** If the user already exists at the delegated authority org, validation passes as before.
+  - **Two distinct errors, do not conflate them.** A domain that is *allowed but not federated* now gets its own message naming the delegated authority org and the two ways out — **create the user at that org first**, or **map the domain to an external identity provider**. A domain that is *not on the allowed list at all* still shows the pre-existing allowed-list message.
+  - **Tyler (`@tylertech.com`) addresses continue to bypass this check entirely.**
 - **Permission propagation delay:** granting/removing Org Admin takes a small bit of time. Freshly granted permissions show a **"Pending"** status during which the user cannot yet access Admin Center.
 
 ### Manage workspaces
@@ -392,7 +409,7 @@ A workspace is **independent of product tenancy** — it is not 1:1 with a tenan
 ### Workspaces — create
 
 #### Step 1: Pick a standard customer when possible
-Use the standard customers (`demo`, `dev`, `test` or `testinprod` for unscripted use; `uat`, `impl` for scripted high-quality data). See the **Standard organizations** table above. If you have an unavoidable business reason for a dedicated org, open a discussion with OneTyler via the Tickets portal.
+Use the standard customers (`demo`, `dev`, `test` or `testinprod` for unscripted use; `uat`, `impl` for scripted high-quality data). See the **Standard organizations** table above. **Every standard organization in that table is an *internal* organization**, so all of them take the **free-form** suffix and none are limited to the six approved customer subdomains. (This was briefly documented the other way round — `test`, `impl` and `uat` were mis-flagged as customer orgs in TCPCI; the flags have since been corrected. Do not repeat the old caution.) If the user is instead working in a **dedicated org of their own**, have them check the **Is internal** field on **Organization details** before planning a key. If you have an unavoidable business reason for a dedicated org, open a discussion with OneTyler via the Tickets portal.
 
 #### Step 2: Run the Add a Workspace wizard
 
@@ -402,15 +419,20 @@ Under organization details → **Manage workspaces** → **+ Add a workspace**.
 
 **Naming convention:**
 - Production workspace key = `<organization id>` (only 1 allowed; for standard orgs, this already exists).
-- Non-production workspace key = `<organization id>-<unique workspace id>`. The user-selectable suffix must be **alphanumeric only**, no spaces, no special characters, **no `-`** in the suffix.
+- Non-production workspace key = `<organization id>-<unique workspace id>`. The user-selectable suffix must be **alphanumeric only**, no spaces, no special characters, **no `-`** in the suffix. "Alphanumeric" means **lowercase** letters and digits — **capitals, spaces, underscores and other symbols are rejected**, and problems are reported inline on the field as you type.
+- **The ORGANIZATION TYPE decides which rule set applies — the environment does not.** The same rules hold in `tcpci.com`, `tcpqa.com` and `tylerportico.com`. To find out which applies, open **Organization details** and check the **Is internal** field. For the complete rule set (the **63-character ceiling on the whole key** and the reserved values) see `Docusaurus-OpsCenterAdoption.md` → *Workspace key rules*; for internal orgs the suffix is `[a-z0-9]{1,20}` (up to **20** characters).
+- **These rules bind NEWLY CREATED workspaces only.** Existing workspaces are unaffected, so you will encounter keys that would not pass validation today — **those are not errors**, and not evidence the rules are wrong.
 - **For a customer organization, the suffix must be one of the six standard values: `test`, `train`, `staging`, `impl`, `uat`, `dev`.** These are what the default allowance of six non-production workspaces refers to. Anything else is a non-standard workspace and needs a business justification through the Tickets portal explaining how the suffix reflects a customer business purpose; numbered variants of the standard set (`impl2`, `test2`, `train2`) are the most common exception.
 - The suffix cannot be `admin` (case-insensitive).
 - **Internal organizations are deliberately more liberal** — they use the workspace only as a construct for compatibility with deployment workflows, so the six-value customer set does not apply to them. Keys such as `demo-notify001` are internal-org keys and are not counter-examples to the customer rule.
 
 Wizard tabs:
 
-1. **Workspace details** — Enter Workspace Title, Type (Non Production for standard orgs), and Workspace id. Click **Next**.
-2. **Select products to make available** — Picked from products previously licensed on the org. Click **Next**.
+1. **Workspace details** — the fields appear in the order **workspace type → subdomain → workspace name**; subdomain and name only appear once a type is chosen, because both depend on it.
+   - **Workspace type** — **Production is disabled** whenever the org already has a production workspace, which is normally the case (an organization is allowed **at most one** production workspace). **In practice, creating a workspace means creating a non-production workspace.**
+   - **Subdomain** — this is where the two org types differ. **Customer orgs pick from the six approved business-purpose values**, and any value the org has already used is **disabled and labelled *Already exists for this organization***, so a duplicate cannot be created. **Internal orgs type the suffix directly** after the fixed `<organization key>-` prefix.
+   - **Will be created as:** shows the exact key that will be created (the preview is hidden while the value is invalid), and **Workspace Name** is auto-populated as `<Organization Name> [Suffix]` — editable if the user wants something else.
+2. **Select products to make available** — Picked from products previously licensed on the org. **Portico is always included and cannot be deselected.** Click **Next**.
 3. **Confirm, Save and close** — Initiates workspace creation.
 
 ### Workspace details
@@ -575,6 +597,9 @@ An *Overview of the Control plane and Ops Center / Admin Center tools* video is 
 
 This is a curated set of notable Ops Center changes. For the full chronological list, see the Docusaurus changelog page.
 
+- **8/21/26 — AI assistant.** A Foundry-powered **AI assistant** is now available throughout Ops Center, opened from the control in the lower-right corner of any page.
+- **8/21/26 — Federated domain required for delegated organization admins.** For a delegated org, a non-Tyler Org Admin's email domain must now be on the delegated authority org's allowed domain list **and** tied to an identity provider there. Previously only the allowed list was checked, so an unfederated domain produced a user who could never sign in. Applies to net-new users only; `@tylertech.com` addresses bypass it. See *Admins (Org Admins)* above.
+- **8/21/26 — Workforce Global identity tier.** Organization Details and the Create Organization review step now show **Workforce Global** as the identity tier for orgs routed to the global user domain, alongside the existing Workforce Delegated and Workforce Direct tiers. Also corrected the routing strategy not being returned to the Ops Center UI, which previously caused the identity tier to be displayed from the identity SKU alone. **Workforce Global is in Private Preview as of 8/28/26, with GA anticipated Q4 2026** — see *Organizations — Identity Workforce product tiers* above.
 - **4/1/26 — Automatic organization creation from Tyler CRM.** Ops Center now auto-creates customer organizations from sales-enabled CRM account records. Auto-created orgs have **no contact info or domains set**. Use **"Use as technical contact"** under Org Details > Admins to designate one. Auto-created orgs are **Workforce Direct**.
 - **3/18/26 — Bulk Licensing.** Added Bulk Licensing in the Product Registry.
 - **12/12/25 — Org Admin optional during Import.** Added the ability to skip Org Admin details during Import; added the ability to specify a technical contact when adding an Org Admin.
@@ -588,7 +613,8 @@ This is a curated set of notable Ops Center changes. For the full chronological 
 
 - **Always pair "license" with "activate/availability"** — they are not the same thing. Users frequently confuse them. A product not appearing for users on a workspace usually means licensed at org level but never activated on the workspace.
 - **Identity Tier cannot be changed after org creation** — except for the narrow UNINITIATED Workforce Direct → Workforce Managed conversion ticket (see `Knowledge-Shared/Conf-OneTylerTickets.md`). For other tier changes, the org must be deleted and recreated.
-- **Workspace key conventions:** prod = org key; non-prod = `<orgkey>-<suffix>`, suffix must be alphanumeric (no spaces, special chars, or further `-`).
+- **Workforce Global is in Private Preview (as of 8/28/26), not GA** (GA anticipated Q4 2026) — **say the stage every time you mention it**, and point to the Workforce Global Setup Workflow guide (https://tylertech.atlassian.net/wiki/spaces/TTI/pages/1812041041/Tyler+Cloud+Platform+TCP+Workforce+Global+Setup+Workflow) for setup steps. There are **four** identity tiers now, not three; `Docusaurus-Terminology.md` defines all four. What Ops Center owns is where the tier is **shown** and what the Ops Center screens **do** with it; how each tier gets its first Admin Center access and where its federation is established is Tyler Identity's subject.
+- **Workspace key conventions:** prod = org key; non-prod = `<orgkey>-<suffix>`, suffix must be **lowercase** alphanumeric (no spaces, special chars, or further `-`). ⚠ **The suffix rule depends on the org type:** a **customer** org is restricted to the six approved values (`test`, `train`, `staging`, `impl`, `uat`, `dev`); an **internal** org gets a free-form `[a-z0-9]{1,20}` suffix. Never give the free-form answer for a customer org, or the six-value answer for an internal one — check **Is internal** on Organization details first. The rules bind new workspaces only.
 - **OneTyler intentionally limits new-org creation in TCPCI/TCPQA.** When a user asks how to create an org for dev/test, first redirect to the standard orgs (`demo`, `dev`, `test`, `uat`, `impl`) or to **+Create internal** before recommending a ticket.
 - **Self-service hierarchy:** Workforce Direct → use **+Import**; internal org → use **+Create internal**; Workforce Managed → must file a ticket. Always prefer self-service.
 - **Magic-link emails for federation/AD Agent setup expire in 7 days** — call this out when discussing these flows.

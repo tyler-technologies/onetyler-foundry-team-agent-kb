@@ -356,7 +356,8 @@ Organization-managed cloud identity offering for **back-office users**. Enables 
 
 - **Workforce Direct** — For customers with a public-facing IdP to federate to, where the customer owns all back-office-user authentication responsibilities and their security. **Tyler strongly favors this option by default.**
 - **Workforce Managed** — Customers get a Tyler-managed back-office user store (currently powered by Okta). For customers who require this for regulatory or business reasons.
-- **Workforce Delegated** — Special Workforce Direct variant where the org delegates identity and user setup to another org (the "Super"). The orgs depending on the Super are "Sub" orgs. Only the Super sets up federations and adds users; Sub orgs can only add users that already exist in the Super. Both Super and Sub orgs can have independent solutions and grant access to them. Deleting a user in the Super removes them from all Sub orgs; deleting in a Sub only affects that Sub. (Note: terminology.md treats Workforce Delegated separately from Workforce Direct/Managed; on Ops Center the org's Identity Tier is one of these three.)
+- **Workforce Delegated** — Special Workforce Direct variant where the org delegates identity and user setup to another org (the "Super"). The orgs depending on the Super are "Sub" orgs. Only the Super sets up federations and adds users; Sub orgs can only add users that already exist in the Super. Both Super and Sub orgs can have independent solutions and grant access to them. Deleting a user in the Super removes them from all Sub orgs; deleting in a Sub only affects that Sub. (Note: terminology.md treats Workforce Delegated separately from Workforce Direct/Managed.)
+- **Workforce Global** — Identity configuration that expands on Workforce Direct/Delegated by letting an org **own domains that can be shared across several other orgs** wanting to add users of that domain, while **also supporting non-federated users the way Workforce Managed does**. It supersedes the other three tiers and is expected to become the **default starting Q4 2026**. ⚠ **In Private Preview as of 8/28/26** (GA anticipated Q4 2026) — **always state the stage when you mention it.** Setup steps: the **Workforce Global Setup Workflow** guide, https://tylertech.atlassian.net/wiki/spaces/TTI/pages/1812041041/Tyler+Cloud+Platform+TCP+Workforce+Global+Setup+Workflow. Where it appears in Ops Center: `Docusaurus-OpsCenter.md` → *Organizations — Identity Workforce product tiers*.
 
 ### Workforce User
 
@@ -428,7 +429,7 @@ In **technical** discussions: an API or micro-service that serves functionality.
 - **Hierarchy (CRM)** → Cluster: Customer, organization, CRM
 - **IaaS / PaaS / SaaS** → Cluster: Cloud paradigms
 - **Identity Provider (IdP)** → Cluster: Identity, authentication, authorization
-- **Identity Workforce / Workforce Direct / Workforce Managed / Workforce Delegated** → Cluster: Identity, authentication, authorization
+- **Identity Workforce / Workforce Direct / Workforce Managed / Workforce Delegated / Workforce Global** → Cluster: Identity, authentication, authorization
 - **Implementation** → Cluster: Cloud paradigms
 - **Knowledge Base** → Cluster: Cloud paradigms
 - **Licensing** → Cluster: Products, licensing, availability
@@ -481,4 +482,4 @@ In **technical** discussions: an API or micro-service that serves functionality.
 - **Portico** is deprecated in customer communications. If a user asks about "Portico," respond using "Tyler Cloud Platform" and note the `tylerportico.com` domain origin.
 - "Org Admin" is a customer-IT/solutions role, but **Tyler staff can also hold Org Admin permissions** in a client capacity — don't assume Org Admin always means customer.
 - For **CRM-related questions** (e.g. "what makes a customer record valid?"), always reach for the *Active customer* definition's four-point checklist plus the *Customer Identifier* requirement (Business Use = Default). Both are required for Org creation in Ops Center.
-- The **Identity Workforce** product tier of an Organization (Direct/Managed/Delegated) **cannot be changed after the organization is created** — recreation is needed. The chatbot should flag this when the user asks about conversion. (See the Ops Center docs for the conversion ticket exception covering UNINITIATED Workforce Direct → Workforce Managed.)
+- The **Identity Workforce** product tier of an Organization (Direct/Managed/Delegated/Global) **cannot be changed after the organization is created** — recreation is needed. The chatbot should flag this when the user asks about conversion. (See the Ops Center docs for the conversion ticket exception covering UNINITIATED Workforce Direct → Workforce Managed.)

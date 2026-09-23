@@ -99,9 +99,9 @@ Route on the **user's intent**, not on incidental keyword matches. A question th
 
 | Route to | When the question is about | Trigger keywords |
 |---|---|---|
-| **Ops Center** | Org/workspace lifecycle, product licensing & activation, org import/create, CRM customer identifiers, Ops Center permissions & telemetry, environments & allow-listing, TCP webhooks, WM→WD migration | "Ops Center", org key, workspace, licensing, availability, product registration, CRM identifier, allow-list |
+| **Ops Center** | Org/workspace lifecycle, product licensing & activation, org import/create, CRM customer identifiers, Ops Center permissions & telemetry, environments & allow-listing, TCP webhooks, WM→WD migration, where the Identity Tier is shown and errors Ops Center screens raise (e.g. Add an Org Admin), workspace key/subdomain rules, the in-app AI assistant | "Ops Center", org key, workspace, licensing, availability, product registration, CRM identifier, allow-list |
 | **Support Access Center** | Time-bound Tyler-staff access to customer installations, SAC groups, access request/approval/extension/revocation, SAC product integration (Security API + revoked webhook), access history & auditing | "SAC", "Support Access Center", support request, access approval, extend access, Support Council |
-| **Tyler Identity Assistant** | Identity Workforce/Community, Gateway, Workforce Direct/Managed/Delegated configuration, federation, credential templates, login & token flows | "Identity", "Gateway", Workforce Direct/Managed/Delegated, federation, IdP, OIDC, SSO |
+| **Tyler Identity Assistant** | Identity Workforce/Community, Gateway, Workforce Direct/Managed/Delegated/Global configuration and how the four models differ (incl. first Admin Center access), federation (incl. the delegated-org rule that an admin's domain must be federated at the Super), credential templates, login & token flows | "Identity", "Gateway", Workforce Direct/Managed/Delegated/Global, federation, IdP, OIDC, SSO |
 | **Aligned Releases** | **Release Manager** (the internal tool for authoring client-facing features), quarterly GA release model, feature lifecycle (Planned/Private Preview/Public Preview/GA), taking a feature GA, cohorts and cohort assignment, feature activation windows, release documentation and notes, versions like 2026.1, maintenance windows, the Aligned Releases API and SDK, client release notification emails | **"release manager"**, **"release management"**, "aligned release", "cohort", "feature", "feature activation", "feature flag", "release", "GA", **"private preview"**, **"public preview"**, "2026.1", release notes |
 | **General Blueprint Docs Agent** | Everything else in Tyler Blueprint / TCP: platform orientation & glossary, client & ops applications, TCP/TID API catalog, service architecture, DevOps, platform security, Status Page & SLA | "Blueprint", `docs.tylerdev.io`, glossary/terminology, Admin Center, architecture, SLA |
 
@@ -161,6 +161,15 @@ Route on the **user's intent**, not on incidental keyword matches. A question th
    what you call. Recorded after transcript `identity/2026-08-27--f4a25651`, where Identity
    answered "how do I get a list of workspaces for an organization using the api?" itself while
    the correct content sat indexed in the Ops Center corpus.
+
+   **Workforce tiers are split by the same line** (2026-09-23). What each of the four models
+   *is*, how it gets its first Admin Center access, and why a delegated org's admin cannot sign
+   in until the domain is federated at the Super org → Identity (`FAQ-Identity.md`). Where the
+   Identity Tier is *shown* and which Ops Center dialog raised an error → Ops Center.
+   **Workforce Global's stage** ("is it still in private preview?", "when is it GA?") goes to
+   **Identity, not Aligned Releases** — it is an identity model, not a Release Manager feature,
+   even though "private preview" and "GA" are Aligned Releases keywords. The stage is
+   **Private Preview as of 8/28/26** in every corpus.
 6. **Don't split one question across two agents.** Pick the owner of the user's actual
    goal; the answering agent can name the other domain if a follow-up is needed.
 
