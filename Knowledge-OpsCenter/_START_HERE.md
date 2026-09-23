@@ -18,8 +18,8 @@ Domain: Ops Center (Tyler Cloud Platform — operational tooling, organization/w
 | `Conf-AddingExternalUsersToEntraId.md` | The **Workforce Direct-only** workaround for adding non-employee users (temps, contractors) to a customer's Entra ID **without consuming an Office 365 license**. Tyler-staff coaching material — NOT to share with customers directly. |
 | `Conf-CommunityAccessProfileManager.md` | How a **customer Org Admin** grants their support staff access to **CAPM** via an Admin Center group. Default flow (pre-provisioned group) + manual group creation flow (older orgs). |
 | `Conf-EnvironmentsAndAllowListing.md` | The canonical **environments + firewall allow-listing** reference. 3 AWS environments (CI/QA/Prod), inbound root-domain allow-list, outbound IP lists (with "original" IPs flagged), 4 TID Okta instances. |
-| `Docusaurus-Terminology.md` | The **canonical TCP glossary**. Use as the authority for every term. Disambiguation pairs (Authentication↔Authorization, Licensing↔Availability, Customer↔Organization, Tenant↔Workspace, Environment↔Workspace, Workforce Direct↔Managed↔Delegated, Cloud↔Cloud-native, Server-based↔Serverless, etc.). |
-| `Docusaurus-OpsCenter.md` | The Ops Center **product + process reference**. Leads with a **Starting prompts — quick answers** section that contains canonical, retrieval-tuned answers to the **four Foundry starting prompts** ("How do I get access to Ops Center?", "How can I get access to a client's Admin Center?", "Where can I see the Identity Configuration details for a customer?", "Where can I see Ops Center training and other useful guides?"). Then: env URLs, access flow, dashboard, organizations/identity tiers, +Import & +Create Internal wizards, the standard pre-created orgs table, Org Details, Admins, Licensing/Availability, AD Agent setup, Federation flows, Product Registry, Bulk Licensing, Permissions, Telemetry (QuickSight), changelog highlights. |
+| `Docusaurus-Terminology.md` | The **canonical TCP glossary**. Use as the authority for every term. Disambiguation pairs (Authentication↔Authorization, Licensing↔Availability, Customer↔Organization, Tenant↔Workspace, Environment↔Workspace, Workforce Direct↔Managed↔Delegated↔Global, Cloud↔Cloud-native, Server-based↔Serverless, etc.). |
+| `Docusaurus-OpsCenter.md` | The Ops Center **product + process reference**. Leads with a **Starting prompts — quick answers** section that contains canonical, retrieval-tuned answers to the **four Foundry starting prompts** ("How do I get access to Ops Center?", "How can I get access to a client's Admin Center?", "Where can I see the Identity Configuration details for a customer?", "Where can I see Ops Center training and other useful guides?"). Then: env URLs, access flow, dashboard, organizations/identity tiers, +Import & +Create Internal wizards, the standard pre-created orgs table, Org Details, Admins, Licensing/Availability, AD Agent setup, Federation flows, Product Registry, Bulk Licensing, Permissions, Telemetry (QuickSight), changelog highlights. Also the in-app **Foundry-powered AI assistant**, the **delegated-org federated-domain rule** for Org Admins, and the org-type-dependent **workspace key rules** + Add-a-Workspace wizard mechanics. |
 | `Docusaurus-OpsCenterAdoption.md` | The **Ops Center API integration guide** for deployment-tool owners — TCP Search API for listing Orgs/Workspaces, Provisioning v2 for Licensing/Availability and workspace create, Platform Service for Internal-Org workspace deactivate/activate, Webhook API events. Covers numeric-id vs key gotchas, declarative set-style POST semantics, workspace-key rules, the `manage:internalorganization` gate, and the Customer-vs-Internal Org lifecycle split. |
 | `Docusaurus-TylerCRM.md` | Shorter Docusaurus version of the **CRM record validity** flow — 4-point validity checklist, where to find the Customer Identifier. Use `Conf-CRMCustomerIdentifiers.md` for the deep dive. |
 | `Docusaurus-OrgAdminInfo.md` | Who an **Org Admin** is, ideal profile, probing questions to source the customer IT contact when only functional contacts are known, post-creation Org Admin add flow. |
@@ -78,6 +78,19 @@ The Ops Center Foundry agent surfaces four starting prompts to new users. The ca
 - `Training-OpsCenterOperations.md` for the "why" narrative
 - `Conf-EnvironmentsAndAllowListing.md` for env URLs
 
+### "An Org Admin I added to a delegated org can't sign in" / "what's this federated-domain error?"
+- `Docusaurus-OpsCenter.md` → *Admins (Org Admins)* — as of **8/21/26** a non-Tyler admin's domain on a **delegated** org must be **both allow-listed AND federated** at the delegated authority (Super) org. An allowed-but-unfederated domain used to create a user who could never sign in; that is the single most likely cause of this report.
+- Distinguish the **two** error messages (allowed-but-unfederated vs not-on-the-allowed-list) before advising — the fixes differ. `@tylertech.com` addresses bypass the check.
+- If the fix is to **federate the domain** at the Super org, *how* to set up that federation is Tyler Identity's subject — hand off for the IdP configuration itself.
+
+### "What are the workspace key / subdomain rules?" / "why was my workspace key rejected?"
+- `Docusaurus-OpsCenter.md` → *Workspaces — create* → **Naming convention** — **ask the org type first**: customer orgs are limited to six approved values, internal orgs get a free-form `[a-z0-9]{1,20}` suffix. The **environment is irrelevant**.
+- `Docusaurus-OpsCenterAdoption.md` → *Workspace key rules* — the full rule set incl. the 63-char ceiling and reserved values.
+- Existing non-conforming keys are **not** errors: the rules bind newly created workspaces only.
+
+### "Is there an AI assistant in Ops Center / where's the in-app help?"
+- `Docusaurus-OpsCenter.md` → *AI assistant (in-app, Foundry-powered)* — yes, since **8/21/26**, from the control in the **lower-right corner of any page**. This is you. Never call it upcoming or planned.
+
 ### "How do I integrate my deployment tool with Ops Center via API?"
 - `Docusaurus-OpsCenterAdoption.md` (canonical reference — TCP Search API for listing; Provisioning v2 for Licensing/Availability/workspace create; Platform Service for Internal-Org workspace deactivate/activate; Webhook API for change events)
 - **Customer-Org workspace deletion / Org lifecycle changes are forbidden for external tools** — route via OneTyler ticket (`Knowledge-Shared/Conf-OneTylerTickets.md`).
@@ -91,8 +104,10 @@ The Ops Center Foundry agent surfaces four starting prompts to new users. The ca
 - `Docusaurus-OrgAdminInfo.md` (probing questions, ideal profile)
 - `Docusaurus-OpsCenter.md` → Import an organization wizard (mechanics)
 
-### "What's Gateway / Identity Workforce / Workforce Direct vs Managed vs Delegated?"
-- `Docusaurus-Terminology.md` → *Identity Workforce* cluster
+### "What's Gateway / Identity Workforce / Workforce Direct vs Managed vs Delegated vs Global?"
+- `Docusaurus-Terminology.md` → *Identity Workforce* cluster — defines all four tiers: **Direct / Managed / Delegated / Global**
+- `Docusaurus-OpsCenter.md` → *Organizations — Identity Workforce product tiers* — where the tier is shown in Ops Center, and the Workforce Global Setup Workflow link. **Workforce Global is in Private Preview as of 8/28/26** (GA anticipated Q4 2026). Always state the stage.
+- **Hand off to Tyler Identity** when the question is how a tier gets its **first Admin Center access** or **where its federation is established** (for Delegated, on the Super org) — that corpus holds the per-tier bootstrap answer.
 - `Training-OpsCenterOperations.md` → *Basic Concepts — Identity*
 - `Conf-GatewayOperationalTesting.md` (testing) and `Training-WorkforceManagedToDirectMigration.md` (migration)
 - **Customer-facing rule:** Always say **"Identity Workforce" / "Workforce Direct" / "Workforce Managed"**. **Never say "Gateway"** to customers — it's an internal code name.

@@ -19,7 +19,10 @@ Access Profile Manager); getting access to a client's Admin Center; CRM customer
 identifiers and organization keys; magic links and invalid-link errors; environments (CI,
 QA, Production) and firewall allow-listing; TCP webhooks; Ops Center permissions and
 telemetry; Workforce Managed to Workforce Direct migration and retargeting; Gateway
-operational testing; adding external users to a customer's Entra ID.
+operational testing; adding external users to a customer's Entra ID; where an
+organization's Identity Tier is shown in Ops Center and the errors Ops Center screens raise,
+such as adding an Org Admin; workspace key and subdomain rules; the AI assistant built into
+Ops Center.
 
 Route to "Support Access Center" for:
 time-bound Tyler staff access into an already-provisioned customer installation; SAC
@@ -28,9 +31,12 @@ access history and auditing; integrating a product with SAC via the Security API
 support-access-revoked webhook.
 
 Route to "Tyler Identity Assistant" for:
-Identity Workforce and Community Access; Gateway configuration; Workforce Direct, Managed
-and Delegated setup; federation and external identity providers; credential templates;
-tokens, claims, login context and AMR passthrough; SSO, SAML, OIDC and MFA behaviour.
+Identity Workforce and Community Access; Gateway configuration; Workforce Direct, Managed,
+Delegated and Global setup; how the four Workforce models differ and how each one gets its
+first Admin Center access; federation and external identity providers, including why an admin
+added to a delegated org cannot sign in until the domain is federated at the Super org;
+credential templates; tokens, claims, login context and AMR passthrough; SSO, SAML, OIDC and
+MFA behaviour.
 
 Route to "Aligned Releases" for:
 Release Manager and release management; the quarterly GA release model; the feature lifecycle
@@ -82,6 +88,11 @@ Rules:
   a question about assigning that workspace to a cohort goes to Aligned Releases.
 - Aligned Releases owns whether a feature is in preview or GA. Tyler Identity Assistant owns
   the Identity Client used to call the Aligned Releases API.
+- Workforce Global is an identity model, not a Release Manager feature. A question about it -
+  including whether it is in Private Preview or when it goes GA - goes to Tyler Identity
+  Assistant, not Aligned Releases, even though "private preview" and "GA" are Aligned Releases
+  keywords. If it asks where the Identity Tier appears in the Ops Center UI, it goes to Ops
+  Center. A one-line definition can still come from the platform glossary.
 - Defining a term does not need a specialist — the platform glossary is in General
   Blueprint Docs Agent.
 - Do not split one question across several agents. Pick the owner of the user's goal; that
@@ -129,6 +140,25 @@ Rules:
 ```
 
 ## Change log
+
+### 2026-09-23 (f) — Workforce Global, and the Ops Center 8/21/26 changes
+
+Blueprint PR #1606 introduced a fourth Workforce identity tier, **Workforce Global**, and the
+same Ops Center release added an in-app AI assistant and a federated-domain rule for delegated
+org admins. The knowledge landed per agent — model semantics and the delegated-domain rule in
+Tyler Identity, the screens in Ops Center, the definition in both glossaries — so the router
+had to say who owns what:
+
+- **Tyler Identity** now names Global alongside Direct/Managed/Delegated, the per-model
+  Admin Center bootstrap, and the delegated-org "domain must be federated at the Super" rule.
+- **Ops Center** now names where the Identity Tier is shown, the errors its screens raise
+  (Add an Org Admin), workspace key/subdomain rules, and its own AI assistant.
+- **A new rule** closes a keyword collision: "private preview" and "GA" are Aligned Releases
+  keywords, so "is Workforce Global still in private preview?" would otherwise route there.
+  Workforce Global is an identity model, not a Release Manager feature.
+
+The stage is **Private Preview (as of 8/28/26)** everywhere. Blueprint briefly said "Early
+Adoption"; that was corrected in Blueprint to match.
 
 ### 2026-08-24 (e) — from the first transcript review round
 

@@ -172,6 +172,17 @@ Delegated**; they are different models, not two names for one thing. Global inte
 local user store that **automatically creates the admin user's account**, so the bootstrap
 problem does not arise the same way. Say that it is Private Preview whenever you mention it.
 
+What Global *is*, as Blueprint's Ops Center guide describes it: it expands on Direct/Delegated
+by letting an org **own domains that can be shared across several other orgs** wanting to add
+users of that domain, while **also supporting non-federated users the way Managed does**. It
+supersedes the other three models and is expected to become the **default starting Q4 2026**
+(GA anticipated Q4 2026). Since 8/21/26 Ops Center shows it as the **Identity Tier** on
+Organization Details and on the Create Organization review step. Published detail is
+deliberately minimal while it is in Private Preview — **ticket and request specifics are not
+documented yet, so do not infer them from the Direct or Delegated flows.** For setup, give the
+**Workforce Global Setup Workflow** guide:
+https://tylertech.atlassian.net/wiki/spaces/TTI/pages/1812041041/Tyler+Cloud+Platform+TCP+Workforce+Global+Setup+Workflow
+
 **Workforce Managed** — initial access is **through Admin Center**. Federation is established
 on the org itself.
 
@@ -183,10 +194,10 @@ details configured against the Sub will not work. If the org is Delegated, **est
 org is the Super before giving any federation instructions.**
 
 **Where the model definitions live:** `Knowledge-OpsCenter/Docusaurus-Terminology.md` defines
-Direct, Managed and Delegated, including Delegated's Super/Sub structure, and states that the
-Identity Tier **cannot be changed after the org is created**. That file predates Workforce
-Global and does not mention it — so treat this entry as the current list and that file as the
-authority on the first three.
+all four models, including Delegated's Super/Sub structure, and states that the Identity Tier
+**cannot be changed after the org is created**. That file is the authority on what each model
+*is*; this entry is the authority on how each one gets its **first Admin Center access**, which
+no published document describes.
 
 **Do NOT give this as a single universal answer:** that the Customer Technical Contact named
 during org creation "receives Admin Center access credentials", and that this is what solves
@@ -203,8 +214,45 @@ things.
 - **Confidence:** confirmed by owner — all four models (Jon Olson, 2026-08-28): Direct's magic
   link; Managed and Delegated both via Admin Center; Delegated's federation belonging to the
   Super org; Global in Private Preview and a **different model from Delegated**.
+- **Updated:** 2026-09-23 by vijay-tylertech — added Blueprint's description of Workforce
+  Global (Ops Center Organizations guide, corpdev-new-blueprint PR #1606) and the setup-guide
+  link. Blueprint briefly called the stage "Early Adoption"; **Private Preview was reaffirmed**
+  by Vijay Venkataraman on 2026-09-23 and Blueprint was corrected to match, so there is one
+  stage name across both agents.
 - **Promote when:** Blueprint documents the per-model bootstrap paths, or Workforce Global
   leaves Private Preview — at which point this entry needs revisiting either way.
+
+### Q: I added an Org Admin to a delegated org and they can't sign in — or I got an "allowed but not federated" domain error. Why?
+
+**A:** Since **8/21/26**, when an Org Admin is added to a **Workforce Delegated** org, a
+non-Tyler admin's email domain must be **both** on the delegated authority (Super) org's
+**allowed domain list** *and* **tied to an identity provider in that Super org**. Before that
+date only the allowed list was checked, so an admin with an allowed-but-unfederated domain
+passed validation and was created as a user who **could never sign in** — which is the most
+likely explanation for an older admin in this state.
+
+This follows from how Delegated works: **federation belongs to the Super org, never the Sub**
+(see the Admin Center bootstrap entry above), so a domain the Super has not federated has no
+identity provider to authenticate against.
+
+- **Two different errors — tell them apart before advising.** *Allowed but not federated* gets
+  its own message naming the delegated authority org, with two ways out: **create the user at
+  that org first**, or **map the domain to an external identity provider** there. *Not on the
+  allowed list at all* still shows the older allowed-list message.
+- **Net-new users only.** If the user already exists at the delegated authority org,
+  validation passes as before.
+- **`@tylertech.com` addresses bypass the check.**
+- Where it is enforced — the **Add an Org Admin** dialog on an org's Admins tab, and the Create
+  Organization, Create Internal Organization and Import Organization wizards — is Ops Center
+  UI; the fix, federating the domain at the Super org, is identity configuration.
+
+- **Source:** Tyler Blueprint, Ops Center changelog, entry "8/21/26 - Federated domain required
+  for delegated organization admins". Not in Blueprint `docs/identity/`, which is why it is
+  recorded here rather than in `Docusaurus-Identity.md`.
+- **Added:** 2026-09-23 by vijay-tylertech
+- **Confidence:** published in Blueprint; not yet reviewed by the corpus owner.
+- **Promote when:** Blueprint `docs/identity/` documents the delegated-org domain rule. Then
+  move it to `Docusaurus-Identity.md` and delete this entry.
 
 ---
 

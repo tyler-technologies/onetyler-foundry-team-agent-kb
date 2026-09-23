@@ -23,7 +23,7 @@ client operations, identity events.
 | `Docusaurus-Identity.md` | **The substance.** A single ~2,950-line reference distilled from Tyler Blueprint `docs/identity/` (current docs only; Legacy excluded), covering both identity solutions end to end across 39 top-level sections. Because it is one large file, the *section map* below matters more than the file name — use it to aim your answer. |
 | `Conf-IdentityTickets.md` | Identity-specific **ticket reference**: which CorpDev form to file for federation, auth issues, SKU change, Okta access, identity clients, custom IdP vetting — with each form's own instructions. A derived extract; the full cross-domain catalog is `Knowledge-Shared/Conf-OneTylerTickets.md`. |
 | _(also in the collection)_ `Knowledge-Shared/Conf-OneTylerTickets.md` | The authoritative cross-domain **ticket catalog**. Uploaded to every collection, so this agent can answer ticket questions directly instead of handing off. |
-| `FAQ-Identity.md` | **Authored answers with no upstream source** — verbal SME guidance, observed behaviour, corrections upstream owners have not yet made. Currently: how to disambiguate "client"; the fact that ticket `4149` is *Identity SKU Change*, not the SAC-enable form the Confluence page claims; the **client-side Entra ID app-registration steps** a customer must complete before the Tyler half of a federation can be configured; and why **Admin Center bootstrap access depends on which of the four Workforce models** the org uses (Direct uses a magic link; Global is a distinct Private-Preview model, not a rename of Delegated). |
+| `FAQ-Identity.md` | **Authored answers with no upstream source** — verbal SME guidance, observed behaviour, corrections upstream owners have not yet made. Currently: how to disambiguate "client"; the fact that ticket `4149` is *Identity SKU Change*, not the SAC-enable form the Confluence page claims; the **client-side Entra ID app-registration steps** a customer must complete before the Tyler half of a federation can be configured; and why **Admin Center bootstrap access depends on which of the four Workforce models** the org uses (Direct uses a magic link; Global is a distinct Private-Preview model, not a rename of Delegated), including what Workforce Global is and its setup-guide link; and why an **Org Admin added to a delegated org cannot sign in** (the domain must be federated at the Super org since 8/21/26). |
 
 ---
 
@@ -123,6 +123,8 @@ registration, obtaining credentials)
 | "How do I subscribe to identity events?" | *Identity Events Overview*, then *Example Payloads* |
 | "I need a federation set up / an auth issue investigated" | `Conf-IdentityTickets.md` — **not** a section of the big file |
 | "Which ticket do I file?" | `Knowledge-Shared/Conf-OneTylerTickets.md` (authoritative, all domains) |
+| "What is Workforce Global?" / "which Workforce model is this org?" / "how do the four Workforce models differ?" | `FAQ-Identity.md` → *Can the customer get into Admin Center before the federation is in place?* — **Workforce Global is in Private Preview as of 8/28/26**; always say so |
+| "An Org Admin on a delegated org can't sign in" / "allowed but not federated" error | `FAQ-Identity.md` → *I added an Org Admin to a delegated org and they can't sign in* |
 | Something no document states | `FAQ-Identity.md` |
 | "Where do I ask a human?" | *Help Desk Requests* + *Teams Channels* |
 
@@ -160,6 +162,10 @@ registration, obtaining credentials)
 - **Retargeting a workspace's gateway / Workforce Managed → Direct migration** →
   `Knowledge-OpsCenter/` (`Training-WorkforceManagedToDirectMigration.md`). Ops Center owns
   what an operator *does*; this corpus owns how identity is *configured*.
+- **Where an org's Identity Tier is shown, and which Ops Center screen or dialog raised an
+  error** (Organization Details, Create/Import Organization, Add an Org Admin) →
+  `Knowledge-OpsCenter/`. This corpus owns what each Workforce model *is* and how its
+  federation works; Ops Center owns the screens that display and enforce it.
 - **Time-bound Tyler-staff access into a customer install** → `Knowledge-SupportAccessCenter/`.
 - **Platform glossary, architecture, DevOps, security, SLA** → `Knowledge-BP-General/`.
 - **Any ticket question** → `Knowledge-Shared/Conf-OneTylerTickets.md`.
