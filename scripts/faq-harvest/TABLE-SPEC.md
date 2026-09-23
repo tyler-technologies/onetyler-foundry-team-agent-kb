@@ -18,27 +18,62 @@ one disposable sample row, so Coda infers the whole schema.
 
 | Domain | Coda page | Page id | Table |
 |---|---|---|---|
-| Aligned Releases | **FAQs - Aligned Releases** | `canvas-xQGl2GpyJF` | rebuilt 2026-09-09 for the 8-column layout — id in `coda_faq_review.py` |
+| Aligned Releases | **FAQs - Aligned Releases** | `canvas-xQGl2GpyJF` | `grid-4mdZMRDPAE` — **9 columns, matches this spec as of 2026-09-23** |
 | Status Pages / SLAs | **FAQs - Status Pages** | `canvas-fDCK9ni2hA` | not built |
 
 Both pages are in the **OneTyler Initiatives Trackers** doc, `KV_6fSnfBc` —
 <https://docs.superhuman.com/d/_dKV_6fSnfBc>.
+
+## History: the spec and the table were out of sync for two weeks
+
+Recorded because the failure was silent and the next person to trip it would have re-diagnosed
+it from scratch.
+
+This file and `coda_faq_review.py` were rewritten on **2026-09-09** for an 8-column layout.
+**The Coda table was not changed to match**, so `push` was broken from that moment — and
+because nothing was pushed in between, it stayed broken and invisible until **2026-09-23**:
+
+```
+HTTP 400  Could not find column "Notes" within the table.
+```
+
+The table was still the original 13 columns. `Notes` and `Date` had never existed under those
+names — they were the *intended* renames of `Reviewer notes` and `Harvested`. **Resolved
+2026-09-23** by doing it in the Coda UI: renamed those two, deleted `Type`, `Confidence`,
+`Promote when` and `Status`, and **kept `Conflicts with` as a column** (operator decision — so
+it is written from `CANDIDATE_FIELDS` and is no longer prefixed onto `Notes`, which also means
+the four rows already carrying a pointer needed no migration).
+
+**Three things to take from it:**
+
+1. **The REST API cannot touch columns at all** — no add, delete, rename or reorder. Every
+   column change is a Coda UI job. Only *rows* can be scripted.
+2. **Order is safe to change; names are not.** Columns are addressed by name
+   (`useColumnNames=true`), so dragging them around cannot break the script. Renaming one the
+   script writes silently stops it being written, which is exactly what happened here.
+3. **Editing this spec is not editing the table.** If a layout change is written down here,
+   verify it against `GET /docs/{docId}/tables/{tableId}/columns` before assuming it is live.
 
 ## Columns
 
 Eight, in the order a reviewer reads them. **Names must match exactly** — the script addresses
 columns by name (`useColumnNames=true`), so a renamed column silently stops being written.
 
+Nine, ordered so that **the two things a reviewer actually does sit next to each other**
+(operator, 2026-09-23): read the warnings, edit `Answer`, tick the box. Machine-owned fields go
+last because nobody edits them.
+
 | # | Column | Type | Who fills it | Notes |
 |---|---|---|---|---|
-| 1 | `Date` | date | harvester | When the candidate was harvested. Coda coerces `2026-09-09` to `2026-09-09T00:00:00.000-05:00`, so never string-compare it. |
-| 2 | `Key` | Text | harvester | Stable id, `ar-<teams-message-id>`. The upsert key, so a repeat harvest updates rather than duplicates. Do not edit by hand. |
-| 3 | `Question` | Text | harvester | Phrased the way a user would ask it. |
-| 4 | `Answer` | Text | harvester | Proposed answer in the FAQ's markdown style. **Edit this in place** — the loop indexes the cell as it reads when the box is ticked, not the original harvest. |
+| 1 | `Question` | Text | harvester | Phrased the way a user would ask it. |
+| 2 | `Notes` | Text | both | Everything the reviewer needs flagged, assembled by `build_notes()`. Empty when there is nothing to say — 11 of the first 21 candidates had an empty cell. **Deliberately placed BEFORE `Answer`**: it carries the `CONFLICTS WITH` and `PROVISIONAL` prefixes, which have to be read before the box is ticked, not after. |
+| 3 | `Answer` | Text | harvester | Proposed answer in the FAQ's markdown style. **Edit this in place** — the loop indexes the cell as it reads when the box is ticked, not the original harvest. |
+| 4 | `Ready for Processing` | **checkbox** | **reviewer** | **The only gate.** Adjacent to `Answer` on purpose. See below. |
 | 5 | `Source` | Text | harvester | Who said it and when — a person and a date, per FAQ policy. |
 | 6 | `Source link` | link | harvester | Permalink to the Teams message. Verified to preserve `?groupId=…&tenantId=…` intact. |
-| 7 | `Notes` | Text | both | Everything the reviewer needs flagged, assembled by `build_notes()`. Empty when there is nothing to say — 11 of the first 21 candidates had an empty cell. |
-| 8 | `Ready for Processing` | **checkbox** | **reviewer** | **The only gate.** See below. |
+| 7 | `Date` | date | harvester | When the candidate was harvested. Coda coerces `2026-09-09` to `2026-09-09T00:00:00.000-05:00`, so never string-compare it. |
+| 8 | `Key` | Text | harvester | Stable id, `ar-<teams-message-id>`. The upsert key, so a repeat harvest updates rather than duplicates. Do not edit by hand. |
+| 9 | `Conflicts with` | Text | harvester | The live FAQ entry this candidate contradicts or refines, named in full. **Kept as its own column 2026-09-23** rather than folded into `Notes`; empty on most rows. This is the flag that stops a conflict being applied silently, so it must never be dropped without moving the text somewhere a reviewer reads. |
 
 ### What `Notes` carries
 
@@ -68,7 +103,6 @@ thing harder to read for no decision gained.
 | `Type` | `New` / `Conflict` / `Refinement` / `Duplicate` was review triage; `Notes` says it in plain words. | candidates JSON |
 | `Confidence` | Required by the FAQ **entry** format, but needs no reviewer input. | JSON; the actionable half is the `PROVISIONAL` prefix |
 | `Promote when` | The entry's *exit condition* — which upstream doc should eventually carry the answer, so the entry can be retired rather than accumulating forever. Useful in the file, nothing to decide. | candidates JSON |
-| `Conflicts with` | Still essential, but as a sentence rather than a column. | the `CONFLICTS WITH` prefix on `Notes` |
 
 ## How the reviewer uses it
 

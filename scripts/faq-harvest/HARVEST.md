@@ -95,10 +95,10 @@ These come from `FAQ-AlignedReleases.md`'s own "What belongs here" section and f
    Confidence / Promote when. "Nobody has decided yet" is a legitimate entry and is kept
    deliberately — without it the agent invents a process. A guess is not.
 3. **Conflicts do not get applied.** A candidate that contradicts a live entry goes to the
-   review table with the existing question named in `Conflicts with` and a `Reviewer notes`
+   review table with the existing question named in `Conflicts with` and a `Notes`
    explanation of how the two might reconcile. Never quietly overwrite.
 
-   **A provisional candidate is flagged in `Reviewer notes`**, prefixed
+   **A provisional candidate is flagged in `Notes`**, prefixed
    `PROVISIONAL — confirm before publishing.` The table has no Confidence column, so that
    prefix is the half of confidence a reviewer has to act on.
 4. **Ticket and permission questions are not FAQ entries.** Per the team README's routing rule

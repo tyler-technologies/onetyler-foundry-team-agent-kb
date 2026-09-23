@@ -46,7 +46,21 @@ depth, but never assume they are present.)
    admin's decision to ship. So `publish_to_foundry.py` at a terminal is the FALLBACK (no key
    in the server's environment, or a merge nobody clicked through here), not the route. It also
    writes the **team routing prompt** when the request changed it, with the full guardrail
-   chain — see *Changing the team router prompt*. The one thing it does not do is **close out
+   chain — see *Changing the team router prompt*.
+
+   **⚠ The periodic sync's auto-publish is EVENTUAL AND SILENT, so do not describe it as "it
+   publishes automatically" without that qualifier.** `autopublish_drift()` runs only from a
+   sync, only for an **admin**, only with `FOUNDRY_API_KEY` set, and a sync happens every 30
+   minutes or on tab focus — so a merge made on github.com reaches the agents *whenever an
+   admin next has the app open*, which may be minutes or days. It says nothing unless it found
+   drift. That combination is what made publishing feel non-deterministic (operator,
+   2026-09-23: "I am completely confused as to when the main branch is pushed into the Foundry
+   team agent"), and it is why the **Push to Agent** page exists: admin-only, below **PRs**, it
+   states all four routes, shows what `main` has that the agents do not, pushes on demand, and
+   is the ONLY place that records a **sync history**. It acts on the same `drifted_files()` list
+   the periodic sync uses, so the two cannot disagree. Nothing published before 2026-09-23 is in
+   that history and it is not reconstructable — a merge commit does not prove an upload
+   followed. The one thing it does not do is **close out
    transcripts** (`mark_pushed.py`), because `main` is protected. Read `DAILY-WORKFLOW.md`
    §*Admins* before answering any question about when Foundry gets updated.
 

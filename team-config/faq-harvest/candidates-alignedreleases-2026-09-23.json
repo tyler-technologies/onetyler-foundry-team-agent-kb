@@ -1,0 +1,29 @@
+{
+  "domain": "AlignedReleases",
+  "target_faq": "Knowledge-AlignedReleases/FAQ-AlignedReleases.md",
+  "harvested": "2026-09-23",
+  "harvested_by": "vijay-tylertech",
+  "sources": [
+    {
+      "label": "FACC channel",
+      "team_id": "969b039c-b765-48ea-a12e-973d42c45c17",
+      "channel_id": "19:S23ooVbxKDBsZ_X3OhvHtDlWNLSDG8G68CUaclunpPk1@thread.tacv2",
+      "channel_name": "Cloud Living - Feature Activation Cohorts Council (FACC) / General",
+      "coverage": "targeted — one thread supplied by the operator as a screenshot, then located and verified in Graph: question 1790107609261 (Parran, Einat, 2026-09-22T20:06:57Z) and answer 1790111285158 (Hanna, Nate, 2026-09-22T21:08:06Z). Not a full channel sweep."
+    }
+  ],
+  "candidates": [
+    {
+      "key": "ar-1790111285158",
+      "question": "Why are Tyler's releases named Spring / Summer / Fall / Winter instead of the old year.quarter convention — and does seasonal naming exclude Southern Hemisphere clients?",
+      "answer": "**Spring, Summer, Fall and Winter are stable *identifiers* for Tyler's four quarterly releases — not literal statements about geography or climate.** Each release is intentionally named for the **Northern Hemisphere season it precedes**, with General Availability beginning in advance of that season. The same model is used elsewhere in the industry: **Salesforce names its releases seasonally on a global basis.**\n\n**Southern Hemisphere clients are not excluded by the naming.** Because the names are identifiers rather than a claim about any client's local calendar, they carry no geographic restriction — the concern to address with a client is clarity of *communication*, not eligibility.\n\n**Where the convention comes from:** the original cross-divisional **Aligned Releases (Rock)** work established it, and it is documented in **Aligned Releases: Where We've Landed**. It is also reflected in the Cloud Living requirements and the **2027 release calendar**. The naming and release model have been reviewed with **Tyler leadership and Tyler's Client Advisory Boards**.\n\n**Client-facing wording is still being finalised** with Marketing and Communications, who are making sure the meaning of the seasonal release names and their relationship to release timing are communicated clearly and consistently.",
+      "type": "New",
+      "conflicts_with": "",
+      "source": "Nate Hanna, answering Einat Parran (Appraisal & Tax division) — Cloud Living FACC / General channel, 2026-09-22",
+      "source_link": "https://teams.microsoft.com/l/message/19%3AS23ooVbxKDBsZ_X3OhvHtDlWNLSDG8G68CUaclunpPk1%40thread.tacv2/1790111285158?groupId=969b039c-b765-48ea-a12e-973d42c45c17&tenantId=7cc5f0f9-ee5b-4106-a62d-1b9f7be46118",
+      "confidence": "confirmed by owner",
+      "promote_when": "Marketing and Communications publish the client-facing explanation of the seasonal release names, or Blueprint's Aligned Releases docs document the naming convention and its rationale — Docusaurus-AlignedReleases.md currently says nothing about why releases are named for seasons.",
+      "review_note": "RECURRING QUESTION, not a one-off — Mark Bray raised the same seasonal-terminology point earlier, and Nate Hanna posted a collection of the previous FACC async conversations on it at 2026-09-22 18:35Z (message 1790102155977), about three hours before this exchange. Two divisions have now asked; that is the case for an FAQ entry rather than a channel answer. | Einat Parran also asked whether any MARKETING RESEARCH validated the convention as clearer than alternatives. Nate's reply does not answer that part — it cites leadership and Client Advisory Board review, which is not the same thing. The proposed answer deliberately does not claim research was done; if a reviewer knows of any, add it, otherwise leave the gap rather than implying it. | The last paragraph is the volatile one: client-facing wording is in progress with Marketing/Comms, so expect to revise it. The stable half is 'identifiers, not literal statements'. | \"Aligned Releases: Where We've Landed\" is cited as the governing document but we hold no URL for it — worth adding before this is indexed, since the FAQ hands links out. | Checked for conflicts: FAQ-AlignedReleases.md has no seasonal-naming entry and Docusaurus-AlignedReleases.md has no naming-convention content at all, so this does not contradict anything live and is not material that belongs upstream instead."
+    }
+  ]
+}
