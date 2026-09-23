@@ -101,6 +101,13 @@ def main():
     # right thing under the old default.
     ap.add_argument("--deep", action="store_true", help=argparse.SUPPRESS)
     ap.add_argument("--collection", help="check only this collection")
+    # Machine-readable, for scripts/review_server.py's Push to Agent page. The text output
+    # is written for humans and has been reworded more than once; anything that parsed it
+    # would break on the next rewording. `pushable` is the half a caller can ACT on: files
+    # the repo has and Foundry does not match. EXTRA-in-Foundry and router drift are real
+    # drift but are NOT fixed by an upload, so they are reported separately.
+    ap.add_argument("--json", action="store_true",
+                    help="emit the result as JSON instead of prose")
     a = ap.parse_args()
 
     if not KEY:
@@ -122,7 +129,7 @@ def main():
     for col, folder in cols.items():
         files = api(f"/api/tenant-knowledge-base/collections/{col}/files")
         if files is None:
-            drift.append((col, "-", "could not read the collection"))
+            drift.append((col, "-", "could not read the collection", ""))
             continue
         remote = {f["fileName"]: f for f in files}
 
@@ -138,15 +145,18 @@ def main():
         for name, p in sorted(expected.items()):
             r = remote.get(name)
             if r is None:
-                drift.append((col, name, "MISSING from Foundry — in the repo, never uploaded"))
+                drift.append((col, name, "MISSING from Foundry — in the repo, never uploaded",
+                              str(p.relative_to(REPO))))
                 continue
             loc = p.stat().st_size
             if loc != r.get("fileSize"):
                 drift.append((col, name,
-                              f"SIZE differs — Foundry {r.get('fileSize')}, repo {loc}"))
+                              f"SIZE differs — Foundry {r.get('fileSize')}, repo {loc}",
+                              str(p.relative_to(REPO))))
             elif not a.fast:
                 if download(col, r["id"]) != p.read_bytes():
-                    drift.append((col, name, "CONTENT differs despite equal size"))
+                    drift.append((col, name, "CONTENT differs despite equal size",
+                                  str(p.relative_to(REPO))))
             if r.get("ingestionStatus") not in ("ingested", None):
                 # NOT drift. The repo and Foundry hold the same bytes; Bedrock is still
                 # indexing. Reporting it as drift right after a correct upload is how a check
@@ -158,7 +168,7 @@ def main():
 
         for name in sorted(set(remote) - set(expected)):
             drift.append((col, name, "EXTRA in Foundry — not in the repo. Left over from a "
-                                     "rename, or edited in the UI"))
+                                     "rename, or edited in the UI", ""))
 
     # The team router. Not a collection file — the only copy of this lives in Foundry, so a
     # repo mirror that has silently diverged is worth knowing about.
@@ -173,7 +183,7 @@ def main():
         # ignore the one line that would report real router drift.
         live = t.get("system_prompt") or ""
         if not live:
-            drift.append(("team", "routing prompt", "could not read the live prompt"))
+            drift.append(("team", "routing prompt", "could not read the live prompt", ""))
         else:
             def norm(s):
                 return " ".join(s.split())
@@ -182,7 +192,29 @@ def main():
                               "live prompt is not contained in team-config/"
                               "team-routing-prompt.md — mirror may be stale. Note Foundry "
                               "HTML-escapes '>' and strips <tag>-shaped text, so compare "
-                              "content, not length"))
+                              "content, not length", ""))
+
+    if a.json:
+        def kind(col, why):
+            if col == "team":
+                return "router"
+            if why.startswith(("MISSING", "SIZE", "CONTENT")):
+                return "push"
+            if why.startswith("EXTRA"):
+                return "extra"
+            return "error"
+        items = [{"collection": c, "file": n, "why": w, "path": rel, "kind": kind(c, w)}
+                 for c, n, w, rel in drift]
+        print(json.dumps({
+            "in_sync": not drift,
+            "mode": "fast" if a.fast else "bytes",
+            "collections_checked": sorted(cols),
+            "drift": items,
+            # De-duplicated: a shared file drifting in four collections is ONE upload.
+            "pushable": sorted({i["path"] for i in items if i["kind"] == "push" and i["path"]}),
+            "pending": [{"collection": c, "file": n, "why": w} for c, n, w in pending],
+        }, indent=2))
+        return 0 if not drift else 1
 
     if pending:
         print(f"{len(pending)} file(s) still indexing (NOT drift — same content as the repo):")
@@ -198,7 +230,7 @@ def main():
         return 0
 
     print(f"{len(drift)} drift item(s):\n")
-    for col, name, why in drift:
+    for col, name, why, _ in drift:
         print(f"  {col:<20} {name}")
         print(f"  {'':<20}   {why}")
     print("\nBefore fixing: run scripts/preflight_upload.py on anything you intend to upload.\n"

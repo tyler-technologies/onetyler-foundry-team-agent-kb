@@ -1,7 +1,7 @@
 {
   "decided": {},
   "domain": "AlignedReleases",
-  "note": "Shared state, committed on purpose. `pushed` is every key ever sent to the Coda review table; `decided` is what happened to it. The review table holds only outstanding items, so it cannot itself remember that something was already handled \u2014 without this file the next harvest re-proposes everything already dealt with. Backfilled 2026-09-08 for the first batch, which was pushed before this file existed.",
+  "note": "Shared state, committed on purpose. `pushed` is every key ever sent to the Coda review table; `decided` is what happened to it. The review table holds only outstanding items, so it cannot itself remember that something was already handled \u2014 without this file the next harvest re-proposes everything already dealt with. `table_id` records which table `pushed` refers to, so rebuilding the table is not mistaken for the reviewer having deleted every row.",
   "pushed": {
     "ar-1778527071007": "2026-09-08",
     "ar-1778528049431": "2026-09-08",
@@ -23,7 +23,8 @@
     "ar-1788197610841": "2026-09-08",
     "ar-1788207180688": "2026-09-08",
     "ar-1788453404812": "2026-09-08",
-    "ar-1788453856641": "2026-09-08"
+    "ar-1788453856641": "2026-09-08",
+    "ar-1790111285158": "2026-09-23"
   },
   "table_id": "grid-4mdZMRDPAE"
 }

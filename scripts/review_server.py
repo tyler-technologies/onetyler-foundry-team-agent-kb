@@ -40,6 +40,7 @@ BASE = os.environ.get("FKB_BASE_PATH", "").rstrip("/")
 # a visible control that could only ever 403. A single source here cannot drift that way.
 WRITE_ROUTES = frozenset({
     "/save", "/publish", "/sync", "/csvimport", "/bulk", "/evalapprove", "/bk", "/pr", "/git",
+    "/pushagent",
 })
 
 # Off by default - an unset/unconfigured environment (the laptop case) is unaffected. Any
@@ -75,6 +76,124 @@ SESSION_TTL = 8 * 3600
 _sessions = {}       # sid -> {"login": <github username>, "email": ..., "name": ..., "exp": ...}
 _login_flight = {}   # oauth `state` -> {"verifier", "nonce", "ts", "next"}
 _oidc_cache = {}      # login env -> discovery doc
+
+
+# --- The sync log, behind the Push to Agent page ------------------------------------------
+#
+# WHY A LOG HAS TO EXIST AT ALL. Before this, nothing anywhere recorded that a push happened.
+# `main` moving and the live agents changing are two separate events, and the only evidence
+# the second one occurred was the transient panel output of whoever clicked the button. That is
+# exactly the confusion this page exists to end (operator, 2026-09-23: "I am completely
+# confused as to when the main branch is pushed into the Foundry team agent"), and a page that
+# cannot say WHEN the last push happened would not end it.
+#
+# ⚠ IT CANNOT LIVE IN THE REPO. `main` is protected (hard rule 4) so this process cannot commit
+# one, and the hosted checkout is rsynced with --delete on every deploy, so a file written
+# beside the code is erased by the next one. It is host state, like FKB_IDENTITY_MAP.
+#
+# ⚠ HOSTED DURABILITY NEEDS A WRITABLE MOUNT. fkb-recreate currently mounts only
+# /opt/foundry-kb/config as :ro. Until FKB_PUSH_LOG points at a writable volume, a hosted log
+# survives until the container is recreated and no longer. The page says so rather than
+# implying the history is complete.
+#
+# JSON LINES, not a JSON document: appending one line cannot corrupt the entries already
+# written, which a rewritten array can if the process dies mid-write.
+PUSH_LOG = Path(os.environ.get(
+    "FKB_PUSH_LOG", str(Path.home() / ".foundry-kb" / "push-log.jsonl")))
+
+
+# One append must stay ATOMIC. The server is a ThreadingHTTPServer, so two pushes can append
+# concurrently; on Linux an O_APPEND write (which Python's "a" mode uses) is atomic only while
+# it is under PIPE_BUF, 4096 bytes. Over that, two writes can interleave - and the reader below
+# skips malformed lines, so the result would be two entries silently becoming none. The output
+# field is the only part that can realistically get large, so it is trimmed first, then the file
+# list, until the serialised line fits. Budget, not 4096, so the newline and any future field
+# have room.
+PUSH_LOG_MAX = 3500
+
+
+def _push_log_line(entry):
+    """Serialise one entry, trimming it until the line is small enough to append atomically."""
+    def line():
+        return json.dumps(entry, ensure_ascii=False)
+    if len(line().encode()) <= PUSH_LOG_MAX:
+        return line()
+    out = str(entry.get("output") or "")
+    if out:
+        # Keep the TAIL: publish_to_foundry.py puts the verdict and any error at the end.
+        for keep in (1600, 800, 300, 0):
+            entry["output"] = ("[trimmed]\n" + out[-keep:]) if keep else "[trimmed]"
+            if len(line().encode()) <= PUSH_LOG_MAX:
+                return line()
+    files = entry.get("files") or []
+    if len(files) > 3:
+        entry["files"] = list(files[:3])
+        entry["files_omitted"] = len(files) - 3
+        if len(line().encode()) <= PUSH_LOG_MAX:
+            return line()
+    # Last resort: a short, well-formed line beats a long one that can interleave.
+    return json.dumps({k: entry.get(k) for k in ("at", "by", "kind", "trigger", "ok")},
+                      ensure_ascii=False)
+
+
+def push_log_writable():
+    """(ok, reason). Probed WITHOUT creating anything.
+
+    A page that renders an empty history when the log simply cannot be written is
+    indistinguishable from one where nothing has happened - the exact silent failure this app
+    keeps having to warn about. So the page asks, and says. Deliberately does not create the
+    file: doing so as a side effect of a page load would make "History starts now" untrue.
+    """
+    d = PUSH_LOG.parent
+    if PUSH_LOG.exists():
+        return ((True, "") if os.access(PUSH_LOG, os.W_OK)
+                else (False, f"{PUSH_LOG} exists but is not writable by this process"))
+    if d.is_dir():
+        return ((True, "") if os.access(d, os.W_OK)
+                else (False, f"{d} is not writable by this process"))
+    # The parent is missing; the first append would have to create it. Walk up to the nearest
+    # directory that exists and ask whether we could.
+    probe = d
+    while not probe.is_dir() and probe != probe.parent:
+        probe = probe.parent
+    if os.access(probe, os.W_OK):
+        return True, ""
+    return False, f"{d} does not exist and {probe} is not writable by this process"
+
+
+def push_log_append(**entry):
+    """Record one sync attempt. Best-effort: a log failure must never fail the push.
+
+    Failures are recorded too, and deliberately so - "we tried at 14:02 and Foundry refused"
+    is the single most useful line in the file when an agent is answering from old text.
+    """
+    entry.setdefault("at", datetime.now().astimezone().isoformat(timespec="seconds"))
+    entry.setdefault("by", current_login() or "unidentified")
+    try:
+        PUSH_LOG.parent.mkdir(parents=True, exist_ok=True)
+        with PUSH_LOG.open("a", encoding="utf-8") as fh:
+            fh.write(_push_log_line(entry) + "\n")
+    except Exception:                                                     # noqa: BLE001
+        pass
+
+
+def push_log_read(limit=100):
+    """Newest first. A malformed line is skipped, not fatal - see push_log_append."""
+    if not PUSH_LOG.is_file():
+        return []
+    out = []
+    try:
+        for line in PUSH_LOG.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                out.append(json.loads(line))
+            except Exception:                                             # noqa: BLE001
+                continue
+    except Exception:                                                     # noqa: BLE001
+        return []
+    return list(reversed(out))[:limit]
 
 
 def _identity_map():
@@ -3298,6 +3417,23 @@ function stage(name,state){const el=document.querySelector('#prog li[data-stage=
  if(!el||el.classList.contains('none'))return;
  el.classList.remove('wait','run','done','fail','you'); el.classList.add(state);}
 // No `branch` field any more — the branch is chosen server-side per sitting and never shown.
+// ---- Push to Agent -----------------------------------------------------------------------
+// Output is shown in the page and NOT followed by a reload: the publish output is the whole
+// point of having clicked, and a reload would throw it away. Every push is also written to the
+// sync history, so nothing here is the only copy.
+async function pushDo(btn,action){
+ const out=document.getElementById('pushout');
+ if(out){out.hidden=false; out.textContent=action==='push'
+   ? 'Uploading, then waiting for the ingestion sync. This can take a couple of minutes.'
+   : 'Byte-comparing every collection against the repo. About 17 seconds.'}
+ const all=document.querySelectorAll('#pushout,.tblcard button');
+ document.querySelectorAll('.tblcard button').forEach(b=>b.disabled=true);
+ let r;
+ try{r=await post('/pushagent',{action})}
+ catch(e){r={ok:false,output:'The request failed: '+e}}
+ document.querySelectorAll('.tblcard button').forEach(b=>b.disabled=false);
+ if(out){out.textContent=(r.ok?'':'FAILED\n\n')+(r.output||'(no output)')}
+}
 async function gitDo(action,extra){const msg=(document.getElementById('cmsg')||{}).value||'';
 // Reaching the send is the reviewer having read the answers, which is the only thing that
 // completes the eval step. Ticked here rather than in runEval for that reason.
@@ -4046,6 +4182,13 @@ def page(title, inner, active="", all_view=False, rel="", agent=""):
         # Admins only, same rule as All Transcripts: a contributor cannot merge, so the item
         # would be a link to a page of buttons that all refuse.
         + (item("/prs", icon("source_pull", 19, "ic-prs"), "PRs", open_pr_count or None, "prs")
+           if is_admin() else "")
+        # DIRECTLY BELOW PRs, and admin-only, at the operator's request (2026-09-23). It sits
+        # here because it is the step AFTER a merge: PRs is where Approve & Merge publishes as a
+        # side effect, and this is where you go when that did not happen or was not the route.
+        # No count badge: the honest number is "how many files main has that the agents do not",
+        # and computing it needs a Foundry round-trip per nav render on every page in the app.
+        + (item("/pushagent", icon("refresh", 19, "ic-prs"), "Push to Agent", None, "pushagent")
            if is_admin() else "")
         # MONITOR AFTER SAVE & PUBLISH. It used to sit above, matching where Foundry's own
         # sidebar puts Analytics - but this app is not Foundry: the daily path here is review,
@@ -6629,6 +6772,11 @@ def publish_after_merge(files):
         cwd=REPO, capture_output=True, text=True, timeout=900)
     out = ((r.stdout or "") + (r.stderr or "")).strip()
     tail = "\n".join(out.splitlines()[-24:])
+    # Logged on BOTH paths. A history that only recorded successes would show a clean run of
+    # pushes over a period when the agents were in fact stale - the exact misreading the Push
+    # to Agent page exists to prevent.
+    push_log_append(kind="knowledge", trigger="merge", ok=(r.returncode == 0),
+                    files=list(files), output=tail)
     if r.returncode != 0:
         return False, ("Merged, but the Foundry upload FAILED. The repo is ahead of the live "
                        "agents until this is fixed:\n\n" + tail)
@@ -6772,6 +6920,20 @@ def router_backup_in_pr(num, live):
 
 
 def publish_router_after_merge(num):
+    """Log-wrapping shim around the real implementation.
+
+    WRAPPED RATHER THAN PATCHED AT EACH `return`: the implementation below has fourteen exit
+    points, one per guardrail, and every one of them is a fact the sync history wants. Adding a
+    log call to each is fourteen chances to miss one - and the one that got missed would be a
+    refusal, i.e. precisely the case where the history matters most.
+    """
+    ok, msg = _publish_router_after_merge(num)
+    push_log_append(kind="router", trigger="merge", ok=ok, pr=num,
+                    files=[ROUTER_MIRROR], output=msg)
+    return ok, msg
+
+
+def _publish_router_after_merge(num):
     """Write the merged routing prompt to the live team object. Returns (ok, message).
 
     Only called when the request actually touched ROUTER_MIRROR. Every refusal below leaves
@@ -8453,6 +8615,280 @@ def bk_agent_view(slug, date):
         "in a field is not the same as behaviour being restored.</div>"
         "<pre class=out id=bkout style='display:none'></pre>")
     return page("Backups", "<div class=lg>" + "".join(body) + "</div>", active="backups")
+
+
+# =============================================================================================
+# Push to Agent
+#
+# WHAT THIS PAGE IS FOR. Merging and publishing are two separate events, and until this page
+# existed nothing in the app said so. Publishing happens inside Approve & Merge and nowhere
+# else: a PR approved and merged on github.com moves `main` and changes nothing the agents
+# answer from. That is not a bug, but it is invisible, and it produced exactly the wrong mental
+# model (operator, 2026-09-23: "I was under the assumption that it happens after every Approval
+# of a PR, but that doesn't appear to be the case?").
+#
+# So the page does three things and refuses to imply a fourth:
+#   1. states the rule in the page, where the confusion happens
+#   2. shows what `main` has that the live agents do not, RIGHT NOW
+#   3. lets an admin push it on demand, and records every push in a history
+#
+# ⚠ MAIN IS THE REFERENCE, NOT THE WORKING TREE. check_foundry_drift.py compares the CHECKOUT
+# against Foundry, which on a laptop mid-review includes uncommitted edits. Offering to push
+# those would be offering a button that preflight_upload.py then refuses (hard rule 5), so
+# every drifted file is split into `ready` (bytes identical to origin/main) and `blocked`
+# (differs from origin/main - merge it first). The blocked ones are shown, with the reason,
+# rather than hidden: a file that differs from BOTH main and Foundry is the single most
+# confusing state and is worth naming.
+# =============================================================================================
+
+def _matches_origin_main(rel):
+    """Are this file's bytes exactly what is on origin/main?
+
+    The same test preflight_upload.py applies, deliberately duplicated in the one direction
+    that matters here: this page must not offer a push that preflight will refuse. Raw bytes,
+    not git(), whose combined stdout+stderr would fold a git warning into the content.
+    """
+    r = subprocess.run(["git", "show", f"origin/main:{rel}"],
+                       cwd=REPO, capture_output=True, timeout=30)
+    if r.returncode != 0:
+        return False
+    try:
+        return (REPO / rel).read_bytes() == r.stdout
+    except OSError:
+        return False
+
+
+def agent_sync_state(deep=False):
+    """What the live agents are missing, as structured data. Never raises.
+
+    `deep=False` compares file sizes only (a few seconds, no downloads) and is what a page load
+    uses. `deep=True` byte-compares, which is the real test - an equal-length edit is invisible
+    to sizes, and that has happened in production - but costs ~17s for 43 files.
+    """
+    if not os.environ.get("FOUNDRY_API_KEY"):
+        return {"err": ("FOUNDRY_API_KEY is not set in the environment this server was started "
+                        "from, so Foundry cannot be read. Nothing here is a statement about the "
+                        "live agents until it is."), "items": [], "ready": [], "blocked": [],
+                "pending": [], "mode": "none"}
+    cmd = [sys.executable, str(REPO / "scripts" / "check_foundry_drift.py"), "--json"]
+    if not deep:
+        cmd.append("--fast")
+    try:
+        r = subprocess.run(cmd, cwd=REPO, capture_output=True, text=True, timeout=600)
+        d = json.loads(r.stdout or "{}")
+    except Exception as e:                                                # noqa: BLE001
+        return {"err": f"could not read Foundry: {type(e).__name__}: {e}",
+                "items": [], "ready": [], "blocked": [], "pending": [], "mode": "none"}
+    # THE PUSH LIST COMES FROM drifted_files(), NOT from the drift script's `pushable`.
+    #
+    # Two publish paths that compute "what is behind" differently will eventually disagree, and
+    # the one nobody watched would be the wrong one. autopublish_drift() - the periodic sync -
+    # already acts on drifted_files(), so this page acts on it too and the two cannot diverge.
+    # It also carries a safeguard earned the hard way: what ships from Knowledge-Shared comes
+    # from sources.json upload_targets, because Foundry keys files by BASENAME and a
+    # folder-based scan would offer Knowledge-Shared/_START_HERE.md as drift against five
+    # agents' own routing guides.
+    #
+    # The drift script is still what fills the TABLE, because it reports things an upload cannot
+    # fix - files EXTRA in Foundry, router drift, and files still indexing - which a push list
+    # by definition does not contain.
+    try:
+        push_candidates = drifted_files()
+    except Exception:                                                     # noqa: BLE001
+        push_candidates = [i["path"] for i in d.get("drift", [])
+                           if i.get("kind") == "push" and i.get("path")]
+    ready, blocked = [], []
+    for rel in sorted(set(push_candidates)):
+        (ready if _matches_origin_main(rel) else blocked).append(rel)
+    return {"err": "", "mode": d.get("mode", "fast"), "in_sync": bool(d.get("in_sync")),
+            "items": d.get("drift", []), "pending": d.get("pending", []),
+            "ready": ready, "blocked": blocked}
+
+
+def push_to_agent(paths):
+    """Upload specific files to Foundry and log it. Returns (ok, output).
+
+    Runs publish_to_foundry.py, exactly as Approve & Merge does, so the merged-first refusal,
+    the one-consolidated-sync behaviour and the verify-by-retrieval all come along unchanged.
+    Reimplementing the upload here would create a second path to production with its own bugs.
+    """
+    if not paths:
+        return True, "Nothing to push - every file main has is already live."
+    if not os.environ.get("FOUNDRY_API_KEY"):
+        return False, ("FOUNDRY_API_KEY is not set in this server's environment, so nothing was "
+                       "uploaded and the agents are unchanged.")
+    r = subprocess.run(
+        [sys.executable, str(REPO / "scripts" / "publish_to_foundry.py"),
+         "--files", *paths, "--yes", "--timeout-min", "12"],
+        cwd=REPO, capture_output=True, text=True, timeout=900)
+    out = ((r.stdout or "") + (r.stderr or "")).strip() or "(no output)"
+    push_log_append(kind="knowledge", trigger="manual", ok=(r.returncode == 0),
+                    files=list(paths), output="\n".join(out.splitlines()[-24:]))
+    return r.returncode == 0, out
+
+
+def push_agent_page(deep=False, ran=""):
+    """The Push to Agent page. Admins only, same rule as PRs and Backups."""
+    if not is_admin():
+        return page("Push to Agent",
+                    "<div class=lg><h2 class=sec>Push to Agent</h2>"
+                    "<div class='bar bnr-note'>This is admin-only. Pushing changes what every "
+                    "live agent tells users, and the history below carries collection and "
+                    "file identifiers &mdash; the same reasoning that keeps contributors off "
+                    "<b>PRs</b> and <b>Backups</b>.</div></div>",
+                    active="pushagent")
+
+    st = agent_sync_state(deep=deep)
+    hist = push_log_read(60)
+
+    # ---- the rule, stated where the confusion happens -------------------------------------
+    head = [
+        "<h2 class=sec>Push to Agent</h2>",
+        "<div class='bar bnr-note'>",
+        "<b>Approving a PR never publishes. Merging it, by itself, does not either.</b> A "
+        "knowledge file only reaches an agent when something uploads it, and <code>main</code> "
+        "moving is not that. There are four routes, and only the first is immediate:<ul>"
+        "<li><b>Approve &amp; Merge</b> on the <b>PRs</b> page &mdash; merges, then uploads the "
+        "knowledge files in that request, plus the routing prompt if the request touched it. "
+        "Immediate, and it reports the merge as failed if the upload does not land.</li>"
+        "<li><b>The Sync</b> &mdash; every 30 minutes and on tab focus, an <i>admin's</i> sync "
+        "also publishes anything <code>main</code> has that Foundry does not. This is what "
+        "eventually catches a merge done on github.com &mdash; but only while an admin has the "
+        "app open with a Foundry key, so <b>it is eventual, not guaranteed, and it is silent</b>. "
+        "If you merged on the website and nothing seemed to happen, this is why.</li>"
+        "<li><b>This page</b> &mdash; the same thing, on demand, with the result recorded "
+        "below.</li>"
+        "<li><code>publish_to_foundry.py</code> at a terminal &mdash; the fallback.</li></ul>"
+        "<b>No scheduled job and no GitHub Action uploads anything.</b> "
+        "<code>.github/workflows/validate.yml</code> runs on pull requests only and never "
+        "touches Foundry, so nothing publishes unless one of the four above runs.</div>",
+    ]
+
+    # ---- status ---------------------------------------------------------------------------
+    if st["err"]:
+        head.append(f"<div class='bar bnr-done'>{html.escape(st['err'])}</div>")
+    elif st.get("in_sync"):
+        head.append("<div class='bar bnr-ok'>In sync &mdash; every collection and the team "
+                    f"router match the repo ({html.escape(st['mode'])}-compared).</div>")
+    else:
+        head.append(
+            "<div class='bar bnr-sug'><b>%d file(s) ready to push</b>, %d blocked, %d other "
+            "drift item(s). Compared by <b>%s</b>.</div>"
+            % (len(st["ready"]), len(st["blocked"]),
+               len([i for i in st["items"] if i.get("kind") != "push"]),
+               html.escape("byte content" if st["mode"] == "bytes" else "file size only")))
+
+    # ---- actions --------------------------------------------------------------------------
+    n_ready = len(st["ready"])
+    acts = ["<div class=tblcard style='padding:12px'>",
+            f"<button type=button class=sec onclick=\"pushDo(this,'check')\">"
+            f"{icon('refresh', 16)} Re-check by byte content</button> "]
+    if n_ready:
+        detail = html.escape("Uploads %d file(s) to the live collections and triggers one "
+                             "ingestion sync. Every agent starts answering from the new text. "
+                             "Only files identical to origin/main are included." % n_ready)
+        acts.append(
+            f"<button type=button class=danger onclick=\"confirmThen(this,'Push {n_ready} "
+            f"file(s) to the live agents?','{detail}',()=>pushDo(this,'push'))\">"
+            f"{icon('publish', 16)} Push {n_ready} ready file(s)</button>")
+    else:
+        acts.append("<span class=sub>Nothing is ready to push.</span>")
+    acts.append("</div>")
+    if ran:
+        acts.append(f"<pre class=out id=pushout>{html.escape(ran)}</pre>")
+    else:
+        acts.append("<pre class=out id=pushout hidden></pre>")
+
+    # ---- what is out of sync --------------------------------------------------------------
+    rows = []
+    if st["ready"] or st["blocked"] or st["items"]:
+        rows.append("<h3 class=sec>What is out of sync</h3><div class=tblcard><table>"
+                    "<tr><th>State</th><th>Collection</th><th>File</th><th>Why</th></tr>")
+        ready_set, blocked_set = set(st["ready"]), set(st["blocked"])
+        for i in st["items"]:
+            rel, kind = i.get("path", ""), i.get("kind")
+            if kind == "push" and rel in ready_set:
+                state, tone = "ready", "bnr-ok"
+            elif kind == "push" and rel in blocked_set:
+                state, tone = "merge first", "bnr-sug"
+            elif kind == "router":
+                state, tone = "router", "bnr-router"
+            else:
+                state, tone = kind or "?", "bnr-note"
+            why = i.get("why", "")
+            if state == "merge first":
+                why += (" \u2014 and it differs from origin/main, so it is NOT approved content. "
+                        "Merge it before it can be pushed.")
+            rows.append(
+                f"<tr><td><span class='bar {tone}' style='padding:2px 8px'>"
+                f"{html.escape(state)}</span></td>"
+                f"<td>{html.escape(i.get('collection',''))}</td>"
+                f"<td>{html.escape(i.get('file',''))}</td>"
+                f"<td class=sub>{html.escape(why)}</td></tr>")
+        rows.append("</table></div>")
+    for pd in st["pending"]:
+        rows.append(f"<div class='bar bnr-note'>{html.escape(pd.get('collection',''))} / "
+                    f"{html.escape(pd.get('file',''))} &mdash; still indexing, not drift.</div>")
+
+    # ---- the one thing this page deliberately will NOT do ---------------------------------
+    rows.append(
+        "<div class='bar bnr-router'><b>The team routing prompt is reported here but cannot be "
+        "pushed from here.</b> Its guardrail chain requires a backup committed <i>in the request "
+        "that changes it</i>, and <code>main</code> is protected so this process cannot commit "
+        "one. It is also the highest-blast-radius object in the system &mdash; a bad prompt "
+        "misroutes every conversation &mdash; so the route stays a PR carrying its own backup, "
+        "merged with <b>Approve &amp; Merge</b>. A weaker path for this one object would defeat "
+        "the chain.</div>")
+
+    # ---- history --------------------------------------------------------------------------
+    h = ["<h3 class=sec>Sync history</h3>"]
+    wok, wwhy = push_log_writable()
+    if not wok:
+        h.append(
+            "<div class='bar bnr-done'><b>The sync history cannot be written, so nothing below "
+            "is being recorded.</b><br>" + html.escape(wwhy) + "<br>Pushing still works &mdash; "
+            "logging is deliberately best-effort so it can never fail an upload &mdash; but an "
+            "empty history here means <b>\u201ccannot write\u201d</b>, not "
+            "\u201cnothing happened\u201d. Hosted, point <code>FKB_PUSH_LOG</code> at a "
+            "writable volume: <code>/opt/foundry-kb/state</code> must exist and be owned by "
+            "<b>uid 10001</b> (<code>foundrykb</code>), which is what <code>fkb-recreate</code> "
+            "now creates.</div>")
+    if wok and not PUSH_LOG.is_file():
+        h.append("<div class='bar bnr-note'><b>History starts now.</b> Nothing recorded pushes "
+                 "before this page existed, and it is not reconstructable &mdash; a merge commit "
+                 "does not prove an upload followed. For evidence of earlier pushes, the "
+                 "<b>Backups</b> page and the config-backup repo carry timestamped snapshots."
+                 "</div>")
+    if hist:
+        h.append("<div class=tblcard><table><tr><th>When</th><th>By</th><th>What</th>"
+                 "<th>Trigger</th><th>Result</th><th>Files</th></tr>")
+        for e in hist:
+            ok = e.get("ok")
+            badge = ("<span class='bar bnr-ok' style='padding:2px 8px'>ok</span>" if ok
+                     else "<span class='bar bnr-done' style='padding:2px 8px'>failed</span>")
+            files = e.get("files") or []
+            names = ", ".join(html.escape(Path(f).name) for f in files[:4])
+            if len(files) > 4:
+                names += f" +{len(files)-4} more"
+            h.append(f"<tr><td class=sub>{html.escape(str(e.get('at','')))}</td>"
+                     f"<td>{html.escape(str(e.get('by','')))}</td>"
+                     f"<td>{html.escape(str(e.get('kind','')))}</td>"
+                     f"<td>{html.escape(str(e.get('trigger','')))}</td>"
+                     f"<td>{badge}</td><td class=sub>{names}</td></tr>")
+            out = str(e.get("output") or "").strip()
+            if out:
+                h.append("<tr><td></td><td colspan=5><details><summary class=sub>output"
+                         f"</summary><pre class=out>{html.escape(out)}</pre></details></td></tr>")
+        h.append("</table></div>")
+    elif PUSH_LOG.is_file():
+        h.append("<div class='bar bnr-note'>No syncs recorded yet.</div>")
+    h.append(f"<p class=sub>Log file: <code>{html.escape(str(PUSH_LOG))}</code>. "
+             "Hosted, this needs <code>FKB_PUSH_LOG</code> pointed at a writable volume or the "
+             "history is lost the next time the container is recreated.</p>")
+
+    return page("Push to Agent",
+                "<div class=lg>" + "".join(head + acts + rows + h) + "</div>",
+                active="pushagent")
 
 
 def backups_page(force=False, browse="", compare="", agent="", date=""):
@@ -10529,6 +10965,10 @@ class H(BaseHTTPRequestHandler):
             # No admin gate: it is read-only usage data about the team's own agent, with no
             # verdicts and no permissions attached.
             return self._send(200, analytics_page(force="refresh=1" in self.path))
+        if self.path == "/pushagent" or self.path.startswith("/pushagent?"):
+            # `deep=1` byte-compares, which costs ~17s - so it is opt-in per request rather
+            # than what an ordinary page load does.
+            return self._send(200, push_agent_page(deep="deep=1" in self.path))
         if self.path == "/backups" or self.path.startswith("/backups?"):
             # `unquote` is what this file already imports; parse_qs would need a second import
             # for one parameter. The gate on `browse` is in backups_page(), not here, so there
@@ -10902,6 +11342,60 @@ class H(BaseHTTPRequestHandler):
             except Exception as e:                                        # noqa: BLE001
                 return self._send(200, json.dumps({"ok": False, "error": str(e)}),
                                   "application/json")
+        if self.path == "/pushagent":
+            # Gated here as well as in the page. A page-level check protects the button; this
+            # protects the endpoint, which is what an attacker or a stale tab actually hits.
+            if not is_admin():
+                return self._send(200, json.dumps(
+                    {"ok": False, "output": "Pushing to the agents is an admin action."}),
+                    "application/json")
+            act = (data.get("action") or "").strip()
+            # BRING THE CHECKOUT UP TO origin/main FIRST. Both actions compare the working tree,
+            # and nothing else here fetches: a merge done on github.com (auto-merge, the web
+            # button) moves the remote only, so without this the page byte-compares a stale
+            # tree and reports "in sync" while main has content the agents lack - the opposite
+            # of "push the latest main". pull_main() is fast-forward only and never forces over
+            # local work; a refusal is shown above the result, not hidden.
+            pulled = ""
+            if act in ("check", "push"):
+                _pok, _pmsg = pull_main()
+                pulled = (_pmsg + "\n\n") if _pmsg else ""
+            try:
+                if act == "check":
+                    st = agent_sync_state(deep=True)
+                    if st["err"]:
+                        ok, out = False, st["err"]
+                    elif st.get("in_sync"):
+                        ok, out = True, ("In sync - every collection and the team router match "
+                                         "the repo, byte-compared.")
+                    else:
+                        lines = ["Byte-compared. %d ready to push, %d blocked."
+                                 % (len(st["ready"]), len(st["blocked"]))]
+                        lines += ["  ready    " + r for r in st["ready"]]
+                        lines += ["  blocked  " + b + "  (differs from origin/main - merge first)"
+                                  for b in st["blocked"]]
+                        lines += ["  %-6s   %s / %s" % (i.get("kind"), i.get("collection"),
+                                                        i.get("file"))
+                                  for i in st["items"] if i.get("kind") != "push"]
+                        ok, out = True, "\n".join(lines)
+                elif act == "push":
+                    # Recomputed server-side, byte-compared. NEVER trust a file list from the
+                    # client: the page may have been open for an hour, and the merged-first
+                    # rule has to hold against the repo as it is NOW, not as it was rendered.
+                    st = agent_sync_state(deep=True)
+                    if st["err"]:
+                        ok, out = False, st["err"]
+                    else:
+                        ok, out = push_to_agent(st["ready"])
+                        if st["blocked"]:
+                            out += ("\n\nNOT pushed (differs from origin/main, so not approved "
+                                    "content):\n  " + "\n  ".join(st["blocked"]))
+                else:
+                    ok, out = False, "unknown action"
+            except Exception as e:                                    # noqa: BLE001
+                ok, out = False, f"{type(e).__name__}: {e}"
+            return self._send(200, json.dumps({"ok": ok, "output": pulled + out}),
+                              "application/json")
         if self.path == "/bk":
             # THE ONLY WRITE-TO-PRODUCTION ENDPOINT IN THIS APP. Admin-gated here as well as in
             # the page, because a page-level check protects the button and not the endpoint.

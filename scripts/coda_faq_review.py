@@ -88,9 +88,13 @@ DATE_COLUMN = "Date"
 # but a reviewer does not act on — type, confidence, promote_when, conflicts_with — rides in
 # the candidates JSON and is written into the entry at indexing time. Earlier versions had a
 # column per FAQ field; it just made the thing a human has to read harder to read.
+# Order matches the Coda table: the reviewer's two actions (edit Answer, tick the box) are
+# adjacent, with Notes ahead of both so the CONFLICTS WITH / PROVISIONAL prefixes are read
+# first. Order here is documentary - every column is addressed by NAME (useColumnNames=true),
+# so reordering in Coda is safe and renaming is what breaks writes.
 COLUMNS = [
-    DATE_COLUMN, "Key", "Question", "Answer",
-    "Source", "Source link", NOTES_COLUMN, READY_COLUMN,
+    "Question", NOTES_COLUMN, "Answer", READY_COLUMN,
+    "Source", "Source link", "Conflicts with", DATE_COLUMN, "Key",
 ]
 # Fields the harvester maps straight across. NOTES_COLUMN and DATE_COLUMN are built in push().
 CANDIDATE_FIELDS = {
@@ -99,6 +103,10 @@ CANDIDATE_FIELDS = {
     "Answer": "answer",
     "Source": "source",
     "Source link": "source_link",
+    # Kept as a column by operator decision, 2026-09-23, rather than folded into Notes. It is
+    # therefore WRITTEN here and no longer prefixed onto Notes - two cells saying the same
+    # thing is worse than either one alone.
+    "Conflicts with": "conflicts_with",
 }
 
 # Two things that lost their own column but must still reach the reviewer, so they are
@@ -106,14 +114,17 @@ CANDIDATE_FIELDS = {
 #   - an unconfirmed claim must not be published as fact (FAQ policy), and
 #   - a candidate that contradicts a live entry must never be applied silently.
 PROVISIONAL_PREFIX = "PROVISIONAL — confirm before publishing. "
-CONFLICT_PREFIX = "CONFLICTS WITH the live entry \u201c%s\u201d. "
 
 
 def build_notes(cand):
-    """Assemble the Notes cell: conflict pointer, provisional warning, then the note itself."""
+    """Assemble the Notes cell: provisional warning, then the note itself.
+
+    The conflict pointer is NOT prefixed here any more: `Conflicts with` survived as its own
+    column (operator, 2026-09-23) and is written from CANDIDATE_FIELDS, so prefixing it would
+    show a reviewer the same sentence twice. PROVISIONAL stays, because `Confidence` did NOT
+    survive as a column and that prefix is the only place the warning can reach a reviewer.
+    """
     parts = []
-    if cand.get("conflicts_with"):
-        parts.append(CONFLICT_PREFIX % cand["conflicts_with"])
     if str(cand.get("confidence", "")).lower().startswith("provisional"):
         parts.append(PROVISIONAL_PREFIX)
     note = str(cand.get("review_note", "") or "")
@@ -278,7 +289,7 @@ def cmd_push(args):
               % (len(removed), ", ".join(removed)))
     ledger = load_ledger(args.domain)
 
-    rows, skipped_present, skipped_decided = [], [], []
+    rows, skipped_present, skipped_decided, previews = [], [], [], []
     for cand in batch["candidates"]:
         key = cand["key"]
         if key in seen:
@@ -293,6 +304,10 @@ def cmd_push(args):
         cells.append({"column": READY_COLUMN, "value": False})
         cells.append({"column": DATE_COLUMN, "value": batch.get("harvested", "")})
         rows.append({"cells": cells})
+        # `type` is deliberately NOT a column (TABLE-SPEC.md), so the dry-run preview has to
+        # read it from the candidate. It used to read cells["Type"], which stopped existing
+        # when the table was rebuilt for the 8-column layout and made --dry-run raise KeyError.
+        previews.append((key, str(cand.get("type", "") or "-"), cand["question"]))
 
     for label, items in (("already in the table", skipped_present),
                          ("already decided (in the ledger)", skipped_decided)):
@@ -304,10 +319,8 @@ def cmd_push(args):
         return 0
     if args.dry_run:
         print("Would push %d candidates:" % len(rows))
-        for row in rows:
-            cells = {c["column"]: c["value"] for c in row["cells"]}
-            print("  %-22s [%-11s] %s"
-                  % (cells["Key"], cells["Type"], cells["Question"][:64]))
+        for key, ctype, question in previews:
+            print("  %-22s [%-11s] %s" % (key, ctype, question[:64]))
         return 0
 
     resp = request("POST", "/docs/%s/tables/%s/rows" % (DOC_ID, table["id"]),
